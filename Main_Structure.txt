@@ -1,0 +1,591 @@
+# Complete App Development Prompt for Vibe Coding Platform
+
+## Project Overview
+Build a comprehensive nutrition tracking mobile application that combines the best architectural decisions, modern tech stack, and rich feature set from both analyzed projects. The app should be offline-first with cloud sync capabilities, featuring meal tracking, diet planning, workout logging, and AI-powered nutrition assistance.
+
+---
+
+## Core Architecture Decisions
+
+### 1. **Navigation & Routing**
+- **Use Expo Router (file-based routing)** for intuitive navigation structure
+- Implement deep linking for sharing meals, recipes, and diet plans
+- Create tab-based navigation for main sections: Home, Meals, Plans, Progress, Profile
+- Use modals for quick actions (add meal, log water, quick stats)
+
+### 2. **Data Layer Strategy (Hybrid Approach)**
+- **Primary: WatermelonDB** for offline-first local storage
+- **Secondary: Backend API** for cloud sync and cross-device data
+- **React Query** as the abstraction layer managing both sources
+- Implement automatic sync queue for offline changes
+- Use optimistic updates for immediate UI feedback
+
+### 3. **State Management**
+- **Zustand** for global app state (auth, user preferences, UI state)
+- **React Query** for server/database state (meals, foods, diets, workouts)
+- Keep component-level state in React hooks for UI-only concerns
+- Create separate stores for: Auth, UserPreferences, UIState, AppSettings
+
+### 4. **Styling System**
+- **TailwindCSS + NativeWind** for utility-first styling
+- Built-in dark mode support using `dark:` prefix
+- Create custom Tailwind configuration with brand colors, spacing scale, typography
+- Design tokens for consistency: colors, spacing, typography, shadows, radii
+- Minimal custom StyleSheet usage only when absolutely necessary
+
+---
+
+## Folder Structure
+
+```
+src/
+├── app/                          # Expo Router pages
+│   ├── (tabs)/                   # Tab navigation
+│   │   ├── index.tsx            # Home/Dashboard
+│   │   ├── meals.tsx            # Meals & Food Logging
+│   │   ├── plans.tsx            # Diet Plans & Meal Planning
+│   │   ├── progress.tsx         # Stats & Analytics
+│   │   └── profile.tsx          # User Profile & Settings
+│   ├── (auth)/                   # Authentication flows
+│   │   ├── login.tsx
+│   │   ├── register.tsx
+│   │   └── onboarding.tsx
+│   ├── (modals)/                 # Modal screens
+│   │   ├── add-meal.tsx
+│   │   ├── food-search.tsx
+│   │   ├── barcode-scanner.tsx
+│   │   └── ai-food-detect.tsx
+│   └── _layout.tsx              # Root layout
+│
+├── components/                   # Reusable UI components
+│   ├── ui/                       # Primitive components
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   ├── Input.tsx
+│   │   ├── Sheet.tsx
+│   │   └── ...
+│   ├── charts/                   # Data visualization
+│   │   ├── CalorieCircle.tsx
+│   │   ├── MacroBreakdown.tsx
+│   │   ├── ProgressChart.tsx
+│   │   └── WaterProgress.tsx
+│   ├── meal/                     # Meal-specific components
+│   │   ├── MealCard.tsx
+│   │   ├── FoodItem.tsx
+│   │   ├── MealTimeline.tsx
+│   │   └── NutritionLabel.tsx
+│   └── common/                   # Shared components
+│       ├── DatePickerSlider.tsx
+│       ├── LoadingSkeleton.tsx
+│       ├── EmptyState.tsx
+│       └── ErrorBoundary.tsx
+│
+├── database/                     # WatermelonDB setup
+│   ├── models/                   # Database models
+│   │   ├── User.ts
+│   │   ├── Meal.ts
+│   │   ├── Food.ts
+│   │   ├── Diet.ts
+│   │   ├── UserDiet.ts
+│   │   ├── Recipe.ts
+│   │   ├── WaterLog.ts
+│   │   ├── WeightLog.ts
+│   │   ├── WorkoutSession.ts
+│   │   └── WorkoutSet.ts
+│   ├── schema.ts                 # Database schema
+│   ├── migrations.ts             # Schema migrations
+│   └── index.ts                  # Database initialization
+│
+├── query/                        # React Query hooks
+│   ├── mutations/                # Data mutations
+│   │   ├── useMealMutations.ts
+│   │   ├── useDietMutations.ts
+│   │   └── useWorkoutMutations.ts
+│   ├── queries/                  # Data queries
+│   │   ├── useMeals.ts
+│   │   ├── useFoods.ts
+│   │   ├── useDiets.ts
+│   │   ├── useProgress.ts
+│   │   └── useWorkouts.ts
+│   └── queryClient.ts            # React Query configuration
+│
+├── services/                     # External services
+│   ├── api/                      # Backend API client
+│   │   ├── client.ts
+│   │   ├── auth.ts
+│   │   ├── meals.ts
+│   │   └── sync.ts
+│   ├── ai/                       # AI services
+│   │   ├── groq.ts              # AI meal generation
+│   │   ├── foodDetection.ts     # Image recognition
+│   │   └── recommendations.ts   # Personalized tips
+│   └── sync/                     # Sync engine
+│       ├── syncManager.ts
+│       ├── conflictResolver.ts
+│       └── queueManager.ts
+│
+├── store/                        # Zustand stores
+│   ├── authStore.ts              # Authentication state
+│   ├── userStore.ts              # User preferences
+│   ├── uiStore.ts                # UI state (modals, sheets)
+│   └── syncStore.ts              # Sync status & queue
+│
+├── hooks/                        # Custom React hooks
+│   ├── useDatabase.ts
+│   ├── useAuth.ts
+│   ├── useTheme.ts
+│   ├── useSync.ts
+│   ├── useDebounce.ts
+│   └── useCalorieCalculator.ts
+│
+├── utils/                        # Utility functions
+│   ├── calculations/             # Nutrition calculations
+│   │   ├── macros.ts
+│   │   ├── tdee.ts
+│   │   └── bmr.ts
+│   ├── formatters/               # Data formatters
+│   │   ├── date.ts
+│   │   ├── numbers.ts
+│   │   └── nutrition.ts
+│   ├── validators/               # Input validation
+│   │   ├── meal.ts
+│   │   └── diet.ts
+│   └── storage.ts                # MMKV storage wrapper
+│
+├── constants/                    # App constants
+│   ├── nutrition.ts              # RDAs, macro ratios
+│   ├── theme.ts                  # Theme tokens
+│   └── config.ts                 # App configuration
+│
+├── i18n/                         # Internationalization
+│   ├── locales/
+│   │   ├── en.json
+│   │   ├── ar.json
+│   │   └── es.json
+│   └── index.ts
+│
+└── types/                        # TypeScript definitions
+    ├── models.ts
+    ├── api.ts
+    └── navigation.ts
+```
+
+---
+
+## Feature Requirements
+
+### **1. Home/Dashboard**
+- Date picker slider for navigating historical data
+- Calorie circle chart showing daily intake vs goal
+- Macro breakdown with progress bars (carbs, protein, fat, fiber)
+- Meal breakdown by time (breakfast, lunch, dinner, snacks)
+- Water tracking overview with quick add buttons
+- Weight tracking with quick update widget
+- Activity/workout overview
+- Daily personalized tips and recommendations
+- Streak counter for consistent logging
+
+### **2. Meal & Food Logging**
+- Quick meal entry with time categorization
+- Food search with autocomplete
+- Barcode scanner for packaged foods
+- AI-powered food detection from photos
+- Manual nutrition entry
+- Recent foods for quick logging
+- Favorite foods list
+- Copy meals from previous days
+- Meal templates/recipes
+- Portion size adjustment (serving multiplier)
+- Nutrition label scanner (OCR)
+
+### **3. Diet Plans**
+- Pre-configured diet templates (keto, low-carb, Mediterranean, etc.)
+- Custom diet creation with macro targets
+- Diet activation/deactivation
+- Multiple diet support with switching
+- Macro goal calculation based on user stats (TDEE, activity level)
+- Meal suggestions based on active diet
+- Progress tracking against diet goals
+- Diet history and analytics
+
+### **4. Meal Planning**
+- AI meal generation using Groq API based on:
+  - Active diet restrictions
+  - Calorie budget
+  - Macro targets
+  - Food preferences/allergies
+  - Available ingredients
+- Weekly meal plan view (calendar)
+- Recipe library with nutrition info
+- Shopping list generation from meal plan
+- Meal prep mode (batch cooking)
+- Portion scaling for recipes
+
+### **5. Progress & Analytics**
+- Weight tracking with trend chart
+- Calorie intake trends (weekly, monthly)
+- Macro distribution over time
+- Nutrition adherence score
+- Meal logging consistency
+- Water intake trends
+- Workout frequency and volume
+- Progress photos timeline
+- Body measurements tracking
+- Export data to PDF/CSV
+
+### **6. Workout Logging**
+- Workout session creation
+- Exercise library (searchable)
+- Set tracking (weight, reps, duration)
+- Rest timer between sets
+- Workout templates
+- Calories burned estimation
+- Integration with meal calorie adjustments
+- Workout history and PRs (personal records)
+
+### **7. Water Tracking**
+- Quick add buttons (250ml, 500ml, custom)
+- Daily goal setting
+- Visual progress indicator
+- Hydration reminders
+- Log deletion/editing
+- Weekly hydration report
+
+### **8. User Profile & Settings**
+- Personal stats (age, height, current weight, goal weight)
+- Activity level selection
+- Goal type (lose, maintain, gain)
+- Dietary preferences and restrictions
+- Allergies management
+- Units preference (metric/imperial)
+- Dark/light theme toggle
+- Notification preferences
+- Data export/import
+- Account sync status
+- Privacy settings
+
+---
+
+## Technology Stack
+
+### **Core Framework**
+- React Native with Expo (SDK 52+)
+- TypeScript for type safety
+- Expo Router for navigation
+
+### **Data & State**
+- WatermelonDB for local database
+- @tanstack/react-query for data fetching/caching
+- Zustand for global state
+- react-native-mmkv for key-value storage
+
+### **UI & Styling**
+- TailwindCSS + NativeWind for styling
+- @shopify/flash-list for performant lists
+- react-native-reanimated for animations
+- react-native-skia for advanced graphics
+- expo-blur for blur effects
+
+### **Forms & Validation**
+- react-hook-form for form management
+- zod for schema validation
+
+### **Camera & Media**
+- expo-camera for barcode scanning
+- expo-image-picker for photo selection
+- expo-media-library for gallery access
+
+### **AI & Services**
+- Groq API for AI meal generation
+- OpenAI Vision API for food detection
+- Custom backend API for sync
+
+### **Charts & Visualization**
+- Custom chart components using Skia
+- react-native-chart-kit as fallback
+
+### **Other**
+- i18next + react-i18next for translations
+- expo-notifications for push notifications
+- expo-secure-store for sensitive data
+- date-fns for date manipulation
+
+---
+
+## Database Schema
+
+### **Core Models**
+
+**User**
+- id, email, name, age, height, currentWeight, goalWeight
+- activityLevel, goalType, gender, units
+- createdAt, updatedAt
+
+**Meal**
+- id, userId, name, mealType (breakfast/lunch/dinner/snack)
+- date, time, totalCalories, totalProtein, totalCarbs, totalFat, totalFiber
+- notes, imageUrl
+- createdAt, updatedAt
+
+**Food**
+- id, mealId, name, brand, barcode
+- servingSize, servingUnit, quantity
+- calories, protein, carbs, fat, fiber, sugar, sodium
+- isCustom, isFavorite
+- createdAt, updatedAt
+
+**Diet**
+- id, name, description, type (preset/custom)
+- calorieTarget, proteinTarget, carbsTarget, fatTarget, fiberTarget
+- restrictions (array), isActive
+- createdAt, updatedAt
+
+**UserDiet**
+- id, userId, dietId, startDate, endDate, isActive
+- targetWeight, weeklyGoal
+- createdAt, updatedAt
+
+**Recipe**
+- id, userId, name, description, servings
+- prepTime, cookTime, totalCalories, macros (object)
+- ingredients (array), instructions (array)
+- imageUrl, tags (array), difficulty
+- createdAt, updatedAt
+
+**WaterLog**
+- id, userId, amount, unit, date, time
+- createdAt
+
+**WeightLog**
+- id, userId, weight, unit, date, notes
+- createdAt
+
+**WorkoutSession**
+- id, userId, name, type, date, startTime, endTime
+- totalCaloriesBurned, notes
+- createdAt, updatedAt
+
+**WorkoutSet**
+- id, workoutSessionId, exerciseName, setNumber
+- reps, weight, duration, distance, restTime
+- createdAt
+
+**SyncQueue**
+- id, modelName, recordId, operation (create/update/delete)
+- data (JSON), synced, syncedAt, attempts, error
+- createdAt
+
+---
+
+## Data Flow & Sync Strategy
+
+### **Offline-First Principle**
+1. All user actions write to WatermelonDB immediately
+2. UI updates optimistically using local data
+3. Changes are queued in SyncQueue table
+4. Sync manager processes queue when online
+5. Conflicts resolved using last-write-wins or custom logic
+
+### **React Query Integration**
+```
+Query Flow:
+1. Component calls useQuery hook
+2. Hook checks if online
+3. If online: Fetch from API → Update local DB → Return data
+4. If offline: Fetch from WatermelonDB → Return data
+5. Cache results in React Query cache
+
+Mutation Flow:
+1. Component calls useMutation hook
+2. Optimistic update to UI
+3. Write to WatermelonDB immediately
+4. Add to SyncQueue
+5. If online: Sync to API immediately
+6. If offline: Queue for later sync
+7. On success: Update cache
+8. On error: Rollback optimistic update
+```
+
+### **Sync Conflict Resolution**
+- Last-write-wins for simple data (meals, logs)
+- Manual resolution for critical data (diet plans)
+- Timestamp-based merging
+- Keep local changes in case of network failure
+
+---
+
+## Performance Optimizations
+
+### **Rendering**
+- Use FlashList for all scrollable lists (meals, foods, recipes)
+- Implement virtualization for long lists
+- Memoize expensive components with React.memo
+- Use Zustand selectors to prevent unnecessary re-renders
+- Lazy load screens and heavy components
+
+### **Database**
+- Create proper indexes on frequently queried fields
+- Use WatermelonDB batch operations for bulk inserts
+- Implement pagination for large datasets
+- Cache complex queries in React Query
+
+### **Images**
+- Compress uploaded images before storage
+- Use thumbnail versions for list views
+- Lazy load images with placeholder
+- Cache images in file system
+
+### **Animations**
+- Use Reanimated for all animations (runs on UI thread)
+- Avoid Layout Animations for large lists
+- Pre-calculate animation values
+- Use native driver where possible
+
+---
+
+## Error Handling & User Experience
+
+### **Error Boundaries**
+- Root error boundary to catch all errors
+- Feature-specific error boundaries
+- Fallback UI with retry option
+- Error reporting to analytics service
+
+### **Loading States**
+- Skeleton loaders for content loading
+- Shimmer effects for placeholders
+- Progress indicators for long operations
+- Optimistic updates for instant feedback
+
+### **Empty States**
+- Contextual empty state illustrations
+- Call-to-action buttons
+- Helpful onboarding tips
+- Sample data option
+
+### **Offline Indicators**
+- Network status banner
+- Sync status indicator
+- Queued changes count
+- Manual sync trigger
+
+---
+
+## Security & Privacy
+
+### **Data Protection**
+- Encrypt sensitive data in local database
+- Use expo-secure-store for tokens
+- Implement biometric authentication option
+- Clear sensitive data on logout
+
+### **API Security**
+- JWT token authentication
+- Refresh token rotation
+- HTTPS only communication
+- Rate limiting on sensitive endpoints
+
+### **User Privacy**
+- Optional cloud sync (can stay local-only)
+- Data export functionality
+- Account deletion with data wipe
+- No tracking without consent
+
+---
+
+## Internationalization
+
+### **Supported Languages**
+- English (default)
+- Arabic (RTL support required)
+- Spanish
+- French
+- German
+
+### **Translation Strategy**
+- Use i18next with lazy loading
+- Separate translation files per language
+- Dynamic date/number formatting
+- RTL layout adjustments for Arabic
+
+---
+
+## Testing Strategy
+
+### **Unit Tests**
+- Utility functions (calculations, formatters)
+- Database models and queries
+- Custom hooks
+- State management stores
+
+### **Integration Tests**
+- Data flow from UI to database
+- Sync queue processing
+- API integration
+- Form validation
+
+### **E2E Tests**
+- Critical user flows (login, add meal, create diet)
+- Offline functionality
+- Cross-device sync
+
+---
+
+## Development Phases
+
+### **Phase 1: Foundation (2 weeks)**
+- Setup Expo project with Router
+- Configure TailwindCSS + NativeWind
+- Setup WatermelonDB with all models
+- Implement authentication flow
+- Create design system primitives
+
+### **Phase 2: Core Features (3 weeks)**
+- Build Home dashboard
+- Implement meal logging
+- Create food search and barcode scanner
+- Add water tracking
+- Build basic progress charts
+
+### **Phase 3: Advanced Features (3 weeks)**
+- Implement diet plans
+- Add AI meal generation
+- Create meal planning calendar
+- Build workout logging
+- Add recipe library
+
+### **Phase 4: Sync & Cloud (2 weeks)**
+- Build backend API
+- Implement sync engine
+- Add conflict resolution
+- Test multi-device sync
+
+### **Phase 5: Polish & Launch (2 weeks)**
+- Add animations and transitions
+- Implement all empty states
+- Add loading skeletons
+- Performance optimization
+- Bug fixes and testing
+- App store preparation
+
+---
+
+## Success Metrics
+
+### **Technical KPIs**
+- App launch time < 2 seconds
+- Screen transition < 300ms
+- Database query time < 100ms
+- Crash-free rate > 99.5%
+- Offline capability 100%
+
+### **User Experience KPIs**
+- Meal logging time < 30 seconds
+- Daily active logging rate > 60%
+- User retention (7-day) > 40%
+- Feature adoption rate > 70%
+- User satisfaction score > 4.5/5
+
+---
+
+This structure provides a comprehensive blueprint for building a modern, performant, feature-rich nutrition tracking app that combines the best practices from both analyzed projects while addressing their shortcomings.

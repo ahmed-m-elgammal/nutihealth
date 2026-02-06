@@ -1,0 +1,60 @@
+src/app/(auth)/onboarding.tsx(5,10): error TS2614: Module '"../../components/ui/Button"' has no exported member 'Button'. Did you mean to use 'import Button from "../../components/ui/Button"' instead?
+src/app/(auth)/onboarding.tsx(7,10): error TS2614: Module '"../../components/ui/Card"' has no exported member 'Card'. Did you mean to use 'import Card from "../../components/ui/Card"' instead?
+src/app/(modals)/add-meal.tsx(5,30): error TS2307: Cannot find module '../../../store/mealStore' or its corresponding type declarations.
+src/app/(modals)/add-meal.tsx(6,20): error TS2307: Cannot find module '../../../components/ui/Button' or its corresponding type declarations.
+src/app/(modals)/add-meal.tsx(7,18): error TS2307: Cannot find module '../../../components/ui/Card' or its corresponding type declarations.
+src/app/(modals)/add-meal.tsx(8,22): error TS2307: Cannot find module '../../../components/meal/FoodItem' or its corresponding type declarations.
+src/app/(modals)/add-meal.tsx(9,31): error TS2307: Cannot find module '../../../services/api/meals' or its corresponding type declarations.
+src/app/(modals)/add-meal.tsx(45,40): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/(modals)/add-meal.tsx(56,24): error TS7006: Parameter 'food' implicitly has an 'any' type.
+src/app/(modals)/add-meal.tsx(93,50): error TS2339: Property 'calories' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(93,66): error TS2339: Property 'quantity' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(94,48): error TS2339: Property 'protein' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(94,63): error TS2339: Property 'quantity' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(95,44): error TS2339: Property 'carbs' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(95,57): error TS2339: Property 'quantity' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(96,42): error TS2339: Property 'fats' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(96,54): error TS2339: Property 'quantity' does not exist on type 'SelectedFood'.
+src/app/(modals)/add-meal.tsx(237,56): error TS7006: Parameter 'quantity' implicitly has an 'any' type.
+src/app/(modals)/food-search.tsx(5,30): error TS2307: Cannot find module '../../../store/mealStore' or its corresponding type declarations.
+src/app/(modals)/food-search.tsx(6,63): error TS2307: Cannot find module '../../../services/api/openFoodFacts' or its corresponding type declarations.
+src/app/(modals)/food-search.tsx(7,18): error TS2307: Cannot find module '../../../components/ui/Card' or its corresponding type declarations.
+src/app/(modals)/food-search.tsx(8,20): error TS2307: Cannot find module '../../../components/ui/Button' or its corresponding type declarations.
+src/app/(modals)/food-search.tsx(9,29): error TS2307: Cannot find module '../../../hooks/useDebounce' or its corresponding type declarations.
+src/app/(modals)/food-search.tsx(246,54): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/app/(modals)/food-search.tsx(259,56): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(6,30): error TS2307: Cannot find module '../../../store/mealStore' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(7,30): error TS2307: Cannot find module '../../../store/userStore' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(8,22): error TS2307: Cannot find module '../../../components/meal/MealCard' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(9,27): error TS2307: Cannot find module '../../../components/charts/CalorieCircle' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(10,28): error TS2307: Cannot find module '../../../components/charts/MacroBreakdown' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(11,24): error TS2307: Cannot find module '../../../components/common/EmptyState' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(12,30): error TS2307: Cannot find module '../../../components/common/DatePickerSlider' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(13,20): error TS2307: Cannot find module '../../../components/ui/Button' or its corresponding type declarations.
+src/app/(tabs)/meals.tsx(78,40): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(79,36): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(80,37): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(81,36): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(111,40): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(161,71): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(161,76): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/(tabs)/meals.tsx(176,53): error TS7006: Parameter 'meal' implicitly has an 'any' type.
+src/app/(tabs)/water.tsx(4,31): error TS2307: Cannot find module '../../../store/waterStore' or its corresponding type declarations.
+src/app/(tabs)/water.tsx(5,48): error TS2307: Cannot find module '../../../services/weather' or its corresponding type declarations.
+src/app/(tabs)/water.tsx(7,27): error TS2307: Cannot find module '../../../components/charts/WaterProgress' or its corresponding type declarations.
+src/app/(tabs)/water.tsx(8,20): error TS2307: Cannot find module '../../../components/ui/Button' or its corresponding type declarations.
+src/app/(tabs)/water.tsx(9,18): error TS2307: Cannot find module '../../../components/ui/Card' or its corresponding type declarations.
+src/app/(tabs)/water.tsx(108,20): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ behind: { color: string; text: string; icon: string; }; on_track: { color: string; text: string; icon: string; }; exceeded: { color: string; text: string; icon: string; }; }'.
+src/app/(tabs)/water.tsx(237,46): error TS7006: Parameter 'log' implicitly has an 'any' type.
+src/database/models/Habit.ts(30,38): error TS2694: Namespace '"C:/Users/A-Dev/Desktop/NutriHealth/node_modules/@nozbe/watermelondb/QueryDescription/index"' has no exported member 'Query'.
+src/database/models/Meal.ts(24,34): error TS2694: Namespace '"C:/Users/A-Dev/Desktop/NutriHealth/node_modules/@nozbe/watermelondb/QueryDescription/index"' has no exported member 'Query'.
+src/database/models/Workout.ts(24,50): error TS2694: Namespace '"C:/Users/A-Dev/Desktop/NutriHealth/node_modules/@nozbe/watermelondb/QueryDescription/index"' has no exported member 'Query'.
+src/database/models/WorkoutExercise.ts(24,41): error TS2694: Namespace '"C:/Users/A-Dev/Desktop/NutriHealth/node_modules/@nozbe/watermelondb/QueryDescription/index"' has no exported member 'Query'.
+src/hooks/useDatabase.ts(17,25): error TS2344: Type 'T' does not satisfy the constraint 'Model'.
+src/hooks/useSync.ts(12,58): error TS2339: Property 'pendingChanges' does not exist on type 'SyncState'.
+src/hooks/useSync.ts(50,26): error TS2554: Expected 0 arguments, but got 1.
+src/services/api/meals.ts(134,49): error TS7006: Parameter 'food' implicitly has an 'any' type.
+src/services/api/meals.ts(173,42): error TS7006: Parameter 'food' implicitly has an 'any' type.
+src/services/api/meals.ts(230,28): error TS7006: Parameter 'food' implicitly has an 'any' type.
+src/store/mealStore.ts(142,42): error TS2339: Property 'set' does not exist on type 'Meal'.
+src/store/mealStore.ts(210,46): error TS2339: Property 'set' does not exist on type 'Meal'.

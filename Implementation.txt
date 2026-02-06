@@ -1,0 +1,120 @@
+NutriHealth Enhanced Implementation Plan
+Vision: AI-Powered Personal Wellness Companion Target Platform: Android (Primary) & iOS. NO WEB SUPPORT. Architecture: React Native (Expo) + WatermelonDB (Offline-First).
+
+Phase 1: Foundation & Architecture 
+Goal: Initialize project, setup design system, database architecture, and onboarding flow.
+
+1.1 Project Setup & Configuration
+ Initialize Expo: TypeScript, Portrait orientation, nutrihealth:// scheme.
+ Dependencies: zustand, watermelondb, nativewind, react-native-reanimated, @shopify/flash-list.
+ Navigation: Setup Expo Router with Stack & Tabs.
+ Styling: Tailwind config with Brand Colors (Green/Blue/Orange) and Fonts (Inter/Manrope).
+1.2 Design System (src/components/ui)
+ Primitives: Button, Card, Input, Select, Switch, Badge, Avatar.
+ Feedback: Toast, ConfettiEffect, HapticFeedback.
+ Charts: CircularProgress, MacroBar (using Victory Native XL or Skia).
+1.3 Database Schema (WatermelonDB)
+Tables:
+
+users: Profile, goals, stats (JSON), preferences (JSON).
+meals: Logs with macros, photo_uri.
+foods: Individual items linked to meals.
+custom_foods: User-created DB.
+water_logs: Hydration entries.
+water_targets: Daily dynamic targets.
+workouts: Logged sessions.
+workout_exercises: Exercises within a session.
+exercise_sets: Sets, reps, weight.
+exercises: Master library (pre-populated).
+workout_templates: Saved routines.
+recipes: Saved cooking instructions.
+meal_plans: AI or manual plans.
+habits & habit_logs: Consistency tracking.
+1.4 State Management (Zustand)
+ userStore: User profile, BMR/TDEE calculations, Onboarding status.
+ mealStore: Daily logs, totals, favorites.
+ waterStore: Intake tracking, dynamic targeting.
+ workoutStore: Active session management.
+ uiStore: Theme, Toasts, Bottom Sheets.
+1.5 Onboarding Flow (src/app/onboarding/)
+ Screens:
+welcome.tsx: Value prop.
+personal-info.tsx: Name, Bio details.
+goals.tsx: Goal selection (Lose/Gain/Maintain).
+activity-level.tsx: Sedentary to Athlete.
+dietary-preferences.tsx: Allergies, restrictions.
+finish.tsx: BMR Calculation & Permissions.
+ Logic: Implement src/utils/calculations.ts (Mifflin-St Jeor, TDEE).
+Phase 2: Core Features - Nutrition
+Goal: Food database, logging, and AI planning.
+
+2.1 Food Database & API
+ OpenFoodFacts: Implement search & barcode scanning.
+ Local History: Cache recent/frequent items.
+ Components: FoodSearchModal, BarcodeScanner (Expo Camera).
+2.2 Meal Logging
+ Add Meal Modal: Type selector, Time, Food List, Photo integration.
+ Daily View ((tabs)/meals): FlashList timeline, Macro summary cards.
+ Smart Features: Time-based suggestions, Quick-add from favorites.
+2.3 AI Meal Planning (Groq)
+ Client: src/services/ai/groqClient.ts.
+ Planner UI: Wizard for preferences, duration, budget -> Generate JSON plan.
+ Features: generateMealPlan(), chatWithNutritionist().
+2.4 Recipe Management
+ Detail View: Ingredients scaling, "Cook Mode" (step-by-step).
+ Creation: Form to add ingredients/instructions, AI "Healthify" button.
+Phase 3: Hydration Intelligence
+Goal: Smart water tracking with weather/activity adjustments.
+
+3.1 Dynamic Targeting
+ Logic: Base (Weight * 35ml) + Workout (+500ml/hr) + Weather (Temp/Humidity).
+ Service: src/services/weather.ts (OpenWeatherMap).
+3.2 Water UI
+ Tracker: Animated circular progress, Quick-add buttons (250/500/1000ml).
+ Charts: Weekly trend, hydration score.
+ Reminders: Notifications based on intervals or deficits.
+Phase 4: Workout System
+Goal: Comprehensive exercise logging and routine management.
+
+4.1 Exercise Library
+ Seed Data: 150+ Strength, 50+ Cardio, 30+ Mobility.
+ Custom: User can add exercises with video/images.
+4.2 Logging Interface
+ Active Mode: Timer, Set logger (Weight/Reps/RPE), Rest timer.
+ Summary: Volume, PRs broken, Calories burned (est).
+4.3 Templates & Programs
+ Templates: Create/Use reusable routines (Push/Pull, Full Body).
+ AI Generator: Create N-week program based on equipment/goals.
+Phase 5: Advanced Features 
+Goal: Habits, Gamification, and Body Metrics.
+
+5.1 Habit Tracker
+ Features: Custom habits, Streaks, Frequency settings.
+ UI: Heatmap, Daily checklist.
+5.2 Gamification
+ Achievements: Badge system (Unlock logic).
+ Streaks: Visual modifiers (Fire icon, color changes).
+5.3 Body Metrics
+ Measurements: Weight, Body Fat, Circumferences.
+ Photos: Before/After comparison tool with overlay.
+Phase 6: Data & Backup 
+Goal: Data security and portability.
+
+6.1 Local Backup
+ Export: JSON dump of WatermelonDB.
+ Import: Restore flow with validation.
+ Auto-Backup: Scheduled exports to local storage/Cloud Drive.
+Phase 7: Polish & Optimization 
+Goal: Performance and experience refinement.
+
+ Performance: Review FlashList usage, Memoization, Database indexing.
+ Animations: Reanimated shared transitions, Layout animations (entering/exiting).
+ Offline: Error boundaries, Queueing system verification.
+ A11y: Screen reader labels, Dynamic Type support.
+ I18n: Extract strings to en.json, RTL layout checks.
+Phase 8: Launch Prep
+Goal: Testing and Store delivery.
+
+ Testing: Unit tests (Jest) for calcs, E2E (Detox/Manual) for critical flows.
+ Assets: App Icon, Splash Screen, Screenshots.
+ Legal: Privacy Policy, Terms of Service.
