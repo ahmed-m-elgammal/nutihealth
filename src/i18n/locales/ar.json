@@ -135,5 +135,12 @@
         "currentStreak": "السلسلة الحالية",
         "hydrationGoal": "هدف الترطيب",
         "workouts": "التمارين"
+    },
+    "mealSuggestion": {
+        "title": "اقتراح الوجبة التالية",
+        "logThisMeal": "سجل هذه الوجبة",
+        "dismiss": "إخفاء",
+        "targetCalories": "{{calories}} سعرة حرارية",
+        "timeWindow": "{{start}} – {{end}}"
     }
 }

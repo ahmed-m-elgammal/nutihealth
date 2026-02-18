@@ -135,5 +135,12 @@
         "currentStreak": "Current Streak",
         "hydrationGoal": "Hydration Goal",
         "workouts": "Workouts"
+    },
+    "mealSuggestion": {
+        "title": "Next Meal Suggestion",
+        "logThisMeal": "Log This Meal",
+        "dismiss": "Dismiss",
+        "targetCalories": "{{calories}} kcal",
+        "timeWindow": "{{start}} – {{end}}"
     }
 }

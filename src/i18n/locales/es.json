@@ -135,5 +135,12 @@
         "currentStreak": "Racha actual",
         "hydrationGoal": "Meta de hidratación",
         "workouts": "Entrenos"
+    },
+    "mealSuggestion": {
+        "title": "Sugerencia de próxima comida",
+        "logThisMeal": "Registrar esta comida",
+        "dismiss": "Descartar",
+        "targetCalories": "{{calories}} kcal",
+        "timeWindow": "{{start}} – {{end}}"
     }
 }
