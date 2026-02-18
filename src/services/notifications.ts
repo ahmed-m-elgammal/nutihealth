@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { getProgressInsights } from './api/progress';
 import { clearScheduledReminders, getScheduledRemindersCount, scheduleSmartReminders } from './notifications/scheduler';
 
 Notifications.setNotificationHandler({
@@ -13,7 +14,6 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync(): Promise<boolean> {
-    // Android Channel
     if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
             name: 'default',
@@ -36,6 +36,32 @@ export async function registerForPushNotificationsAsync(): Promise<boolean> {
     }
 
     return true;
+}
+
+export async function scheduleAdaptiveReminders(userId?: string) {
+    if (!userId) {
+        return scheduleSmartReminders();
+    }
+
+    try {
+        const insights = await getProgressInsights(userId, 14);
+        const nowHour = new Date().getHours();
+
+        const workoutHour = insights.workoutsThisWeek < 3 ? 17 : 19;
+        const includeWater = insights.hydrationGoalRate < 80;
+        const includeStreakWarning = insights.currentMealStreakDays < 3;
+        const includeMeals = nowHour <= 20;
+
+        return scheduleSmartReminders({
+            workoutHour,
+            includeWater,
+            includeMeals,
+            includeStreakWarning,
+            includeWorkout: true,
+        });
+    } catch {
+        return scheduleSmartReminders();
+    }
 }
 
 export async function scheduleDailyWaterReminder() {

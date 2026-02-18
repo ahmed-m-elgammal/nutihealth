@@ -13,6 +13,7 @@ import { getTodaysMacros } from '../../services/api/weeklyGoals';
 import { DailyMacros } from '../../types/models';
 import { needsBodyMetrics, buildCompleteProfileRoute } from '../../utils/profileCompletion';
 import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
+import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
 
 export default function MealsScreen() {
     const router = useRouter();
@@ -38,24 +39,20 @@ export default function MealsScreen() {
                     totalProtein: 0,
                     totalCarbs: 0,
                     totalFats: 0,
-                }
+                },
             ),
-        [meals]
+        [meals],
     );
 
     const handleMealEntryAction = (route: string) => {
         if (needsBodyMetrics(user)) {
-            Alert.alert(
-                'Complete profile first',
-                'Add your height and weight once to personalize meal logging.',
-                [
-                    { text: 'Not now', style: 'cancel' },
-                    {
-                        text: 'Add now',
-                        onPress: () => router.push(buildCompleteProfileRoute(route) as any),
-                    },
-                ]
-            );
+            Alert.alert('Complete profile first', 'Add your height and weight once to personalize meal logging.', [
+                { text: 'Not now', style: 'cancel' },
+                {
+                    text: 'Add now',
+                    onPress: () => router.push(buildCompleteProfileRoute(route) as any),
+                },
+            ]);
             return;
         }
 
@@ -125,154 +122,154 @@ export default function MealsScreen() {
 
     if (isLoadingStats || isLoadingMeals) {
         return (
-            <SafeAreaView className="flex-1 bg-neutral-50 items-center justify-center">
+            <SafeAreaView className="flex-1 items-center justify-center bg-neutral-50">
                 <ActivityIndicator size="large" color="#10b981" />
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-            {/* Header */}
-            <View className="bg-white px-6 py-4 flex-row justify-between items-center border-b border-neutral-100 shadow-sm z-10">
-                <View className="flex-1">
-                    <Text className="text-2xl font-bold text-neutral-900">Today's Meals</Text>
-                    <View className="flex-row items-center mt-1">
-                        <Calendar size={14} color="#737373" />
-                        <Text className="text-neutral-500 ml-1 text-sm font-medium">
-                            {format(new Date(), 'EEE, MMM d')}
-                        </Text>
+        <ScreenErrorBoundary screenName="meals">
+            <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
+                {/* Header */}
+                <View className="z-10 flex-row items-center justify-between border-b border-neutral-100 bg-white px-6 py-4 shadow-sm">
+                    <View className="flex-1">
+                        <Text className="text-2xl font-bold text-neutral-900">Today's Meals</Text>
+                        <View className="mt-1 flex-row items-center">
+                            <Calendar size={14} color="#737373" />
+                            <Text className="ml-1 text-sm font-medium text-neutral-500">
+                                {format(new Date(), 'EEE, MMM d')}
+                            </Text>
+                        </View>
+                        {/* Weekly Plan Badge */}
+                        {!isLoadingPlan && weeklyPlanMacros && (
+                            <TouchableOpacity
+                                onPress={() => router.push('/(modals)/weekly-plans' as any)}
+                                className="mt-1 self-start rounded-full bg-primary-100 px-2 py-1"
+                            >
+                                <Text className="text-xs font-semibold text-primary-700">📊 Weekly Plan Active</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
-                    {/* Weekly Plan Badge */}
-                    {!isLoadingPlan && weeklyPlanMacros && (
+                    <View className="flex-row gap-2">
                         <TouchableOpacity
                             onPress={() => router.push('/(modals)/weekly-plans' as any)}
-                            className="bg-primary-100 px-2 py-1 rounded-full mt-1 self-start"
+                            className="rounded-full bg-neutral-100 p-2"
                         >
-                            <Text className="text-primary-700 text-xs font-semibold">
-                                📊 Weekly Plan Active
-                            </Text>
+                            <Settings size={20} color="#171717" />
                         </TouchableOpacity>
-                    )}
-                </View>
-                <View className="flex-row gap-2">
-                    <TouchableOpacity
-                        onPress={() => router.push('/(modals)/weekly-plans' as any)}
-                        className="bg-neutral-100 p-2 rounded-full"
-                    >
-                        <Settings size={20} color="#171717" />
-                    </TouchableOpacity>
-                    <TouchableOpacity className="bg-neutral-100 p-2 rounded-full">
-                        <Calendar size={20} color="#171717" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            <ScrollView className="flex-1" contentContainerStyle={{ padding: 24, paddingBottom: 100 }}>
-                {/* Enhanced Calorie Card */}
-                <View className="bg-primary-600 rounded-3xl p-6 mb-8 shadow-xl items-center">
-                    <Text className="text-white/90 font-medium mb-4">Calories Today</Text>
-                    <CalorieCircle current={currentCalories} target={targetCalories} size={160} />
-                    <Text className="text-white/80 text-sm mt-4">
-                        {Math.max(0, targetCalories - currentCalories)} kcal remaining
-                    </Text>
-                </View>
-
-                {/* Macro Breakdown with Progress Bars */}
-                <View className="bg-white rounded-3xl p-6 mb-8 shadow-sm border border-neutral-100">
-                    <Text className="text-neutral-900 font-bold text-lg mb-4">Macronutrients</Text>
-                    <View className="space-y-4">
-                        <ProgressBar
-                            current={macros.protein.current}
-                            target={macros.protein.target}
-                            color="bg-blue-500"
-                            label="Protein"
-                        />
-                        <ProgressBar
-                            current={macros.carbs.current}
-                            target={macros.carbs.target}
-                            color="bg-orange-500"
-                            label="Carbs"
-                        />
-                        <ProgressBar
-                            current={macros.fats.current}
-                            target={macros.fats.target}
-                            color="bg-purple-500"
-                            label="Fats"
-                        />
+                        <TouchableOpacity className="rounded-full bg-neutral-100 p-2">
+                            <Calendar size={20} color="#171717" />
+                        </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Quick Add Buttons */}
-                <View className="flex-row justify-between mb-8 gap-3">
-                    <TouchableOpacity
-                        className="flex-1 bg-primary-600 rounded-2xl p-4 items-center shadow-lg active:opacity-80"
-                        onPress={() => handleMealEntryAction('/(modals)/add-meal')}
-                    >
-                        <View className="bg-white/20 p-2 rounded-full mb-1">
-                            <Plus size={20} color="white" />
+                <ScrollView className="flex-1" contentContainerStyle={{ padding: 24, paddingBottom: 100 }}>
+                    {/* Enhanced Calorie Card */}
+                    <View className="mb-8 items-center rounded-3xl bg-primary-600 p-6 shadow-xl">
+                        <Text className="mb-4 font-medium text-white/90">Calories Today</Text>
+                        <CalorieCircle current={currentCalories} target={targetCalories} size={160} />
+                        <Text className="mt-4 text-sm text-white/80">
+                            {Math.max(0, targetCalories - currentCalories)} kcal remaining
+                        </Text>
+                    </View>
+
+                    {/* Macro Breakdown with Progress Bars */}
+                    <View className="mb-8 rounded-3xl border border-neutral-100 bg-white p-6 shadow-sm">
+                        <Text className="mb-4 text-lg font-bold text-neutral-900">Macronutrients</Text>
+                        <View className="space-y-4">
+                            <ProgressBar
+                                current={macros.protein.current}
+                                target={macros.protein.target}
+                                color="bg-blue-500"
+                                label="Protein"
+                            />
+                            <ProgressBar
+                                current={macros.carbs.current}
+                                target={macros.carbs.target}
+                                color="bg-orange-500"
+                                label="Carbs"
+                            />
+                            <ProgressBar
+                                current={macros.fats.current}
+                                target={macros.fats.target}
+                                color="bg-purple-500"
+                                label="Fats"
+                            />
                         </View>
-                        <Text className="text-white font-bold text-sm">Add Meal</Text>
-                    </TouchableOpacity>
+                    </View>
 
-                    <TouchableOpacity
-                        className="flex-1 bg-blue-500 rounded-2xl p-4 items-center shadow-lg active:opacity-80"
-                        onPress={() => handleMealEntryAction('/(modals)/barcode-scanner')}
-                    >
-                        <View className="bg-white/20 p-2 rounded-full mb-1">
-                            <Scan size={20} color="white" />
-                        </View>
-                        <Text className="text-white font-bold text-sm">Scan</Text>
-                    </TouchableOpacity>
+                    {/* Quick Add Buttons */}
+                    <View className="mb-8 flex-row justify-between gap-3">
+                        <TouchableOpacity
+                            className="flex-1 items-center rounded-2xl bg-primary-600 p-4 shadow-lg active:opacity-80"
+                            onPress={() => handleMealEntryAction('/(modals)/add-meal')}
+                        >
+                            <View className="mb-1 rounded-full bg-white/20 p-2">
+                                <Plus size={20} color="white" />
+                            </View>
+                            <Text className="text-sm font-bold text-white">Add Meal</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        className="flex-1 bg-amber-500 rounded-2xl p-4 items-center shadow-lg active:opacity-80"
-                        onPress={() => handleMealEntryAction('/(modals)/food-search')}
-                    >
-                        <View className="bg-white/20 p-2 rounded-full mb-1">
-                            <Search size={20} color="white" />
-                        </View>
-                        <Text className="text-white font-bold text-sm">Search</Text>
-                    </TouchableOpacity>
-                </View>
+                        <TouchableOpacity
+                            className="flex-1 items-center rounded-2xl bg-blue-500 p-4 shadow-lg active:opacity-80"
+                            onPress={() => handleMealEntryAction('/(modals)/barcode-scanner')}
+                        >
+                            <View className="mb-1 rounded-full bg-white/20 p-2">
+                                <Scan size={20} color="white" />
+                            </View>
+                            <Text className="text-sm font-bold text-white">Scan</Text>
+                        </TouchableOpacity>
 
-                {/* Meal Sections */}
-                <View className="space-y-6">
-                    <MealSection
-                        type="breakfast"
-                        meals={mealSections.breakfast.logged}
-                        onAddPress={() => { }}
-                        recommendedCalories={mealSections.breakfast.recommended}
-                    />
-                    <MealSection
-                        type="lunch"
-                        meals={mealSections.lunch.logged}
-                        onAddPress={() => { }}
-                        recommendedCalories={mealSections.lunch.recommended}
-                    />
-                    <MealSection
-                        type="dinner"
-                        meals={mealSections.dinner.logged}
-                        onAddPress={() => { }}
-                        recommendedCalories={mealSections.dinner.recommended}
-                    />
-                    <MealSection
-                        type="snack"
-                        meals={mealSections.snack.logged}
-                        onAddPress={() => { }}
-                        recommendedCalories={mealSections.snack.recommended}
-                    />
-                </View>
-            </ScrollView>
+                        <TouchableOpacity
+                            className="flex-1 items-center rounded-2xl bg-amber-500 p-4 shadow-lg active:opacity-80"
+                            onPress={() => handleMealEntryAction('/(modals)/food-search')}
+                        >
+                            <View className="mb-1 rounded-full bg-white/20 p-2">
+                                <Search size={20} color="white" />
+                            </View>
+                            <Text className="text-sm font-bold text-white">Search</Text>
+                        </TouchableOpacity>
+                    </View>
 
-            {/* Floating Action Button */}
-            <TouchableOpacity
-                className="absolute bottom-6 right-6 bg-primary-600 w-16 h-16 rounded-full items-center justify-center shadow-2xl z-50 active:scale-95 transition-transform"
-                style={{ elevation: 8 }}
-                onPress={() => handleMealEntryAction('/(modals)/add-meal')}
-            >
-                <Plus size={32} color="white" />
-            </TouchableOpacity>
-        </SafeAreaView>
+                    {/* Meal Sections */}
+                    <View className="space-y-6">
+                        <MealSection
+                            type="breakfast"
+                            meals={mealSections.breakfast.logged}
+                            onAddPress={() => {}}
+                            recommendedCalories={mealSections.breakfast.recommended}
+                        />
+                        <MealSection
+                            type="lunch"
+                            meals={mealSections.lunch.logged}
+                            onAddPress={() => {}}
+                            recommendedCalories={mealSections.lunch.recommended}
+                        />
+                        <MealSection
+                            type="dinner"
+                            meals={mealSections.dinner.logged}
+                            onAddPress={() => {}}
+                            recommendedCalories={mealSections.dinner.recommended}
+                        />
+                        <MealSection
+                            type="snack"
+                            meals={mealSections.snack.logged}
+                            onAddPress={() => {}}
+                            recommendedCalories={mealSections.snack.recommended}
+                        />
+                    </View>
+                </ScrollView>
+
+                {/* Floating Action Button */}
+                <TouchableOpacity
+                    className="absolute bottom-6 right-6 z-50 h-16 w-16 items-center justify-center rounded-full bg-primary-600 shadow-2xl transition-transform active:scale-95"
+                    style={{ elevation: 8 }}
+                    onPress={() => handleMealEntryAction('/(modals)/add-meal')}
+                >
+                    <Plus size={32} color="white" />
+                </TouchableOpacity>
+            </SafeAreaView>
+        </ScreenErrorBoundary>
     );
 }
