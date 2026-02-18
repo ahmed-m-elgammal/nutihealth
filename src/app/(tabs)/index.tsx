@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Platform, FlatList, Alert } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
-import { Plus, Scan, Search, Droplet, Check, ChefHat } from 'lucide-react-native';
+import { Plus, Scan, Search, Droplet, Check, ChefHat, ShieldCheck, ServerCrash } from 'lucide-react-native';
 import Header from '../../components/common/Header';
 import CalorieCircle from '../../components/charts/CalorieCircle';
 import ProgressBar from '../../components/charts/ProgressBar';
@@ -24,6 +24,7 @@ import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
 import { getAdjustedTargetsForDate } from '../../services/dietPlan/workoutCalorieAdjuster';
 import { calculateDailyAdherence } from '../../services/dietPlan/mealSuggestionService';
 import { getTodayCarbCycleDay, getTodayCarbCycleTargets } from '../../services/dietPlan/carbCycling';
+import { getSystemHealth, SystemHealthResponse } from '../../services/api/systemHealth';
 
 // FlashList is not fully web-compatible, use FlatList on web.
 const List = Platform.OS === 'web' ? FlatList : FlashList;
@@ -92,6 +93,7 @@ export default function HomeScreen() {
         carbs: number;
         fats: number;
     } | null>(null);
+    const [systemHealth, setSystemHealth] = useState<SystemHealthResponse | null>(null);
 
     useEffect(() => {
         if (!user?.id) {
@@ -122,6 +124,10 @@ export default function HomeScreen() {
             setCarbCycleMacros(cycleMacros);
         })().catch(() => undefined);
     }, [user?.id, meals?.length]);
+
+    useEffect(() => {
+        getSystemHealth().then((health) => setSystemHealth(health));
+    }, []);
 
     const dailyNutrition = useMemo(
         () =>
@@ -274,6 +280,26 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
                         <Text className="text-xs font-semibold text-amber-800">{carbCycleLabel}</Text>
                     </TouchableOpacity>
                 )}
+
+                <Card className="mb-4 border border-emerald-200 bg-emerald-50">
+                    <CardContent className="flex-row items-center justify-between py-4">
+                        <View className="flex-1 pr-3">
+                            <Text className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                                System Health
+                            </Text>
+                            <Text className="mt-1 text-sm text-emerald-900">
+                                {systemHealth?.status === 'ok'
+                                    ? 'Backend connected, secure controls enabled.'
+                                    : 'Backend health unavailable. Some features may be limited.'}
+                            </Text>
+                        </View>
+                        {systemHealth?.status === 'ok' ? (
+                            <ShieldCheck size={20} color="#047857" />
+                        ) : (
+                            <ServerCrash size={20} color="#b45309" />
+                        )}
+                    </CardContent>
+                </Card>
 
                 <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
                     <Card className="items-center">

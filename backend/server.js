@@ -92,6 +92,18 @@ app.use(
 );
 app.use(express.json({ limit: REQUEST_JSON_LIMIT }));
 
+app.get('/api/healthz', (_req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'nutrihealth-backend',
+        timestamp: new Date().toISOString(),
+        security: {
+            cors: allowedOrigins.size > 0 || NODE_ENV !== 'production',
+            rateLimit: true,
+        },
+    });
+});
+
 // Rate Limiting
 const limiter = createLimiter(
     GLOBAL_RATE_LIMIT_WINDOW_MS,
