@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, FlatList, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { Plus, Scan, Search, Droplet, Check, ChefHat, ShieldCheck, ServerCrash } from 'lucide-react-native';
 import Header from '../../components/common/Header';
@@ -71,6 +72,7 @@ const getMealTemplateCalories = (templateId: string): number => {
 
 export default function HomeScreen() {
     const router = useRouter();
+    const { t } = useTranslation();
     const { user } = useCurrentUser();
     const userName = user?.name || 'User';
 
@@ -181,15 +183,15 @@ export default function HomeScreen() {
 
     const handleMealEntryGate = useCallback(
         (nextRoute: string) => {
-            Alert.alert('Complete profile first', 'Add your height and weight once to personalize meal logging.', [
-                { text: 'Not now', style: 'cancel' },
+            Alert.alert(t('home.alerts.completeProfileTitle'), t('home.alerts.completeProfileBody'), [
+                { text: t('home.actions.notNow'), style: 'cancel' },
                 {
-                    text: 'Add now',
+                    text: t('home.actions.addNow'),
                     onPress: () => router.push(buildCompleteProfileRoute(nextRoute) as any),
                 },
             ]);
         },
-        [router],
+        [router, t],
     );
 
     const handleQuickActionPress = useCallback(
@@ -225,7 +227,7 @@ export default function HomeScreen() {
                 : SAMPLE_HEALTHY_DAY;
 
             if (templates.length === 0) {
-                Alert.alert('No meals selected', 'Select at least one sample meal before applying.');
+                Alert.alert(t('home.alerts.noMealsTitle'), t('home.alerts.noMealsBody'));
                 return;
             }
 
@@ -249,13 +251,13 @@ export default function HomeScreen() {
                     setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
                 })
                 .catch((error) => {
-                    Alert.alert('Unable to apply sample', (error as Error).message || 'Please try again.');
+                    Alert.alert(t('home.alerts.unableToApplyTitle'), (error as Error).message || t('common.tryAgain'));
                 })
                 .finally(() => {
                     setIsApplyingSampleDay(false);
                 });
         },
-        [user, handleMealEntryGate, selectedSampleMeals],
+        [user, handleMealEntryGate, selectedSampleMeals, t],
     );
 
     const renderHeader = useCallback(
@@ -285,12 +287,12 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
                     <CardContent className="flex-row items-center justify-between py-4">
                         <View className="flex-1 pr-3">
                             <Text className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                                System Health
+                                {t('home.systemHealth.title')}
                             </Text>
                             <Text className="mt-1 text-sm text-emerald-900">
                                 {systemHealth?.status === 'ok'
-                                    ? 'Backend connected, secure controls enabled.'
-                                    : 'Backend health unavailable. Some features may be limited.'}
+                                    ? t('home.systemHealth.connected')
+                                    : t('home.systemHealth.unavailable')}
                             </Text>
                         </View>
                         {systemHealth?.status === 'ok' ? (
@@ -304,7 +306,7 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
                 <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
                     <Card className="items-center">
                         <CardHeader>
-                            <CardTitle>Today's Calories</CardTitle>
+                            <CardTitle>{t('home.todayCaloriesTitle')}</CardTitle>
                         </CardHeader>
                         <CardContent className="items-center">
                             {isLoadingStats ? (
@@ -430,6 +432,8 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
             macros.carbs,
             macros.fats,
             user?.id,
+            t,
+            systemHealth?.status,
         ],
     );
 

@@ -142,5 +142,27 @@
         "dismiss": "Descartar",
         "targetCalories": "{{calories}} kcal",
         "timeWindow": "{{start}} – {{end}}"
+    },
+    "home": {
+        "todayCaloriesTitle": "Calorías de hoy",
+        "actions": {
+            "notNow": "Ahora no",
+            "addNow": "Agregar ahora"
+        },
+        "alerts": {
+            "completeProfileTitle": "Completa tu perfil primero",
+            "completeProfileBody": "Agrega tu altura y peso para personalizar el registro de comidas.",
+            "noMealsTitle": "No hay comidas seleccionadas",
+            "noMealsBody": "Selecciona al menos una comida antes de aplicar.",
+            "unableToApplyTitle": "No se pudo aplicar la muestra"
+        },
+        "systemHealth": {
+            "title": "Salud del sistema",
+            "connected": "Backend conectado; controles de seguridad habilitados.",
+            "unavailable": "No hay estado del backend. Algunas funciones pueden estar limitadas."
+        }
+    },
+    "common": {
+        "tryAgain": "Inténtalo de nuevo."
     }
 }

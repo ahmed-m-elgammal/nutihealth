@@ -142,5 +142,27 @@
         "dismiss": "Dismiss",
         "targetCalories": "{{calories}} kcal",
         "timeWindow": "{{start}} – {{end}}"
+    },
+    "home": {
+        "todayCaloriesTitle": "Today's Calories",
+        "actions": {
+            "notNow": "Not now",
+            "addNow": "Add now"
+        },
+        "alerts": {
+            "completeProfileTitle": "Complete profile first",
+            "completeProfileBody": "Add your height and weight once to personalize meal logging.",
+            "noMealsTitle": "No meals selected",
+            "noMealsBody": "Select at least one sample meal before applying.",
+            "unableToApplyTitle": "Unable to apply sample"
+        },
+        "systemHealth": {
+            "title": "System Health",
+            "connected": "Backend connected, secure controls enabled.",
+            "unavailable": "Backend health unavailable. Some features may be limited."
+        }
+    },
+    "common": {
+        "tryAgain": "Please try again."
     }
 }
