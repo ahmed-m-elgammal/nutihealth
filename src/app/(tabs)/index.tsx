@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, FlatList, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,6 +21,9 @@ import { needsBodyMetrics, buildCompleteProfileRoute } from '../../utils/profile
 import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
 import MealSuggestionBanner from '../../components/DietPlan/MealSuggestionBanner';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
+import { getAdjustedTargetsForDate } from '../../services/dietPlan/workoutCalorieAdjuster';
+import { calculateDailyAdherence } from '../../services/dietPlan/mealSuggestionService';
+import { getTodayCarbCycleDay, getTodayCarbCycleTargets } from '../../services/dietPlan/carbCycling';
 
 // FlashList is not fully web-compatible, use FlatList on web.
 const List = Platform.OS === 'web' ? FlatList : FlashList;
@@ -77,6 +80,49 @@ export default function HomeScreen() {
     const [isModifyingSampleDay, setIsModifyingSampleDay] = useState(false);
     const [selectedSampleMeals, setSelectedSampleMeals] = useState<string[]>(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
 
+    const [workoutAdjustedCalories, setWorkoutAdjustedCalories] = useState<number | null>(null);
+    const [workoutAdjustmentReason, setWorkoutAdjustmentReason] = useState<string | null>(null);
+    const [workoutAdjustmentDelta, setWorkoutAdjustmentDelta] = useState(0);
+    const [hasWorkoutAdjustment, setHasWorkoutAdjustment] = useState(false);
+    const [adherenceScore, setAdherenceScore] = useState<number | null>(null);
+    const [carbCycleDay, setCarbCycleDay] = useState<'high' | 'low' | 'refeed' | null>(null);
+    const [carbCycleMacros, setCarbCycleMacros] = useState<{
+        calories: number;
+        protein: number;
+        carbs: number;
+        fats: number;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!user?.id) {
+            setWorkoutAdjustedCalories(null);
+            setWorkoutAdjustmentReason(null);
+            setHasWorkoutAdjustment(false);
+            setWorkoutAdjustmentDelta(0);
+            setAdherenceScore(null);
+            setCarbCycleDay(null);
+            setCarbCycleMacros(null);
+            return;
+        }
+
+        void (async () => {
+            const [adjustment, adherence, cycleDay, cycleMacros] = await Promise.all([
+                getAdjustedTargetsForDate(user.id, today),
+                calculateDailyAdherence(user.id, today),
+                getTodayCarbCycleDay(user.id),
+                getTodayCarbCycleTargets(user.id),
+            ]);
+
+            setWorkoutAdjustedCalories(adjustment.adjustedCalories);
+            setWorkoutAdjustmentReason(adjustment.reason);
+            setWorkoutAdjustmentDelta(Math.max(0, adjustment.adjustedCalories - adjustment.baseCalories));
+            setHasWorkoutAdjustment(adjustment.workoutIntensity !== 'none');
+            setAdherenceScore(adherence);
+            setCarbCycleDay(cycleDay);
+            setCarbCycleMacros(cycleMacros);
+        })();
+    }, [user?.id, meals?.length]);
+
     const dailyNutrition = useMemo(
         () =>
             (meals || []).reduce(
@@ -97,7 +143,8 @@ export default function HomeScreen() {
         [meals],
     );
 
-    const targetCalories = user?.calorieTarget || DEFAULT_TARGETS.calories;
+    const baseTargetCalories = user?.calorieTarget || DEFAULT_TARGETS.calories;
+    const targetCalories = workoutAdjustedCalories || baseTargetCalories;
     const targetProtein = user?.proteinTarget || DEFAULT_TARGETS.protein;
     const targetCarbs = user?.carbsTarget || DEFAULT_TARGETS.carbs;
     const targetFats = user?.fatsTarget || DEFAULT_TARGETS.fats;
@@ -113,6 +160,18 @@ export default function HomeScreen() {
     );
 
     const recentMeals = useMemo(() => meals?.slice(0, 3) || [], [meals]);
+
+    const adherenceBarColor =
+        (adherenceScore ?? 0) < 50 ? 'bg-red-500' : (adherenceScore ?? 0) < 80 ? 'bg-amber-500' : 'bg-emerald-500';
+
+    const carbCycleLabel =
+        carbCycleDay === 'high'
+            ? '🔴 High Carb Day'
+            : carbCycleDay === 'low'
+              ? '🔵 Low Carb Day'
+              : carbCycleDay === 'refeed'
+                ? '🟡 Refeed Day'
+                : null;
 
     const handleMealEntryGate = useCallback(
         (nextRoute: string) => {
@@ -189,10 +248,62 @@ export default function HomeScreen() {
         [user, handleMealEntryGate, selectedSampleMeals],
     );
 
+            const templates = useSelection
+                ? SAMPLE_HEALTHY_DAY.filter((meal) => selectedSampleMeals.includes(meal.id))
+                : SAMPLE_HEALTHY_DAY;
+
+            if (templates.length === 0) {
+                Alert.alert('No meals selected', 'Select at least one sample meal before applying.');
+                return;
+            }
+
+            setIsApplyingSampleDay(true);
+            try {
+                for (const template of templates) {
+                    const consumedAt = new Date();
+                    consumedAt.setHours(template.consumedHour, template.consumedMinute, 0, 0);
+
+                    await createMeal({
+                        name: template.name,
+                        mealType: template.mealType,
+                        consumedAt,
+                        foods: template.foods,
+                    });
+                }
+
+                setIsModifyingSampleDay(false);
+                setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
+            } catch (error) {
+                Alert.alert('Unable to apply sample', (error as Error).message || 'Please try again.');
+            } finally {
+                setIsApplyingSampleDay(false);
+            }
+        },
+        [user, handleMealEntryGate, selectedSampleMeals],
+    );
+
     const renderHeader = useCallback(
         () => (
             <View className="mb-6">
                 <Header userName={userName} />
+
+                {carbCycleLabel && (
+                    <TouchableOpacity
+                        className="mb-3 self-start rounded-full bg-amber-100 px-3 py-1.5"
+                        onPress={() =>
+                            Alert.alert(
+                                'Carb Cycle Targets',
+                                `Today: ${carbCycleLabel}
+Calories: ${carbCycleMacros?.calories ?? '-'}
+Protein: ${carbCycleMacros?.protein ?? '-'}g
+Carbs: ${carbCycleMacros?.carbs ?? '-'}g
+Fats: ${carbCycleMacros?.fats ?? '-'}g`,
+                            )
+                        }
+                    >
+                        <Text className="text-xs font-semibold text-amber-800">{carbCycleLabel}</Text>
+                    </TouchableOpacity>
+                )}
 
                 <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
                     <Card className="items-center">
@@ -232,10 +343,63 @@ export default function HomeScreen() {
                                             label="Fats"
                                         />
                                     </View>
+
+                                    {hasWorkoutAdjustment && (
+                                        <TouchableOpacity
+                                            className="mt-4 self-start rounded-full bg-amber-100 px-3 py-1.5"
+                                            onPress={() =>
+                                                Alert.alert(
+                                                    'Workout Target Adjustment',
+                                                    `${workoutAdjustmentReason || 'Workout day adjustment applied.'}`,
+                                                )
+                                            }
+                                        >
+                                            <Text className="text-xs font-semibold text-amber-800">
+                                                🏋️ Workout day: +{workoutAdjustmentDelta} kcal added to your target
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    {Boolean((meals?.length || 0) > 0 && adherenceScore !== null) && (
+                                        <View className="mt-4 w-full">
+                                            <Text className="mb-2 text-sm font-semibold text-foreground">
+                                                Today's Adherence
+                                            </Text>
+                                            <View className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                                                <View
+                                                    className={`h-full rounded-full ${adherenceBarColor}`}
+                                                    style={{
+                                                        width: `${Math.max(0, Math.min(100, adherenceScore || 0))}%`,
+                                                    }}
+                                                />
+                                            </View>
+                                            <Text className="mt-2 text-xs text-muted-foreground">
+                                                {(adherenceScore || 0).toFixed(0)}% of today's goal logged
+                                            </Text>
+                                        </View>
+                                    )}
                                 </>
                             )}
                         </CardContent>
                     </Card>
+                </View>
+
+                <MealSuggestionBanner userId={user?.id} date={today} />
+
+                <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
+                    <Subheading className="mb-4">Quick Add</Subheading>
+                    <View className="flex-row flex-wrap justify-between gap-2">
+                        {QUICK_ACTIONS.map((action) => (
+                            <QuickAction
+                                key={action.id}
+                                label={action.label}
+                                icon={action.icon}
+                                onPress={() => handleQuickActionPress(action.route)}
+                            />
+                        ))}
+                    </View>
+                </View>
+
                 </View>
 
                 <MealSuggestionBanner userId={user?.id} date={today} />
@@ -278,6 +442,17 @@ export default function HomeScreen() {
             macros.fats.current,
             macros.fats.target,
             router,
+            carbCycleLabel,
+            carbCycleMacros?.calories,
+            carbCycleMacros?.protein,
+            carbCycleMacros?.carbs,
+            carbCycleMacros?.fats,
+            hasWorkoutAdjustment,
+            workoutAdjustmentDelta,
+            workoutAdjustmentReason,
+            meals?.length,
+            adherenceScore,
+            adherenceBarColor,
         ],
     );
 

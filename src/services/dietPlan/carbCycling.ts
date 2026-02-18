@@ -120,3 +120,24 @@ export async function getTodayCarbCycleTargets(userId: string): Promise<MacroTar
         };
     }
 }
+
+export async function getStoredCarbCyclePlan(userId: string): Promise<CarbCyclePlan | null> {
+    const rawPlan = await storage.getItem(PLAN_KEY(userId));
+    if (!rawPlan) return null;
+
+    try {
+        return JSON.parse(rawPlan) as CarbCyclePlan;
+    } catch {
+        return null;
+    }
+}
+
+export async function getTodayCarbCycleDay(userId: string): Promise<CarbCycleDay | null> {
+    const plan = await getStoredCarbCyclePlan(userId);
+    if (!plan) {
+        return null;
+    }
+
+    const dayIndex = (new Date().getDay() + 6) % 7;
+    return plan.weekPattern[dayIndex] ?? null;
+}
