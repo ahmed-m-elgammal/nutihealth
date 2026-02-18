@@ -105,10 +105,10 @@ export default function HomeScreen() {
             return;
         }
 
-        void (async () => {
+        (async () => {
             const [adjustment, adherence, cycleDay, cycleMacros] = await Promise.all([
-                getAdjustedTargetsForDate(user.id, today),
-                calculateDailyAdherence(user.id, today),
+                getAdjustedTargetsForDate(user.id, new Date()),
+                calculateDailyAdherence(user.id, new Date()),
                 getTodayCarbCycleDay(user.id),
                 getTodayCarbCycleTargets(user.id),
             ]);
@@ -120,7 +120,7 @@ export default function HomeScreen() {
             setAdherenceScore(adherence);
             setCarbCycleDay(cycleDay);
             setCarbCycleMacros(cycleMacros);
-        })();
+        })().catch(() => undefined);
     }, [user?.id, meals?.length]);
 
     const dailyNutrition = useMemo(
@@ -208,7 +208,7 @@ export default function HomeScreen() {
     }, []);
 
     const applySampleHealthyDay = useCallback(
-        async (useSelection: boolean) => {
+        (useSelection: boolean) => {
             if (needsBodyMetrics(user)) {
                 handleMealEntryGate('/(tabs)/index');
                 return;
@@ -224,60 +224,30 @@ export default function HomeScreen() {
             }
 
             setIsApplyingSampleDay(true);
-            try {
-                for (const template of templates) {
-                    const consumedAt = new Date();
-                    consumedAt.setHours(template.consumedHour, template.consumedMinute, 0, 0);
 
-                    await createMeal({
-                        name: template.name,
-                        mealType: template.mealType,
-                        consumedAt,
-                        foods: template.foods,
-                    });
-                }
+            const createRequests = templates.map((template) => {
+                const consumedAt = new Date();
+                consumedAt.setHours(template.consumedHour, template.consumedMinute, 0, 0);
 
-                setIsModifyingSampleDay(false);
-                setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
-            } catch (error) {
-                Alert.alert('Unable to apply sample', (error as Error).message || 'Please try again.');
-            } finally {
-                setIsApplyingSampleDay(false);
-            }
-        },
-        [user, handleMealEntryGate, selectedSampleMeals],
-    );
+                return createMeal({
+                    name: template.name,
+                    mealType: template.mealType,
+                    consumedAt,
+                    foods: template.foods,
+                });
+            });
 
-            const templates = useSelection
-                ? SAMPLE_HEALTHY_DAY.filter((meal) => selectedSampleMeals.includes(meal.id))
-                : SAMPLE_HEALTHY_DAY;
-
-            if (templates.length === 0) {
-                Alert.alert('No meals selected', 'Select at least one sample meal before applying.');
-                return;
-            }
-
-            setIsApplyingSampleDay(true);
-            try {
-                for (const template of templates) {
-                    const consumedAt = new Date();
-                    consumedAt.setHours(template.consumedHour, template.consumedMinute, 0, 0);
-
-                    await createMeal({
-                        name: template.name,
-                        mealType: template.mealType,
-                        consumedAt,
-                        foods: template.foods,
-                    });
-                }
-
-                setIsModifyingSampleDay(false);
-                setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
-            } catch (error) {
-                Alert.alert('Unable to apply sample', (error as Error).message || 'Please try again.');
-            } finally {
-                setIsApplyingSampleDay(false);
-            }
+            Promise.all(createRequests)
+                .then(() => {
+                    setIsModifyingSampleDay(false);
+                    setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
+                })
+                .catch((error) => {
+                    Alert.alert('Unable to apply sample', (error as Error).message || 'Please try again.');
+                })
+                .finally(() => {
+                    setIsApplyingSampleDay(false);
+                });
         },
         [user, handleMealEntryGate, selectedSampleMeals],
     );
@@ -384,25 +354,7 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
                     </Card>
                 </View>
 
-                <MealSuggestionBanner userId={user?.id} date={today} />
-
-                <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
-                    <Subheading className="mb-4">Quick Add</Subheading>
-                    <View className="flex-row flex-wrap justify-between gap-2">
-                        {QUICK_ACTIONS.map((action) => (
-                            <QuickAction
-                                key={action.id}
-                                label={action.label}
-                                icon={action.icon}
-                                onPress={() => handleQuickActionPress(action.route)}
-                            />
-                        ))}
-                    </View>
-                </View>
-
-                </View>
-
-                <MealSuggestionBanner userId={user?.id} date={today} />
+                <MealSuggestionBanner userId={user?.id} />
 
                 <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
                     <Subheading className="mb-4">Quick Add</Subheading>
@@ -435,12 +387,6 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
             isLoadingStats,
             currentCalories,
             targetCalories,
-            macros.protein.current,
-            macros.protein.target,
-            macros.carbs.current,
-            macros.carbs.target,
-            macros.fats.current,
-            macros.fats.target,
             router,
             carbCycleLabel,
             carbCycleMacros?.calories,
@@ -453,6 +399,11 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
             meals?.length,
             adherenceScore,
             adherenceBarColor,
+            handleQuickActionPress,
+            macros.protein,
+            macros.carbs,
+            macros.fats,
+            user?.id,
         ],
     );
 
@@ -513,7 +464,7 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
                             <Button
                                 className="flex-1"
                                 loading={isApplyingSampleDay}
-                                onPress={() => void applySampleHealthyDay(isModifyingSampleDay)}
+                                onPress={() => applySampleHealthyDay(isModifyingSampleDay)}
                                 accessibilityLabel={
                                     isModifyingSampleDay ? 'Log selected sample meals' : 'Log all sample meals'
                                 }
