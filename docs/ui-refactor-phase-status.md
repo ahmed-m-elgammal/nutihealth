@@ -41,19 +41,25 @@ Not yet complete:
 
 ### Phase 3: Home Dashboard Redesign
 
-**Status:** Not implemented in this branch
+**Status:** Largely implemented
 
-Not yet built:
-- `HomeHeader`, `CalorieRingCard`, `QuickActionsGrid`, `MealTimeline` redesign updates,
-  `MealSuggestionBanner`, `AdherenceStrip`.
+Implemented:
+- `HomeHeader`, `CalorieRingCard`, `QuickActionsGrid`, `MealTimeline`,
+  `MealSuggestionBanner`, `AdherenceStrip` components are present and wired in the home tab.
+
+Not yet complete:
+- Some advanced celebratory/gesture polish from the long-form plan remains.
 
 ### Phase 4: Meal Logging Experience
 
-**Status:** Not implemented in this branch
+**Status:** Implemented with remaining polish items
 
-Not yet built:
+Implemented:
 - `DatePickerStrip`, `MacroSummaryBar`, `CollapsibleMealSection`, `FoodItemCard`,
-  `FoodSearchModal` redesign behaviors, `ServingSizePicker`, `AddMealSheet`, `FoodDetailModal` overhaul.
+  `FoodSearchModal`, `ServingSizePicker`, `AddMealSheet`, `FoodDetailModal` modules are present and wired.
+
+Not yet complete:
+- Some advanced interaction and production-hardening details (full swipe semantics, richer undo/snackbar flows, deeper integration edge handling).
 
 ## Next recommended implementation order
 
@@ -61,3 +67,14 @@ Not yet built:
 2. Complete P2 interaction polish (haptics + transitions + collapsible headers).
 3. Implement P3 dashboard components.
 4. Implement P4 meal logging flow and reactive UX refinements.
+
+
+### Phase 5: Animated Charts & Progress
+
+**Status:** Started
+
+Implemented (initial):
+- `PeriodSelector`, `WeightChart`, `CalorieHistoryChart`, `MacroRingChart`, `StatsStrip`, `BodyMeasurements` and integration in `progress` tab.
+
+Not yet complete:
+- Advanced chart interaction depth (robust pinch-to-zoom/tooltips/path interpolation and full polish) remains.
