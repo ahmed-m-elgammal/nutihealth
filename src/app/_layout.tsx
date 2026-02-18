@@ -20,6 +20,7 @@ import '../../global.css';
 import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '../services/notifications';
 import RootErrorBoundary from '../components/errors/RootErrorBoundary';
 import OfflineIndicator from '../components/common/OfflineIndicator';
+import { ThemeProvider } from '../theme/ThemeProvider';
 
 const devLog = (...messages: unknown[]) => {
     if (__DEV__) {
@@ -235,8 +236,10 @@ export default function RootLayout() {
             <RootErrorBoundary onClearCache={Platform.OS === 'web' ? () => void resetWebApplicationData() : undefined}>
                 <DatabaseProvider database={database}>
                     <QueryClientProvider client={queryClient}>
-                        <OfflineIndicator />
-                        <RootNavigation />
+                        <ThemeProvider>
+                            <OfflineIndicator />
+                            <RootNavigation />
+                        </ThemeProvider>
                     </QueryClientProvider>
                 </DatabaseProvider>
             </RootErrorBoundary>
