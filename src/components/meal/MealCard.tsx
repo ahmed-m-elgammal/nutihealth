@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { MoreVertical, Trash2 } from 'lucide-react-native';
+import { Trash2 } from 'lucide-react-native';
 import type Meal from '@database/models/Meal';
 
 interface MealCardProps {

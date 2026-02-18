@@ -1,8 +1,5 @@
-import axios from 'axios';
 import { handleError } from '../utils/errors';
-
-const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY || '';
-const OPENWEATHER_API_URL = 'https://api.openweathermap.org/data/2.5';
+import { api } from './apiWrapper';
 
 export interface WeatherData {
     temperature: number; // Celsius
@@ -42,26 +39,20 @@ export async function getCurrentWeather(
             return weatherCache.data;
         }
 
-        if (!OPENWEATHER_API_KEY) {
-            console.warn('OpenWeather API key not configured');
-            return null;
-        }
-
-        const response = await axios.get(`${OPENWEATHER_API_URL}/weather`, {
+        const response = await api.get<any>('/weather', {
             params: {
-                lat: latitude,
-                lon: longitude,
-                appid: OPENWEATHER_API_KEY,
-                units: 'metric', // Get temperature in Celsius
+                lat: String(latitude),
+                lon: String(longitude),
             },
+            suppressErrors: true,
         });
 
         const data: WeatherData = {
-            temperature: Math.round(response.data.main.temp),
-            humidity: response.data.main.humidity,
-            description: response.data.weather[0].description,
-            feelsLike: Math.round(response.data.main.feels_like),
-            icon: response.data.weather[0].icon,
+            temperature: Math.round(response.main.temp),
+            humidity: response.main.humidity,
+            description: response.weather[0].description,
+            feelsLike: Math.round(response.main.feels_like),
+            icon: response.weather[0].icon,
         };
 
         // Update cache
@@ -82,25 +73,19 @@ export async function getCurrentWeather(
  */
 export async function getCurrentWeatherByCity(city: string): Promise<WeatherData | null> {
     try {
-        if (!OPENWEATHER_API_KEY) {
-            console.warn('OpenWeather API key not configured');
-            return null;
-        }
-
-        const response = await axios.get(`${OPENWEATHER_API_URL}/weather`, {
+        const response = await api.get<any>('/weather', {
             params: {
-                q: city,
-                appid: OPENWEATHER_API_KEY,
-                units: 'metric',
+                city: city.trim(),
             },
+            suppressErrors: true,
         });
 
         const data: WeatherData = {
-            temperature: Math.round(response.data.main.temp),
-            humidity: response.data.main.humidity,
-            description: response.data.weather[0].description,
-            feelsLike: Math.round(response.data.main.feels_like),
-            icon: response.data.weather[0].icon,
+            temperature: Math.round(response.main.temp),
+            humidity: response.main.humidity,
+            description: response.weather[0].description,
+            feelsLike: Math.round(response.main.feels_like),
+            icon: response.weather[0].icon,
         };
 
         // Update cache

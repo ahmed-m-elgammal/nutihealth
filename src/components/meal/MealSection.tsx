@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { Plus } from 'lucide-react-native';
 
 interface FoodItem {
-    id: number;
+    id: string;
     name: string;
     calories: number;
     protein: number;

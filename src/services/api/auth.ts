@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { apiClient, ApiResponse } from './client';
+import { ApiResponse } from './client';
 import { handleError } from '../../utils/errors';
 
 /**
@@ -70,17 +70,18 @@ export interface ResetPasswordRequest {
  */
 export async function login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     try {
-        // TODO: Enable when backend is ready
-        // const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
+        const normalizedEmail = credentials.email.trim().toLowerCase();
+        if (!normalizedEmail || !credentials.password) {
+            return {
+                success: false,
+                error: {
+                    code: 'INVALID_CREDENTIALS',
+                    message: 'Email and password are required',
+                },
+            };
+        }
 
-        // if (response.success && response.data) {
-        //     await storeAuthTokens(response.data);
-        // }
-
-        // return response;
-
-        // OFFLINE-FIRST: Return mock success for local development
-        console.log('Auth service: login called (offline mode)');
+        // OFFLINE-FIRST: backend auth is intentionally disabled.
         return {
             success: false,
             error: {
@@ -119,21 +120,7 @@ export async function signup(data: SignupRequest): Promise<ApiResponse<AuthRespo
             };
         }
 
-        // TODO: Enable when backend is ready
-        // const response = await apiClient.post<AuthResponse>('/auth/signup', {
-        //     name: data.name,
-        //     email: data.email,
-        //     password: data.password,
-        // });
-
-        // if (response.success && response.data) {
-        //     await storeAuthTokens(response.data);
-        // }
-
-        // return response;
-
-        // OFFLINE-FIRST: Return mock response
-        console.log('Auth service: signup called (offline mode)');
+        // OFFLINE-FIRST: backend auth is intentionally disabled.
         return {
             success: false,
             error: {
@@ -162,11 +149,6 @@ export async function logout(): Promise<void> {
         await SecureStore.deleteItemAsync(TOKEN_KEY);
         await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
         await SecureStore.deleteItemAsync(USER_ID_KEY);
-
-        // TODO: Enable when backend is ready
-        // await apiClient.post('/auth/logout');
-
-        console.log('Auth service: logout completed');
     } catch (error) {
         handleError(error, 'auth.logout');
     }
@@ -191,18 +173,7 @@ export async function refreshToken(): Promise<ApiResponse<AuthResponse>> {
             };
         }
 
-        // TODO: Enable when backend is ready
-        // const response = await apiClient.post<AuthResponse>('/auth/refresh', {
-        //     refreshToken,
-        // });
-
-        // if (response.success && response.data) {
-        //     await storeAuthTokens(response.data);
-        // }
-
-        // return response;
-
-        // OFFLINE-FIRST: Return mock response
+        // OFFLINE-FIRST: backend auth is intentionally disabled.
         return {
             success: false,
             error: {
@@ -229,8 +200,15 @@ export async function refreshToken(): Promise<ApiResponse<AuthResponse>> {
  */
 export async function requestPasswordReset(email: string): Promise<ApiResponse<void>> {
     try {
-        // TODO: Enable when backend is ready
-        // return await apiClient.post('/auth/password-reset/request', { email });
+        if (!email.trim()) {
+            return {
+                success: false,
+                error: {
+                    code: 'INVALID_EMAIL',
+                    message: 'Email is required',
+                },
+            };
+        }
 
         return {
             success: false,
@@ -258,8 +236,15 @@ export async function requestPasswordReset(email: string): Promise<ApiResponse<v
  */
 export async function resetPassword(data: ResetPasswordRequest): Promise<ApiResponse<void>> {
     try {
-        // TODO: Enable when backend is ready
-        // return await apiClient.post('/auth/password-reset/confirm', data);
+        if (!data.code.trim() || !data.newPassword.trim()) {
+            return {
+                success: false,
+                error: {
+                    code: 'INVALID_RESET_DATA',
+                    message: 'Reset code and new password are required',
+                },
+            };
+        }
 
         return {
             success: false,
@@ -313,7 +298,7 @@ export async function isAuthenticated(): Promise<boolean> {
  * 
  * @param authData - Authentication response data
  */
-async function storeAuthTokens(authData: AuthResponse): Promise<void> {
+export async function storeAuthTokens(authData: AuthResponse): Promise<void> {
     try {
         await SecureStore.setItemAsync(TOKEN_KEY, authData.token);
         await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authData.refreshToken);

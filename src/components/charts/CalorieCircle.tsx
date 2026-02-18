@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import Animated, {
@@ -17,9 +17,14 @@ interface CalorieCircleProps {
 }
 
 export default function CalorieCircle({ current, target, size = 120 }: CalorieCircleProps) {
-    const percentage = Math.min((current / target) * 100, 100);
-    const radius = (size - 20) / 2;
-    const circumference = 2 * Math.PI * radius;
+    // Memoize basic calculations
+    const { percentage, radius, circumference } = useMemo(() => {
+        const pct = Math.min((current / target) * 100, 100);
+        const r = (size - 20) / 2;
+        const circ = 2 * Math.PI * r;
+        return { percentage: pct, radius: r, circumference: circ };
+    }, [current, target, size]);
+
     const strokeWidth = 12;
 
     const progress = useSharedValue(0);
@@ -38,14 +43,12 @@ export default function CalorieCircle({ current, target, size = 120 }: CalorieCi
         };
     });
 
-    // Determine color based on percentage
-    const getColor = () => {
+    // Memoize color calculation
+    const colors = useMemo(() => {
         if (percentage > 100) return { start: '#ef4444', end: '#dc2626' }; // Red gradient
         if (percentage > 75) return { start: '#f59e0b', end: '#d97706' }; // Amber gradient
         return { start: '#10b981', end: '#059669' }; // Emerald gradient
-    };
-
-    const colors = getColor();
+    }, [percentage]);
 
     return (
         <View style={{ width: size, height: size }} className="items-center justify-center">

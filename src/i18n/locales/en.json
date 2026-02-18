@@ -1,1 +1,88 @@
-{}
+{
+  "addMeal": {
+    "title": "Add Meal",
+    "subtitle": "Choose how you want to add food to your diary.",
+    "options": {
+      "template": {
+        "title": "Load from Template",
+        "subtitle": "Use a saved meal template"
+      },
+      "search": {
+        "title": "Search Food",
+        "subtitle": "Search our database"
+      },
+      "barcode": {
+        "title": "Scan Barcode",
+        "subtitle": "Scan a product barcode"
+      },
+      "ai": {
+        "title": "AI Food Detection",
+        "subtitle": "Take a photo of your meal"
+      },
+      "recipeImport": {
+        "title": "Import Recipe",
+        "subtitle": "Import from any recipe URL"
+      }
+    }
+  },
+  "recipeImport": {
+    "screenTitle": "Import Recipe",
+    "intro": {
+      "title": "Import recipes from links",
+      "description": "Paste any recipe URL and we will parse title, ingredients, instructions, servings, and nutrition.",
+      "steps": {
+        "1": "Paste a recipe URL from any Arabic or English website.",
+        "2": "We parse ingredients, instructions, servings, and nutrition.",
+        "3": "Preview, adjust servings, then add directly to your meal diary."
+      }
+    },
+    "urlModal": {
+      "title": "Recipe URL",
+      "subtitle": "Paste a recipe page link to import it.",
+      "placeholder": "https://example.com/recipe"
+    },
+    "loading": {
+      "subtitle": "Parsing recipe details..."
+    },
+    "actions": {
+      "enterUrl": "Enter Recipe URL",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "import": "Import"
+    },
+    "preview": {
+      "title": "Recipe Preview",
+      "servingsInRecipe": "{{count}} servings in this recipe",
+      "selectedServings": "Servings to log",
+      "nutritionTitle": "Nutrition Summary",
+      "protein": "Protein",
+      "carbs": "Carbs",
+      "fats": "Fats",
+      "perServingHint": "Per serving: {{calories}} kcal • P {{protein}}g • C {{carbs}}g • F {{fats}}g",
+      "ingredients": "Ingredients",
+      "instructions": "Instructions",
+      "metric": "Metric",
+      "imperial": "Imperial",
+      "mealType": "Add to meal",
+      "addToMeal": "Add to {{mealType}}"
+    },
+    "mealTypes": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snack": "Snack"
+    },
+    "errors": {
+      "title": "Import failed",
+      "invalidUrl": "Please enter a valid recipe URL",
+      "noRecipe": "Couldn't find recipe data. Try another URL",
+      "network": "Connection failed. Check your internet",
+      "parse": "Couldn't parse this recipe. Manual entry available",
+      "unknown": "Something went wrong while importing this recipe",
+      "addMealFailed": "Couldn't add recipe to your meal diary. Please try again"
+    },
+    "success": {
+      "addedToMeal": "Recipe added to your meal diary"
+    }
+  }
+}

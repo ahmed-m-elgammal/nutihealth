@@ -9,9 +9,17 @@ type ThemeMode = 'light' | 'dark' | 'auto';
  * @returns Theme utilities
  */
 export function useTheme() {
-    const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
-        return getTheme() || 'auto';
-    });
+    const [themeMode, setThemeModeState] = useState<ThemeMode>('auto');
+
+    useEffect(() => {
+        const loadTheme = async () => {
+            const savedTheme = await getTheme();
+            if (savedTheme) {
+                setThemeModeState(savedTheme);
+            }
+        };
+        loadTheme();
+    }, []);
 
     const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
         Appearance.getColorScheme()

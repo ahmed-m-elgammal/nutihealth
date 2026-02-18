@@ -1,4 +1,4 @@
-import { Model, Q } from '@nozbe/watermelondb';
+import { Model, Query, Relation } from '@nozbe/watermelondb';
 import { field, readonly, date, relation, children } from '@nozbe/watermelondb/decorators';
 import type Workout from './Workout';
 import type Exercise from './Exercise';
@@ -12,14 +12,14 @@ export default class WorkoutExercise extends Model {
         exercise_sets: { type: 'has_many' as const, foreignKey: 'workout_exercise_id' },
     };
 
-    @field('workout_id') workoutId!: string;
-    @field('exercise_id') exerciseId!: string;
-    @field('order') order!: number;
+    @field('workout_id') workoutId: string;
+    @field('exercise_id') exerciseId: string;
+    @field('order') order: number;
     @field('notes') notes?: string;
-    @readonly @date('created_at') createdAt!: Date;
-    @readonly @date('updated_at') updatedAt!: Date;
+    @readonly @date('created_at') createdAt: Date;
+    @readonly @date('updated_at') updatedAt: Date;
 
-    @relation('workouts', 'workout_id') workout!: Workout;
-    @relation('exercises', 'exercise_id') exercise!: Exercise;
-    @children('exercise_sets') sets!: Q.Query<ExerciseSet>;
+    @relation('workouts', 'workout_id') workout: Relation<Workout>;
+    @relation('exercises', 'exercise_id') exercise: Relation<Exercise>;
+    @children('exercise_sets') sets: Query<ExerciseSet>;
 }

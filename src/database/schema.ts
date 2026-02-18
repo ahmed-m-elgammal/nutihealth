@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-    version: 1,
+    version: 5,
     tables: [
         // User Profile
         tableSchema({
@@ -24,6 +24,7 @@ export const schema = appSchema({
                 { name: 'fats_target', type: 'number' },
                 { name: 'stats', type: 'string' }, // JSON: current_streak, total_workouts, etc.
                 { name: 'preferences', type: 'string' }, // JSON: allergies, dietary_restrictions, theme
+                { name: 'workout_preferences', type: 'string', isOptional: true }, // JSON: workout setup profile
                 { name: 'onboarding_completed', type: 'boolean' },
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
@@ -54,7 +55,7 @@ export const schema = appSchema({
             name: 'foods',
             columns: [
                 { name: 'meal_id', type: 'string', isIndexed: true },
-                { name: 'name', type: 'string' },
+                { name: 'name', type: 'string', isIndexed: true },
                 { name: 'brand', type: 'string', isOptional: true },
                 { name: 'barcode', type: 'string', isOptional: true },
                 { name: 'serving_size', type: 'number' },
@@ -76,7 +77,7 @@ export const schema = appSchema({
             name: 'custom_foods',
             columns: [
                 { name: 'user_id', type: 'string', isIndexed: true },
-                { name: 'name', type: 'string' },
+                { name: 'name', type: 'string', isIndexed: true },
                 { name: 'brand', type: 'string', isOptional: true },
                 { name: 'barcode', type: 'string', isOptional: true },
                 { name: 'serving_size', type: 'number' },
@@ -166,6 +167,7 @@ export const schema = appSchema({
                 { name: 'rpe', type: 'number', isOptional: true }, // Rate of Perceived Exertion (1-10)
                 { name: 'is_warmup', type: 'boolean' },
                 { name: 'is_pr', type: 'boolean' }, // Personal Record
+                { name: 'is_completed', type: 'boolean' },
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
             ],
@@ -194,12 +196,52 @@ export const schema = appSchema({
             name: 'workout_templates',
             columns: [
                 { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'program_id', type: 'string', isOptional: true, isIndexed: true },
                 { name: 'name', type: 'string' },
                 { name: 'description', type: 'string', isOptional: true },
                 { name: 'workout_type', type: 'string' },
                 { name: 'exercises', type: 'string' }, // JSON array of exercise configs
                 { name: 'is_favorite', type: 'boolean' },
                 { name: 'use_count', type: 'number' },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Training Programs
+        tableSchema({
+            name: 'training_programs',
+            columns: [
+                { name: 'name', type: 'string' },
+                { name: 'description', type: 'string', isOptional: true },
+                { name: 'level', type: 'string', isIndexed: true }, // 'beginner', 'intermediate', 'advanced'
+                { name: 'duration_weeks', type: 'number' },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Template Exercises (junction: workout_templates <-> exercises)
+        tableSchema({
+            name: 'template_exercises',
+            columns: [
+                { name: 'template_id', type: 'string', isIndexed: true },
+                { name: 'exercise_id', type: 'string', isIndexed: true },
+                { name: 'sets', type: 'number' },
+                { name: 'reps', type: 'number' },
+                { name: 'order', type: 'number' },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Workout Schedules (user weekly mapping)
+        tableSchema({
+            name: 'workout_schedules',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'template_id', type: 'string', isIndexed: true },
+                { name: 'day_of_week', type: 'string', isIndexed: true }, // 'Monday', 'Tuesday', etc.
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
             ],
@@ -289,6 +331,110 @@ export const schema = appSchema({
                 { name: 'photo_uri', type: 'string', isOptional: true },
                 { name: 'notes', type: 'string', isOptional: true },
                 { name: 'logged_at', type: 'number', isIndexed: true },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Meal Templates - Reusable meal configurations
+        tableSchema({
+            name: 'meal_templates',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'name', type: 'string' },
+                { name: 'description', type: 'string', isOptional: true },
+                { name: 'meal_type', type: 'string' }, // 'breakfast', 'lunch', 'dinner', 'snack'
+                { name: 'foods_data', type: 'string' }, // JSON array of food items with quantities
+                { name: 'total_calories', type: 'number' },
+                { name: 'total_protein', type: 'number' },
+                { name: 'total_carbs', type: 'number' },
+                { name: 'total_fats', type: 'number' },
+                { name: 'is_favorite', type: 'boolean' },
+                { name: 'use_count', type: 'number' },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Weekly Goal Plans - Day-specific macro targets
+        tableSchema({
+            name: 'weekly_goal_plans',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'plan_name', type: 'string' },
+                { name: 'is_active', type: 'boolean', isIndexed: true },
+                { name: 'start_date', type: 'number' },
+                { name: 'end_date', type: 'number', isOptional: true },
+                // Monday targets
+                { name: 'monday_calories', type: 'number' },
+                { name: 'monday_protein', type: 'number' },
+                { name: 'monday_carbs', type: 'number' },
+                { name: 'monday_fats', type: 'number' },
+                // Tuesday targets
+                { name: 'tuesday_calories', type: 'number' },
+                { name: 'tuesday_protein', type: 'number' },
+                { name: 'tuesday_carbs', type: 'number' },
+                { name: 'tuesday_fats', type: 'number' },
+                // Wednesday targets
+                { name: 'wednesday_calories', type: 'number' },
+                { name: 'wednesday_protein', type: 'number' },
+                { name: 'wednesday_carbs', type: 'number' },
+                { name: 'wednesday_fats', type: 'number' },
+                // Thursday targets
+                { name: 'thursday_calories', type: 'number' },
+                { name: 'thursday_protein', type: 'number' },
+                { name: 'thursday_carbs', type: 'number' },
+                { name: 'thursday_fats', type: 'number' },
+                // Friday targets
+                { name: 'friday_calories', type: 'number' },
+                { name: 'friday_protein', type: 'number' },
+                { name: 'friday_carbs', type: 'number' },
+                { name: 'friday_fats', type: 'number' },
+                // Saturday targets
+                { name: 'saturday_calories', type: 'number' },
+                { name: 'saturday_protein', type: 'number' },
+                { name: 'saturday_carbs', type: 'number' },
+                { name: 'saturday_fats', type: 'number' },
+                // Sunday targets
+                { name: 'sunday_calories', type: 'number' },
+                { name: 'sunday_protein', type: 'number' },
+                { name: 'sunday_carbs', type: 'number' },
+                { name: 'sunday_fats', type: 'number' },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Diets
+        tableSchema({
+            name: 'diets',
+            columns: [
+                { name: 'name', type: 'string' },
+                { name: 'description', type: 'string', isOptional: true },
+                { name: 'type', type: 'string' }, // 'preset', 'custom'
+                { name: 'calorie_target', type: 'number' },
+                { name: 'protein_target', type: 'number' },
+                { name: 'carbs_target', type: 'number' },
+                { name: 'fats_target', type: 'number' },
+                { name: 'fiber_target', type: 'number', isOptional: true },
+                { name: 'restrictions', type: 'string' }, // JSON array
+                { name: 'is_active', type: 'boolean' },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // User Diets (junction table)
+        tableSchema({
+            name: 'user_diets',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'diet_id', type: 'string', isIndexed: true },
+                { name: 'start_date', type: 'number' },
+                { name: 'end_date', type: 'number', isOptional: true },
+                { name: 'is_active', type: 'boolean' },
+                { name: 'target_weight', type: 'number', isOptional: true },
+                { name: 'weekly_goal', type: 'number', isOptional: true },
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
             ],

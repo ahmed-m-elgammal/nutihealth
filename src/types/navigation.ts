@@ -8,7 +8,7 @@ export type RootStackParamList = {
     '(modals)/add-meal': { date?: number };
     '(modals)/food-search': { mealId: string };
     '(modals)/barcode-scanner': { onScan: (barcode: string) => void };
-    '(modals)/ai-food-detect': { mealId: string };
+    '(modals)/ai-food-detect': { mealId?: string }; // Made optional
 };
 
 export type TabParamList = {
@@ -29,7 +29,7 @@ export type ModalStackParamList = {
     'add-meal': { date?: number };
     'food-search': { mealId: string };
     'barcode-scanner': { onScan: (barcode: string) => void };
-    'ai-food-detect': { mealId: string };
+    'ai-food-detect': { mealId?: string }; // Made optional
 };
 
 // Screen props

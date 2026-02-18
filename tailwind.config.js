@@ -6,8 +6,16 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                // Primary - Emerald (Health/Success theme)
+                // Semantic colors mapped to CSS variables
+                border: 'hsl(var(--border))',
+                input: 'hsl(var(--input))',
+                ring: 'hsl(var(--ring))',
+                background: 'hsl(var(--background))',
+                foreground: 'hsl(var(--foreground))',
                 primary: {
+                    DEFAULT: 'hsl(var(--primary))',
+                    foreground: 'hsl(var(--primary-foreground))',
+                    // Keep existing color scales for gradual migration
                     50: '#ecfdf5',
                     100: '#d1fae5',
                     200: '#a7f3d0',
@@ -20,7 +28,47 @@ module.exports = {
                     900: '#064e3b',
                     950: '#022c22',
                 },
-                // Teal (For gradients)
+                secondary: {
+                    DEFAULT: 'hsl(var(--secondary))',
+                    foreground: 'hsl(var(--secondary-foreground))',
+                    // Keep existing color scales
+                    50: '#eff6ff',
+                    100: '#dbeafe',
+                    200: '#bfdbfe',
+                    300: '#93c5fd',
+                    400: '#60a5fa',
+                    500: '#3b82f6',
+                    600: '#2563eb',
+                    700: '#1d4ed8',
+                    800: '#1e40af',
+                    900: '#1e3a8a',
+                    950: '#172554',
+                },
+                destructive: {
+                    DEFAULT: 'hsl(var(--destructive))',
+                    foreground: 'hsl(var(--destructive-foreground))',
+                },
+                success: {
+                    DEFAULT: 'hsl(var(--success))',
+                    foreground: 'hsl(var(--success-foreground))',
+                },
+                warning: {
+                    DEFAULT: 'hsl(var(--warning))',
+                    foreground: 'hsl(var(--warning-foreground))',
+                },
+                muted: {
+                    DEFAULT: 'hsl(var(--muted))',
+                    foreground: 'hsl(var(--muted-foreground))',
+                },
+                accent: {
+                    DEFAULT: 'hsl(var(--accent))',
+                    foreground: 'hsl(var(--accent-foreground))',
+                },
+                card: {
+                    DEFAULT: 'hsl(var(--card))',
+                    foreground: 'hsl(var(--card-foreground))',
+                },
+                // Keep existing color scales for backward compatibility
                 teal: {
                     50: '#f0fdfa',
                     100: '#ccfbf1',
@@ -34,21 +82,6 @@ module.exports = {
                     900: '#134e4a',
                     950: '#042f2e',
                 },
-                // Secondary - Blue (Trust/Calm)
-                secondary: {
-                    50: '#eff6ff',
-                    100: '#dbeafe',
-                    200: '#bfdbfe',
-                    300: '#93c5fd',
-                    400: '#60a5fa',
-                    500: '#3b82f6',
-                    600: '#2563eb',
-                    700: '#1d4ed8',
-                    800: '#1e40af',
-                    900: '#1e3a8a',
-                    950: '#172554',
-                },
-                // Purple (For fats macro)
                 purple: {
                     50: '#faf5ff',
                     100: '#f3e8ff',
@@ -62,7 +95,6 @@ module.exports = {
                     900: '#581c87',
                     950: '#3b0764',
                 },
-                // Amber (For warnings and search action)
                 amber: {
                     50: '#fffbeb',
                     100: '#fef3c7',
@@ -76,7 +108,6 @@ module.exports = {
                     900: '#78350f',
                     950: '#451a03',
                 },
-                // Orange (For accent/energy)
                 orange: {
                     50: '#fff7ed',
                     100: '#ffedd5',
@@ -90,7 +121,6 @@ module.exports = {
                     900: '#7c2d12',
                     950: '#431407',
                 },
-                // Neutral/Gray scale
                 neutral: {
                     50: '#fafafa',
                     100: '#f5f5f5',
@@ -104,11 +134,14 @@ module.exports = {
                     900: '#171717',
                     950: '#0a0a0a',
                 },
-                // Semantic colors
-                success: '#10b981',
-                warning: '#f59e0b',
+                // Semantic colors (keep for compatibility)
                 error: '#ef4444',
                 info: '#3b82f6',
+            },
+            borderRadius: {
+                lg: 'var(--radius)',
+                md: 'calc(var(--radius) - 2px)',
+                sm: 'calc(var(--radius) - 4px)',
             },
             fontFamily: {
                 display: ['Manrope-Bold'],

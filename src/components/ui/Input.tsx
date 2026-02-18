@@ -1,55 +1,79 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TextInput, View, Text, TextInputProps } from 'react-native';
 import Animated, {
     useAnimatedStyle,
     withTiming,
     useSharedValue,
 } from 'react-native-reanimated';
+import { cn } from '../../utils/cn';
 
-interface InputProps extends TextInputProps {
+export interface InputProps extends TextInputProps {
     label?: string;
     error?: string;
     icon?: React.ReactNode;
     containerClassName?: string;
+    accessibilityHint?: string;
 }
 
+/**
+ * Input component with semantic colors and built-in error states.
+ * Minimum 44px height for touch accessibility.
+ * 
+ * @example
+ * <Input
+ *   label="Email"
+ *   placeholder="Enter your email"
+ *   error={errors.email}
+ *   accessibilityHint="Enter your email address for login"
+ * />
+ */
 export function Input({
     label,
     error,
     icon,
-    containerClassName = '',
+    containerClassName,
+    className,
+    accessibilityLabel,
+    accessibilityHint,
     ...props
 }: InputProps) {
-    const [isFocused, setIsFocused] = useState(false);
     const borderColor = useSharedValue(0);
 
     const borderStyle = useAnimatedStyle(() => ({
         borderColor: withTiming(
-            borderColor.value === 1 ? '#22c55e' : error ? '#ef4444' : '#e5e5e5',
+            borderColor.value === 1
+                ? 'hsl(var(--ring))'
+                : error
+                    ? 'hsl(var(--destructive))'
+                    : 'hsl(var(--input))',
             { duration: 200 }
         ),
     }));
 
     const handleFocus = () => {
-        setIsFocused(true);
         borderColor.value = 1;
     };
 
     const handleBlur = () => {
-        setIsFocused(false);
         borderColor.value = 0;
     };
 
+    // Generate accessibility label from label prop if not provided
+    const inputAccessibilityLabel = accessibilityLabel || label || 'Input field';
+
     return (
-        <View className={`${containerClassName}`}>
+        <View className={cn(containerClassName)}>
             {label && (
-                <Text className="text-neutral-700 font-caption text-sm mb-2">
+                <Text className="text-sm font-medium leading-none text-foreground mb-2">
                     {label}
                 </Text>
             )}
 
             <Animated.View
-                className="flex-row items-center bg-white border-2 rounded-xl px-4 py-3"
+                className={cn(
+                    'flex-row items-center bg-background border-2 rounded-md px-4 h-11',
+                    error && 'border-destructive'
+                )}
                 style={borderStyle}
             >
                 {icon && <View className="mr-2">{icon}</View>}
@@ -58,16 +82,31 @@ export function Input({
                     {...props}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
-                    className="flex-1 font-body text-base text-neutral-900"
-                    placeholderTextColor="#a3a3a3"
+                    className={cn(
+                        'flex-1 font-body text-base text-foreground',
+                        className
+                    )}
+                    placeholderTextColor="hsl(var(--muted-foreground))"
+                    accessible={true}
+                    accessibilityLabel={inputAccessibilityLabel}
+                    accessibilityHint={accessibilityHint}
+                    accessibilityState={{ disabled: props.editable === false }}
                 />
             </Animated.View>
 
             {error && (
-                <Text className="text-error text-sm mt-1 ml-1">
-                    {error}
-                </Text>
+                <View
+                    accessible={true}
+                    accessibilityLiveRegion="polite"
+                    accessibilityRole="alert"
+                >
+                    <Text className="text-destructive text-sm mt-1 ml-1">
+                        {error}
+                    </Text>
+                </View>
             )}
         </View>
     );
 }
+
+export default Input;

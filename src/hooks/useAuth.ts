@@ -9,24 +9,24 @@ export function useAuth() {
     /**
      * Check if user is authenticated
      */
-    const isAuthenticated = (): boolean => {
-        const token = getAuthToken();
-        const userId = getUserId();
+    const isAuthenticated = async (): Promise<boolean> => {
+        const token = await getAuthToken();
+        const userId = await getUserId();
         return Boolean(token && userId);
     };
 
     /**
      * Get current auth token
      */
-    const getToken = (): string | undefined => {
-        return getAuthToken();
+    const getToken = async (): Promise<string | undefined> => {
+        return await getAuthToken();
     };
 
     /**
      * Get current user ID
      */
-    const getCurrentUserId = (): string | undefined => {
-        return getUserId();
+    const getCurrentUserId = async (): Promise<string | undefined> => {
+        return await getUserId();
     };
 
     /**

@@ -1,5 +1,6 @@
 import { useSyncStore } from '../store/syncStore';
 import { config } from '../constants/config';
+import syncService from '../services/api/sync';
 
 /**
  * Hook for managing sync state and operations
@@ -9,7 +10,6 @@ export function useSync() {
     const isSyncing = useSyncStore((state) => state.isSyncing);
     const lastSyncTime = useSyncStore((state) => state.lastSyncTime);
     const syncError = useSyncStore((state) => state.syncError);
-    const pendingChanges = useSyncStore((state) => state.pendingChanges);
     const startSync = useSyncStore((state) => state.startSync);
     const completeSync = useSyncStore((state) => state.completeSync);
     const failSync = useSyncStore((state) => state.failSync);
@@ -36,18 +36,12 @@ export function useSync() {
         try {
             startSync();
 
-            // TODO: Implement actual sync logic when backend is ready
-            // This would include:
-            // 1. Fetch pending changes from local sync queue
-            // 2. Send changes to server
-            // 3. Receive server changes
-            // 4. Apply server changes to local database
-            // 5. Handle conflicts
+            const result = await syncService.performSync();
+            if (!result.success || result.failedItems > 0) {
+                throw new Error(`Sync completed with ${result.failedItems} failed item(s).`);
+            }
 
-            // Simulated sync
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            completeSync(Date.now());
+            completeSync();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Sync failed';
             failSync(errorMessage);
@@ -97,7 +91,6 @@ export function useSync() {
         isSyncEnabled,
         lastSyncTime,
         syncError,
-        pendingChanges,
         triggerSync,
         getTimeSinceLastSync,
         isSyncNeeded,

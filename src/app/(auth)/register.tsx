@@ -17,7 +17,7 @@ export default function RegisterScreen() {
 
                 <TouchableOpacity
                     className="bg-[#22c55e] p-4 rounded-xl items-center mb-4"
-                    onPress={() => router.replace('/(auth)/onboarding')}
+                    onPress={() => router.replace('/onboarding/welcome')}
                 >
                     <Text className="text-white font-bold text-lg">Sign Up</Text>
                 </TouchableOpacity>

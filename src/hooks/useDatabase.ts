@@ -1,4 +1,5 @@
 import { database } from '../database';
+import { Model } from '@nozbe/watermelondb';
 
 /**
  * Hook for accessing the WatermelonDB database
@@ -13,7 +14,7 @@ export function useDatabase() {
  * @param tableName - Name of the table/collection
  * @returns Collection instance
  */
-export function useCollection<T>(tableName: string) {
+export function useCollection<T extends Model>(tableName: string) {
     return database.get<T>(tableName);
 }
 

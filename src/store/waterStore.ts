@@ -1,9 +1,15 @@
 import { create } from 'zustand';
+import { Q } from '@nozbe/watermelondb';
 import { database } from '../database';
-import { handleError } from '../utils/errors';
 import WaterLog from '../database/models/WaterLog';
 import WaterTarget from '../database/models/WaterTarget';
-import { Q } from '@nozbe/watermelondb';
+import User from '../database/models/User';
+import { handleError } from '../utils/errors';
+import {
+    calculateDailyHydration,
+    calculateWeatherWaterAdjustment,
+    calculateWorkoutWaterAdjustment,
+} from '../utils/calculations';
 
 type ContainerType = 'glass' | 'bottle_small' | 'bottle_large' | 'custom';
 type HydrationStatus = 'behind' | 'on_track' | 'exceeded';
@@ -12,26 +18,51 @@ interface WaterStore {
     todaysLogs: WaterLog[];
     todaysTarget: WaterTarget | null;
     totalConsumed: number;
+    targetAmount: number;
     percentage: number;
     lastReminderTime: number | null;
     containerSizes: Record<ContainerType, number>;
     isLoading: boolean;
     error: string | null;
-
-    // Actions
     loadTodaysWater: () => Promise<void>;
     addWaterLog: (amount: number, containerType?: ContainerType) => Promise<void>;
     deleteWaterLog: (id: string) => Promise<void>;
     updateTarget: (newTarget: number) => Promise<void>;
-    calculateDynamicTarget: (weatherTemp?: number, workoutCalories?: number) => Promise<number>;
+    calculateDynamicTarget: (weatherTemp?: number, workoutDurationMinutes?: number) => Promise<number>;
     getHydrationStatus: () => HydrationStatus;
     setReminderTime: (time: number) => void;
+}
+
+const DEFAULT_TARGET_ML = 2000;
+
+function getDayRange(): { startOfDay: number; endOfDay: number } {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(23, 59, 59, 999);
+    return { startOfDay: start.getTime(), endOfDay: end.getTime() };
+}
+
+async function getCurrentUser(): Promise<User | null> {
+    const usersCollection = database.get<User>('users');
+    const users = await usersCollection.query().fetch();
+    return users.length > 0 ? users[0] : null;
+}
+
+function getProfileBasedTarget(user: User | null): number {
+    if (!user) {
+        return DEFAULT_TARGET_ML;
+    }
+
+    const hydration = calculateDailyHydration(user.weight, user.activityLevel);
+    return hydration.totalHydrationMl;
 }
 
 export const useWaterStore = create<WaterStore>((set, get) => ({
     todaysLogs: [],
     todaysTarget: null,
     totalConsumed: 0,
+    targetAmount: DEFAULT_TARGET_ML,
     percentage: 0,
     lastReminderTime: null,
     containerSizes: {
@@ -47,40 +78,35 @@ export const useWaterStore = create<WaterStore>((set, get) => ({
         try {
             set({ isLoading: true, error: null });
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const endOfDay = new Date();
-            endOfDay.setHours(23, 59, 59, 999);
-
-            // Load today's water logs
+            const { startOfDay, endOfDay } = getDayRange();
             const waterLogsCollection = database.get<WaterLog>('water_logs');
-            const logs = await waterLogsCollection
-                .query(
-                    Q.where('logged_at', Q.gte(today.getTime())),
-                    Q.where('logged_at', Q.lte(endOfDay.getTime())),
-                    Q.sortBy('logged_at', Q.desc)
-                )
-                .fetch();
-
-            // Load today's target
             const waterTargetsCollection = database.get<WaterTarget>('water_targets');
-            const targets = await waterTargetsCollection
-                .query(
-                    Q.where('date', Q.eq(today.getTime()))
-                )
-                .fetch();
 
-            const target = targets.length > 0 ? targets[0] : null;
+            const [logs, targets, user] = await Promise.all([
+                waterLogsCollection
+                    .query(
+                        Q.where('logged_at', Q.gte(startOfDay)),
+                        Q.where('logged_at', Q.lte(endOfDay)),
+                        Q.sortBy('logged_at', Q.desc)
+                    )
+                    .fetch(),
+                waterTargetsCollection
+                    .query(Q.where('date', Q.eq(startOfDay)))
+                    .fetch(),
+                getCurrentUser(),
+            ]);
 
-            // Calculate total consumed
-            const total = logs.reduce((sum, log) => sum + log.amount, 0);
-            const targetAmount = target?.totalTarget || 2000; // Default to 2000ml if no target
-            const percentage = Math.min((total / targetAmount) * 100, 100);
+            const targetRecord = targets.length > 0 ? targets[0] : null;
+            const profileTarget = getProfileBasedTarget(user);
+            const targetAmount = targetRecord?.totalTarget || profileTarget;
+            const totalConsumed = logs.reduce((sum, log) => sum + log.amount, 0);
+            const percentage = targetAmount > 0 ? Math.min((totalConsumed / targetAmount) * 100, 100) : 0;
 
             set({
                 todaysLogs: logs,
-                todaysTarget: target,
-                totalConsumed: total,
+                todaysTarget: targetRecord,
+                totalConsumed,
+                targetAmount,
                 percentage,
                 isLoading: false,
             });
@@ -94,20 +120,26 @@ export const useWaterStore = create<WaterStore>((set, get) => ({
         try {
             set({ isLoading: true, error: null });
 
-            // If containerType is provided, use the predefined size
-            const actualAmount = containerType && containerType !== 'custom'
-                ? get().containerSizes[containerType]
-                : amount;
+            const user = await getCurrentUser();
+            if (!user) {
+                set({ isLoading: false, error: 'No user found. Please complete onboarding first.' });
+                return;
+            }
+
+            const actualAmount =
+                containerType && containerType !== 'custom'
+                    ? get().containerSizes[containerType]
+                    : amount;
 
             await database.write(async () => {
                 const waterLogsCollection = database.get<WaterLog>('water_logs');
                 await waterLogsCollection.create((newLog) => {
+                    newLog.userId = user.id;
                     newLog.amount = actualAmount;
                     newLog.loggedAt = Date.now();
                 });
             });
 
-            // Reload today's water data
             await get().loadTodaysWater();
             set({ isLoading: false });
         } catch (error) {
@@ -139,28 +171,34 @@ export const useWaterStore = create<WaterStore>((set, get) => ({
         try {
             set({ isLoading: true, error: null });
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const user = await getCurrentUser();
+            if (!user) {
+                set({ isLoading: false, error: 'No user found. Please complete onboarding first.' });
+                return;
+            }
 
+            const { startOfDay } = getDayRange();
             const waterTargetsCollection = database.get<WaterTarget>('water_targets');
             const existingTargets = await waterTargetsCollection
-                .query(Q.where('date', Q.eq(today.getTime())))
+                .query(Q.where('date', Q.eq(startOfDay)))
                 .fetch();
 
             await database.write(async () => {
                 if (existingTargets.length > 0) {
-                    // Update existing target
                     await existingTargets[0].update((record) => {
+                        record.baseTarget = newTarget;
+                        record.workoutAdjustment = 0;
+                        record.weatherAdjustment = 0;
                         record.totalTarget = newTarget;
                     });
                 } else {
-                    // Create new target
-                    await waterTargetsCollection.create((newTargetRecord) => {
-                        newTargetRecord.date = today.getTime();
-                        newTargetRecord.baseTarget = newTarget;
-                        newTargetRecord.workoutAdjustment = 0;
-                        newTargetRecord.weatherAdjustment = 0;
-                        newTargetRecord.totalTarget = newTarget;
+                    await waterTargetsCollection.create((record) => {
+                        record.userId = user.id;
+                        record.date = startOfDay;
+                        record.baseTarget = newTarget;
+                        record.workoutAdjustment = 0;
+                        record.weatherAdjustment = 0;
+                        record.totalTarget = newTarget;
                     });
                 }
             });
@@ -173,39 +211,25 @@ export const useWaterStore = create<WaterStore>((set, get) => ({
         }
     },
 
-    calculateDynamicTarget: async (weatherTemp?: number, workoutCalories?: number) => {
+    calculateDynamicTarget: async (weatherTemp?: number, workoutDurationMinutes = 0) => {
         try {
-            // Base target: 35ml per kg body weight (we'll use a default of 2000ml)
-            // In a real implementation, this would fetch from user profile
-            const baseTarget = 2000;
-
-            let weatherAdjustment = 0;
-            let workoutAdjustment = 0;
-
-            // Weather adjustment: +500ml if temp > 25°C, +250ml if temp > 20°C
-            if (weatherTemp) {
-                if (weatherTemp > 25) {
-                    weatherAdjustment = 500;
-                } else if (weatherTemp > 20) {
-                    weatherAdjustment = 250;
-                }
+            const user = await getCurrentUser();
+            if (!user) {
+                throw new Error('No user found. Please complete onboarding first.');
             }
 
-            // Workout adjustment: ~500ml per hour of moderate exercise
-            // Estimate: 500ml per 300 calories burned
-            if (workoutCalories) {
-                workoutAdjustment = Math.round((workoutCalories / 300) * 500);
-            }
+            const hydration = calculateDailyHydration(user.weight, user.activityLevel);
+            const baseTarget = hydration.baseHydrationMl + hydration.activityBonusMl;
+            const workoutAdjustment = calculateWorkoutWaterAdjustment(workoutDurationMinutes, 'recommended');
+            const weatherAdjustment = typeof weatherTemp === 'number'
+                ? calculateWeatherWaterAdjustment(weatherTemp, 60)
+                : 0;
+            const totalTarget = baseTarget + workoutAdjustment + weatherAdjustment;
 
-            const totalTarget = baseTarget + weatherAdjustment + workoutAdjustment;
-
-            // Update or create today's target
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
+            const { startOfDay } = getDayRange();
             const waterTargetsCollection = database.get<WaterTarget>('water_targets');
             const existingTargets = await waterTargetsCollection
-                .query(Q.where('date', Q.eq(today.getTime())))
+                .query(Q.where('date', Q.eq(startOfDay)))
                 .fetch();
 
             await database.write(async () => {
@@ -217,12 +241,13 @@ export const useWaterStore = create<WaterStore>((set, get) => ({
                         record.totalTarget = totalTarget;
                     });
                 } else {
-                    await waterTargetsCollection.create((newTarget) => {
-                        newTarget.date = today.getTime();
-                        newTarget.baseTarget = baseTarget;
-                        newTarget.weatherAdjustment = weatherAdjustment;
-                        newTarget.workoutAdjustment = workoutAdjustment;
-                        newTarget.totalTarget = totalTarget;
+                    await waterTargetsCollection.create((record) => {
+                        record.userId = user.id;
+                        record.date = startOfDay;
+                        record.baseTarget = baseTarget;
+                        record.weatherAdjustment = weatherAdjustment;
+                        record.workoutAdjustment = workoutAdjustment;
+                        record.totalTarget = totalTarget;
                     });
                 }
             });
@@ -236,10 +261,8 @@ export const useWaterStore = create<WaterStore>((set, get) => ({
     },
 
     getHydrationStatus: (): HydrationStatus => {
-        const { totalConsumed, todaysTarget } = get();
-        const target = todaysTarget?.totalTarget || 2000;
-
-        const percentage = (totalConsumed / target) * 100;
+        const { totalConsumed, targetAmount } = get();
+        const percentage = targetAmount > 0 ? (totalConsumed / targetAmount) * 100 : 0;
 
         if (percentage >= 100) return 'exceeded';
         if (percentage >= 80) return 'on_track';

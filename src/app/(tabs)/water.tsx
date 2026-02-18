@@ -1,22 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Droplets, Plus, TrendingUp } from 'lucide-react-native';
 import CalorieCircle from '../../components/charts/CalorieCircle';
-import ProgressBar from '../../components/charts/ProgressBar';
+import { useWaterStore } from '../../store/waterStore';
 
 export default function WaterScreen() {
-    const [currentIntake, setCurrentIntake] = useState(1500); // ml
-    const targetIntake = 2500; // ml
-    const glassSize = 250; // ml
+    const {
+        totalConsumed,
+        percentage,
+        targetAmount,
+        addWaterLog,
+        loadTodaysWater,
+    } = useWaterStore();
 
-    const addWater = (amount: number) => {
-        setCurrentIntake(prev => Math.min(prev + amount, targetIntake + 1000));
-    };
+    useEffect(() => {
+        loadTodaysWater();
+    }, []);
 
-    const waterPercentage = Math.round((currentIntake / targetIntake) * 100);
+    const targetIntake = targetAmount;
+    const glassSize = 250;
+
+    // Derived values
+    const currentIntake = totalConsumed;
     const glassesConsumed = Math.floor(currentIntake / glassSize);
     const totalGlasses = Math.ceil(targetIntake / glassSize);
+    const waterPercentage = Math.round(percentage);
+
+    const addWater = async (amount: number) => {
+        await addWaterLog(amount);
+    };
 
     return (
         <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>

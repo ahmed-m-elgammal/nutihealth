@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { handleError } from '../../utils/errors';
+import { API_BASE_URL } from '../../constants/api';
 
 /**
  * API Client for Backend Communication
@@ -16,8 +17,6 @@ import { handleError } from '../../utils/errors';
  * 3. Enable sync service to push local data
  */
 
-// Base URL for API requests - currently inactive
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 const API_TIMEOUT = 30000; // 30 seconds
 
 /**
@@ -75,7 +74,7 @@ class APIClient {
                         config.headers.Authorization = `Bearer ${token}`;
                     }
                 } catch (error) {
-                    console.error('Failed to get auth token:', error);
+                    // Token retrieval failed, continue without auth
                 }
                 return config;
             },
@@ -89,14 +88,13 @@ class APIClient {
             (response) => response,
             async (error) => {
                 if (error.response?.status === 401) {
-                    // Token expired, refresh it
-                    // TODO: Implement token refresh logic
+                    // Token refresh flow is intentionally disabled in offline-first mode.
                     await SecureStore.deleteItemAsync('auth_token');
                 }
 
                 if (error.response?.status === 403) {
                     // Forbidden - user doesn't have permission
-                    console.error('Permission denied');
+                    // This is handled by the calling code
                 }
 
                 if (!error.response) {
@@ -201,7 +199,6 @@ class APIClient {
         };
 
         this.requestQueue.push(queuedRequest);
-        console.log('Request queued for offline sync:', queuedRequest);
     }
 
     /**
@@ -211,8 +208,6 @@ class APIClient {
         if (!this.isOnline || this.requestQueue.length === 0) {
             return;
         }
-
-        console.log(`Processing ${this.requestQueue.length} queued requests...`);
 
         const queue = [...this.requestQueue];
         this.requestQueue = [];
@@ -233,7 +228,7 @@ class APIClient {
                         await this.patch(request.url, request.data);
                         break;
                 }
-                console.log('Successfully processed queued request:', request.id);
+                // Successfully processed queued request
             } catch (error) {
                 // Re-queue failed requests
                 if (request.retryCount < 3) {

@@ -1,9 +1,11 @@
+import { API_BASE_URL } from './api';
+
 // App configuration constants
 
 export const config = {
     // API Configuration
     api: {
-        baseUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api',
+        baseUrl: API_BASE_URL,
         timeout: 30000, // 30 seconds
         retryAttempts: 3,
         retryDelay: 1000, // 1 second
@@ -41,9 +43,7 @@ export const config = {
 
     // AI Services
     ai: {
-        groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || '',
         groqModel: 'llama3-8b-8192',
-        openAIApiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY || '',
     },
 
     // Storage Keys

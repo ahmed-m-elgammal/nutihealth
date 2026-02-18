@@ -41,38 +41,115 @@ export interface NutritionSummary {
 
 /**
  * Create a new meal with foods
+ * 
+ * NOTE: This service operates in offline-first mode using WatermelonDB.
+ * When backend is enabled, this will sync via the sync service.
  */
 export async function createMeal(mealData: MealData): Promise<Meal> {
     try {
-        const totalCalories = mealData.foods.reduce((sum, food) => sum + food.calories * food.quantity, 0);
-        const totalProtein = mealData.foods.reduce((sum, food) => sum + food.protein * food.quantity, 0);
-        const totalCarbs = mealData.foods.reduce((sum, food) => sum + food.carbs * food.quantity, 0);
-        const totalFats = mealData.foods.reduce((sum, food) => sum + food.fats * food.quantity, 0);
+        const meal = await database.write(async () => {
+            // Get users collection to find user
+            const usersCollection = database.get<any>('users');
+            const users = await usersCollection.query().fetch();
 
-        let createdMeal: Meal | null = null;
+            if (users.length === 0) {
+                throw new Error('No user found. Please complete onboarding first.');
+            }
 
-        await database.write(async () => {
+            const userId = users[0].id;
+
+            // Create meal
             const mealsCollection = database.get<Meal>('meals');
-            const foodsCollection = database.get<Food>('foods');
-
-            // Create the meal
-            createdMeal = await mealsCollection.create((meal) => {
+            const newMeal = await mealsCollection.create((meal) => {
+                meal.userId = userId;
                 meal.name = mealData.name;
                 meal.mealType = mealData.mealType;
                 meal.consumedAt = mealData.consumedAt.getTime();
                 meal.photoUri = mealData.photoUri;
+                meal.notes = mealData.notes;
+
+                // Calculate totals
+                let totalCalories = 0;
+                let totalProtein = 0;
+                let totalCarbs = 0;
+                let totalFats = 0;
+
+                mealData.foods.forEach(food => {
+                    totalCalories += food.calories * food.quantity;
+                    totalProtein += food.protein * food.quantity;
+                    totalCarbs += food.carbs * food.quantity;
+                    totalFats += food.fats * food.quantity;
+                });
+
                 meal.totalCalories = totalCalories;
                 meal.totalProtein = totalProtein;
                 meal.totalCarbs = totalCarbs;
                 meal.totalFats = totalFats;
-                meal.notes = mealData.notes;
             });
 
-            // Create all food items
-            await Promise.all(
-                mealData.foods.map((foodData) =>
-                    foodsCollection.create((food: Food) => {
-                        food.mealId = createdMeal!.id;
+            // Create foods
+            const foodsCollection = database.get<Food>('foods');
+            for (const foodData of mealData.foods) {
+                await foodsCollection.create((food) => {
+                    food.mealId = newMeal.id;
+                    food.name = foodData.name;
+                    food.brand = foodData.brand;
+                    food.barcode = foodData.barcode;
+                    food.servingSize = foodData.servingSize;
+                    food.servingUnit = foodData.servingUnit;
+                    food.quantity = foodData.quantity;
+                    food.calories = foodData.calories;
+                    food.protein = foodData.protein;
+                    food.carbs = foodData.carbs;
+                    food.fats = foodData.fats;
+                    food.fiber = foodData.fiber;
+                    food.sugar = foodData.sugar;
+                });
+            }
+
+            return newMeal;
+        });
+
+        return meal;
+    } catch (error) {
+        handleError(error, 'meals.createMeal');
+        throw error;
+    }
+}
+
+/**
+ * Update an existing meal
+ */
+export async function updateMeal(mealId: string, updates: Partial<MealData>): Promise<void> {
+    try {
+        await database.write(async () => {
+            const mealsCollection = database.get<Meal>('meals');
+            const meal = await mealsCollection.find(mealId);
+
+            await meal.update((m) => {
+                if (updates.name) m.name = updates.name;
+                if (updates.mealType) m.mealType = updates.mealType;
+                if (updates.consumedAt) m.consumedAt = updates.consumedAt.getTime();
+                if (updates.photoUri !== undefined) m.photoUri = updates.photoUri;
+                if (updates.notes !== undefined) m.notes = updates.notes;
+            });
+
+            // If foods are being updated, delete old ones and create new ones
+            if (updates.foods) {
+                const oldFoods = await meal.foods.fetch();
+                for (const food of oldFoods) {
+                    await food.markAsDeleted();
+                }
+
+                const foodsCollection = database.get<Food>('foods');
+                let totalCalories = 0;
+                let totalProtein = 0;
+                let totalCarbs = 0;
+                let totalFats = 0;
+
+                for (const foodData of updates.foods) {
+                    await foodsCollection.create((food) => {
+                        food.mealId = meal.id;
                         food.name = foodData.name;
                         food.brand = foodData.brand;
                         food.barcode = foodData.barcode;
@@ -83,79 +160,27 @@ export async function createMeal(mealData: MealData): Promise<Meal> {
                         food.protein = foodData.protein;
                         food.carbs = foodData.carbs;
                         food.fats = foodData.fats;
-                        food.fiber = foodData.fiber || 0;
-                        food.sugar = foodData.sugar || 0;
-                    })
-                )
-            );
-        });
+                        food.fiber = foodData.fiber;
+                        food.sugar = foodData.sugar;
+                    });
 
-        return createdMeal!;
-    } catch (error) {
-        handleError(error, 'mealsApi.createMeal');
-        throw error;
-    }
-}
-
-/**
- * Update an existing meal
- */
-export async function updateMeal(mealId: string, updates: Partial<MealData>): Promise<void> {
-    try {
-        const mealsCollection = database.get<Meal>('meals');
-        const meal = await mealsCollection.find(mealId);
-
-        await database.write(async () => {
-            await meal.update((record) => {
-                if (updates.name) record.name = updates.name;
-                if (updates.mealType) record.mealType = updates.mealType;
-                if (updates.consumedAt) record.consumedAt = updates.consumedAt.getTime();
-                if (updates.photoUri !== undefined) record.photoUri = updates.photoUri;
-                if (updates.notes !== undefined) record.notes = updates.notes;
-
-                if (updates.foods) {
-                    const totalCalories = updates.foods.reduce((sum, food) => sum + food.calories * food.quantity, 0);
-                    const totalProtein = updates.foods.reduce((sum, food) => sum + food.protein * food.quantity, 0);
-                    const totalCarbs = updates.foods.reduce((sum, food) => sum + food.carbs * food.quantity, 0);
-                    const totalFats = updates.foods.reduce((sum, food) => sum + food.fats * food.quantity, 0);
-
-                    record.totalCalories = totalCalories;
-                    record.totalProtein = totalProtein;
-                    record.totalCarbs = totalCarbs;
-                    record.totalFats = totalFats;
+                    totalCalories += foodData.calories * foodData.quantity;
+                    totalProtein += foodData.protein * foodData.quantity;
+                    totalCarbs += foodData.carbs * foodData.quantity;
+                    totalFats += foodData.fats * foodData.quantity;
                 }
-            });
 
-            // If foods are updated, delete old ones and create new ones
-            if (updates.foods) {
-                const foodsCollection = database.get<Food>('foods');
-                const oldFoods = await meal.foods.fetch();
-
-                await Promise.all(oldFoods.map((food) => food.markAsDeleted()));
-
-                await Promise.all(
-                    updates.foods.map((foodData) =>
-                        foodsCollection.create((food: Food) => {
-                            food.mealId = meal.id;
-                            food.name = foodData.name;
-                            food.brand = foodData.brand;
-                            food.barcode = foodData.barcode;
-                            food.servingSize = foodData.servingSize;
-                            food.servingUnit = foodData.servingUnit;
-                            food.quantity = foodData.quantity;
-                            food.calories = foodData.calories;
-                            food.protein = foodData.protein;
-                            food.carbs = foodData.carbs;
-                            food.fats = foodData.fats;
-                            food.fiber = foodData.fiber || 0;
-                            food.sugar = foodData.sugar || 0;
-                        })
-                    )
-                );
+                // Update meal totals
+                await meal.update((m) => {
+                    m.totalCalories = totalCalories;
+                    m.totalProtein = totalProtein;
+                    m.totalCarbs = totalCarbs;
+                    m.totalFats = totalFats;
+                });
             }
         });
     } catch (error) {
-        handleError(error, 'mealsApi.updateMeal');
+        handleError(error, 'meals.updateMeal');
         throw error;
     }
 }
@@ -165,16 +190,21 @@ export async function updateMeal(mealId: string, updates: Partial<MealData>): Pr
  */
 export async function deleteMeal(mealId: string): Promise<void> {
     try {
-        const mealsCollection = database.get<Meal>('meals');
-        const meal = await mealsCollection.find(mealId);
-
         await database.write(async () => {
+            const mealsCollection = database.get<Meal>('meals');
+            const meal = await mealsCollection.find(mealId);
+
+            // Delete all foods first
             const foods = await meal.foods.fetch();
-            await Promise.all(foods.map((food) => food.markAsDeleted()));
+            for (const food of foods) {
+                await food.markAsDeleted();
+            }
+
+            // Delete meal
             await meal.markAsDeleted();
         });
     } catch (error) {
-        handleError(error, 'mealsApi.deleteMeal');
+        handleError(error, 'meals.deleteMeal');
         throw error;
     }
 }
@@ -186,19 +216,21 @@ export async function getMealsForDate(date: Date): Promise<Meal[]> {
     try {
         const startOfDay = new Date(date);
         startOfDay.setHours(0, 0, 0, 0);
+
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
 
         const mealsCollection = database.get<Meal>('meals');
-        return await mealsCollection
+        const meals = await mealsCollection
             .query(
                 Q.where('consumed_at', Q.gte(startOfDay.getTime())),
-                Q.where('consumed_at', Q.lte(endOfDay.getTime())),
-                Q.sortBy('consumed_at', Q.asc)
+                Q.where('consumed_at', Q.lte(endOfDay.getTime()))
             )
             .fetch();
+
+        return meals;
     } catch (error) {
-        handleError(error, 'mealsApi.getMealsForDate');
+        handleError(error, 'meals.getMealsForDate');
         throw error;
     }
 }
@@ -221,21 +253,21 @@ export async function getDailyNutritionSummary(date: Date): Promise<NutritionSum
         };
 
         for (const meal of meals) {
-            summary.totalCalories += meal.totalCalories;
-            summary.totalProtein += meal.totalProtein;
-            summary.totalCarbs += meal.totalCarbs;
-            summary.totalFats += meal.totalFats;
-
             const foods = await meal.foods.fetch();
-            foods.forEach((food) => {
+
+            for (const food of foods) {
+                summary.totalCalories += food.calories * food.quantity;
+                summary.totalProtein += food.protein * food.quantity;
+                summary.totalCarbs += food.carbs * food.quantity;
+                summary.totalFats += food.fats * food.quantity;
                 summary.totalFiber += (food.fiber || 0) * food.quantity;
                 summary.totalSugar += (food.sugar || 0) * food.quantity;
-            });
+            }
         }
 
         return summary;
     } catch (error) {
-        handleError(error, 'mealsApi.getDailyNutritionSummary');
+        handleError(error, 'meals.getDailyNutritionSummary');
         throw error;
     }
 }
@@ -246,26 +278,30 @@ export async function getDailyNutritionSummary(date: Date): Promise<NutritionSum
 export async function getRecentFoods(limit: number = 20): Promise<Food[]> {
     try {
         const foodsCollection = database.get<Food>('foods');
-        return await foodsCollection
+        const foods = await foodsCollection
             .query(Q.sortBy('created_at', Q.desc), Q.take(limit))
             .fetch();
+
+        return foods;
     } catch (error) {
-        handleError(error, 'mealsApi.getRecentFoods');
+        handleError(error, 'meals.getRecentFoods');
         throw error;
     }
 }
 
 /**
- * Get favorite meals (from custom foods)
+ * Get favorite custom foods
  */
-export async function getFavoriteMeals(): Promise<CustomFood[]> {
+export async function getFavoriteCustomFoods(): Promise<CustomFood[]> {
     try {
         const customFoodsCollection = database.get<CustomFood>('custom_foods');
-        return await customFoodsCollection
+        const foods = await customFoodsCollection
             .query(Q.where('is_favorite', true))
             .fetch();
+
+        return foods;
     } catch (error) {
-        handleError(error, 'mealsApi.getFavoriteMeals');
+        handleError(error, 'meals.getFavoriteCustomFoods');
         throw error;
     }
 }
@@ -275,11 +311,19 @@ export async function getFavoriteMeals(): Promise<CustomFood[]> {
  */
 export async function createCustomFood(foodData: Omit<FoodData, 'quantity'>): Promise<CustomFood> {
     try {
-        let customFood: CustomFood | null = null;
+        const customFood = await database.write(async () => {
+            const usersCollection = database.get<any>('users');
+            const users = await usersCollection.query().fetch();
 
-        await database.write(async () => {
+            if (users.length === 0) {
+                throw new Error('No user found');
+            }
+
+            const userId = users[0].id;
+
             const customFoodsCollection = database.get<CustomFood>('custom_foods');
-            customFood = await customFoodsCollection.create((food: CustomFood) => {
+            return await customFoodsCollection.create((food) => {
+                food.userId = userId;
                 food.name = foodData.name;
                 food.brand = foodData.brand;
                 food.barcode = foodData.barcode;
@@ -289,17 +333,16 @@ export async function createCustomFood(foodData: Omit<FoodData, 'quantity'>): Pr
                 food.protein = foodData.protein;
                 food.carbs = foodData.carbs;
                 food.fats = foodData.fats;
-                food.fiber = foodData.fiber || 0;
-                food.sugar = foodData.sugar || 0;
+                food.fiber = foodData.fiber;
+                food.sugar = foodData.sugar;
                 food.isFavorite = false;
                 food.useCount = 0;
             });
         });
 
-        return customFood!;
+        return customFood;
     } catch (error) {
-        handleError(error, 'mealsApi.createCustomFood');
+        handleError(error, 'meals.createCustomFood');
         throw error;
     }
 }
-

@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Chrome as Home, Utensils, Calendar, User, TrendingUp, Droplets } from 'lucide-react-native';
+import { Chrome as Home, Utensils, User, TrendingUp, Dumbbell } from 'lucide-react-native';
 
 export default function TabLayout() {
     return (
@@ -20,17 +20,10 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="plans"
+                name="workouts"
                 options={{
-                    title: 'Plans',
-                    tabBarIcon: ({ color }) => <Calendar size={24} color={color} />,
-                }}
-            />
-            <Tabs.Screen
-                name="water"
-                options={{
-                    title: 'Water',
-                    tabBarIcon: ({ color }) => <Droplets size={24} color={color} />,
+                    title: 'Workouts',
+                    tabBarIcon: ({ color }) => <Dumbbell size={24} color={color} />,
                 }}
             />
             <Tabs.Screen
@@ -45,6 +38,21 @@ export default function TabLayout() {
                 options={{
                     title: 'Profile',
                     tabBarIcon: ({ color }) => <User size={24} color={color} />,
+                }}
+            />
+            {/* Hidden tabs - accessible via navigation but not in tab bar */}
+            <Tabs.Screen
+                name="water"
+                options={{
+                    href: null, // Hide from tab bar
+                    title: 'Water',
+                }}
+            />
+            <Tabs.Screen
+                name="plans"
+                options={{
+                    href: null, // Hide from tab bar
+                    title: 'Plans',
                 }}
             />
         </Tabs>

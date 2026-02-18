@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useDatabase } from './useDatabase';
-import { getStartOfDay, getEndOfDay, isSameDay } from '../utils/formatters/date';
+import { getStartOfDay, getEndOfDay } from '../utils/formatters/date';
 import Meal from '../database/models/Meal';
 import { useQuery } from '@tanstack/react-query';
 import { Q } from '@nozbe/watermelondb';

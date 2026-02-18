@@ -1,23 +1,66 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text } from 'react-native';
-import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
-    withDelay,
-    Easing,
-    FadeIn,
-    FadeOut, SlideOutLeft,
-} from 'react-native-reanimated';
-import { useUIStore } from '@store/uiStore';
+import Animated, { FadeIn, SlideOutLeft } from 'react-native-reanimated';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '../../utils/cn';
+import { useUIStore } from '../../store/uiStore';
 
-const variantStyles = {
-    success: { bg: 'bg-primary-500', icon: '✓' },
-    error: { bg: 'bg-error', icon: '✕' },
-    warning: { bg: 'bg-warning', icon: '⚠' },
-    info: { bg: 'bg-info', icon: 'ⓘ' },
+/**
+ * Toast variant definitions using CVA.
+ */
+const toastVariants = cva(
+    'rounded-xl p-4 mb-2 flex-row items-center shadow-lg',
+    {
+        variants: {
+            variant: {
+                default: 'bg-card border border-border',
+                success: 'bg-success',
+                error: 'bg-destructive',
+                warning: 'bg-warning',
+                info: 'bg-secondary',
+            },
+        },
+        defaultVariants: {
+            variant: 'default',
+        },
+    }
+);
+
+const toastTextVariants = cva(
+    'font-body flex-1',
+    {
+        variants: {
+            variant: {
+                default: 'text-card-foreground',
+                success: 'text-success-foreground',
+                error: 'text-destructive-foreground',
+                warning: 'text-warning-foreground',
+                info: 'text-secondary-foreground',
+            },
+        },
+        defaultVariants: {
+            variant: 'default',
+        },
+    }
+);
+
+const variantIcons = {
+    default: 'ⓘ',
+    success: '✓',
+    error: '✕',
+    warning: '⚠',
+    info: 'ⓘ',
 };
 
+export interface ToastProps extends VariantProps<typeof toastVariants> {
+    id: string;
+    message: string;
+}
+
+/**
+ * Toast container component.
+ * Manages display of toast notifications at the top of the screen.
+ */
 export function ToastContainer() {
     const toasts = useUIStore((state) => state.toasts);
 
@@ -30,33 +73,26 @@ export function ToastContainer() {
     );
 }
 
-function Toast({
-    id,
-    type,
-    message
-}: {
-    id: string;
-    type: 'success' | 'error' | 'warning' | 'info';
-    message: string;
-}) {
-    const styles = variantStyles[type];
+/**
+ * Individual Toast notification component with semantic variants.
+ */
+function Toast({ variant, message }: ToastProps) {
+    const icon = variantIcons[variant || 'default'];
 
     return (
         <Animated.View
             entering={FadeIn.duration(300)}
             exiting={SlideOutLeft.duration(200)}
-            className={`
-        ${styles.bg}
-        rounded-xl
-        p-4
-        mb-2
-        flex-row
-        items-center
-        shadow-lg
-      `.trim()}
+            className={cn(toastVariants({ variant }))}
         >
-            <Text className="text-white text-xl mr-3">{styles.icon}</Text>
-            <Text className="text-white font-body flex-1">{message}</Text>
+            <Text className={cn(toastTextVariants({ variant }), 'text-xl mr-3')}>
+                {icon}
+            </Text>
+            <Text className={cn(toastTextVariants({ variant }))}>
+                {message}
+            </Text>
         </Animated.View>
     );
 }
+
+export default ToastContainer;

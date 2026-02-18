@@ -31,12 +31,16 @@ export default function QuickAction({ icon, label, onPress }: QuickActionProps) 
                 scale.value = withSpring(1, { damping: 10, stiffness: 400 });
             }}
             className="items-center w-[22%]"
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={`${label} action`}
+            accessibilityHint={`Navigate to ${label.toLowerCase()} screen`}
         >
             <Animated.View style={animatedStyle} className="w-full items-center">
-                <View className="w-16 h-16 bg-white rounded-2xl items-center justify-center shadow-md border border-neutral-100 mb-2">
+                <View className="w-16 h-16 bg-card rounded-2xl items-center justify-center shadow-md border border-border mb-2">
                     {icon}
                 </View>
-                <Text className="text-neutral-600 text-xs font-medium text-center">
+                <Text className="text-muted-foreground text-xs font-medium text-center">
                     {label}
                 </Text>
             </Animated.View>

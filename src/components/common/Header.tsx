@@ -26,23 +26,23 @@ export default function Header({ userName, showDate = false, dateText, variant =
 
     const greetingTextClass = variant === 'gradient'
         ? 'text-primary-100 font-medium text-sm'
-        : 'text-neutral-500 font-medium text-sm';
+        : 'text-muted-foreground font-medium text-sm';
 
     const nameTextClass = variant === 'gradient'
         ? 'text-white font-bold text-2xl'
-        : 'text-neutral-900 font-bold text-2xl';
+        : 'text-foreground font-bold text-2xl';
 
     const dateTextClass = variant === 'gradient'
         ? 'text-primary-200 text-xs mt-1'
-        : 'text-neutral-400 text-xs mt-1';
+        : 'text-muted-foreground text-xs mt-1';
 
     const avatarContainerClass = variant === 'gradient'
         ? 'w-10 h-10 bg-white/20 rounded-full items-center justify-center border border-white/30'
-        : 'w-10 h-10 bg-primary-100 rounded-full items-center justify-center border border-primary-200';
+        : 'w-10 h-10 bg-primary/10 rounded-full items-center justify-center border border-primary/20';
 
     const avatarTextClass = variant === 'gradient'
         ? 'text-white font-bold'
-        : 'text-primary-700 font-bold';
+        : 'text-primary-foreground font-bold';
 
     return (
         <View className={containerClass}>

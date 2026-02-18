@@ -1,26 +1,18 @@
-import { database } from '../../database';
 import { apiClient } from './client';
 import { handleError } from '../../utils/errors';
-import { Q } from '@nozbe/watermelondb';
+import { storage } from '../../utils/storage-adapter';
+import { config } from '../../constants/config';
 
 /**
  * Data Synchronization Service
- * 
+ *
  * OFFLINE-FIRST ARCHITECTURE:
  * This service implements a sync engine to backup local WatermelonDB data
- * to a remote server when online. Currently structured but inactive.
- * 
- * SYNC STRATEGY:
- * - Local-first: All operations happen locally first
- * - Background sync: Periodically sync changes to server
- * - Conflict resolution: Last-write-wins with server timestamp
- * - Queue-based: Failed syncs are queued for retry
- * 
- * TO ENABLE:
- * 1. Implement backend sync endpoints
- * 2. Configure sync intervals
- * 3. Enable automatic sync on network changes
+ * to a remote server when online.
  */
+
+const SYNC_QUEUE_STORAGE_KEY = 'sync_queue_v1';
+const SYNC_LAST_SYNC_STORAGE_KEY = 'sync_last_sync_v1';
 
 /**
  * Sync status enum
@@ -82,16 +74,18 @@ const SYNCABLE_TABLES = [
 class SyncService {
     private status: SyncStatus = SyncStatus.IDLE;
     private syncQueue: SyncQueueItem[] = [];
-    private lastSyncTime: number = 0;
-    private syncInterval: number = 5 * 60 * 1000; // 5 minutes
+    private lastSyncTime = 0;
+    private syncIntervalMs = config.sync.intervalMinutes * 60 * 1000;
+    private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
 
     /**
      * Initialize sync service
      */
     async initialize(): Promise<void> {
-        console.log('Sync service initialized (offline-first mode)');
-        // TODO: Load sync queue from storage
-        // TODO: Set up periodic sync
+        await this.restoreState();
+        if (config.features.enableSync) {
+            this.enableAutoSync(this.syncIntervalMs);
+        }
     }
 
     /**
@@ -120,9 +114,7 @@ class SyncService {
         };
 
         this.syncQueue.push(queueItem);
-        console.log(`Queued ${operation} operation for ${table}:${recordId}`);
-
-        // TODO: Persist queue to storage
+        await this.persistQueue();
     }
 
     /**
@@ -130,7 +122,6 @@ class SyncService {
      */
     async performSync(): Promise<SyncResult> {
         if (this.status === SyncStatus.SYNCING) {
-            console.log('Sync already in progress');
             return {
                 success: false,
                 syncedItems: 0,
@@ -139,7 +130,15 @@ class SyncService {
             };
         }
 
-        console.log('Starting sync...');
+        if (!config.features.enableSync) {
+            return {
+                success: true,
+                syncedItems: 0,
+                failedItems: 0,
+                errors: [],
+            };
+        }
+
         this.status = SyncStatus.SYNCING;
 
         const result: SyncResult = {
@@ -150,16 +149,13 @@ class SyncService {
         };
 
         try {
-            // Process sync queue
             const queue = [...this.syncQueue];
 
             for (const item of queue) {
                 try {
                     await this.syncItem(item);
                     result.syncedItems++;
-
-                    // Remove from queue
-                    this.syncQueue = this.syncQueue.filter((i) => i.id !== item.id);
+                    this.syncQueue = this.syncQueue.filter((queuedItem) => queuedItem.id !== item.id);
                 } catch (error) {
                     result.failedItems++;
                     result.errors.push({
@@ -167,12 +163,10 @@ class SyncService {
                         error: error instanceof Error ? error.message : 'Unknown error',
                     });
 
-                    // Retry logic
-                    if (item.retryCount < 3) {
+                    if (item.retryCount < config.sync.maxRetries) {
                         item.retryCount++;
                     } else {
-                        // Remove after max retries
-                        this.syncQueue = this.syncQueue.filter((i) => i.id !== item.id);
+                        this.syncQueue = this.syncQueue.filter((queuedItem) => queuedItem.id !== item.id);
                         console.error(`Max retries reached for sync item ${item.id}`);
                     }
                 }
@@ -180,12 +174,13 @@ class SyncService {
 
             this.lastSyncTime = Date.now();
             this.status = result.failedItems === 0 ? SyncStatus.SUCCESS : SyncStatus.ERROR;
-
-            console.log(`Sync completed: ${result.syncedItems} synced, ${result.failedItems} failed`);
+            await this.persistLastSyncTime();
         } catch (error) {
             handleError(error, 'sync.performSync');
             this.status = SyncStatus.ERROR;
             result.success = false;
+        } finally {
+            await this.persistQueue();
         }
 
         return result;
@@ -196,25 +191,26 @@ class SyncService {
      */
     private async syncItem(item: SyncQueueItem): Promise<void> {
         const endpoint = `/sync/${item.table}`;
+        let response;
 
         switch (item.operation) {
             case 'create':
             case 'update':
-                // TODO: Enable when backend is ready
-                // await apiClient.post(endpoint, {
-                //     recordId: item.recordId,
-                //     operation: item.operation,
-                //     data: item.data,
-                //     timestamp: item.timestamp,
-                // });
-                console.log(`[OFFLINE MODE] Would sync ${item.operation} to ${endpoint}`);
+                response = await apiClient.post(endpoint, {
+                    recordId: item.recordId,
+                    operation: item.operation,
+                    data: item.data,
+                    timestamp: item.timestamp,
+                });
                 break;
 
             case 'delete':
-                // TODO: Enable when backend is ready
-                // await apiClient.delete(`${endpoint}/${item.recordId}`);
-                console.log(`[OFFLINE MODE] Would sync delete to ${endpoint}`);
+                response = await apiClient.delete(`${endpoint}/${item.recordId}`);
                 break;
+        }
+
+        if (!response || !response.success) {
+            throw new Error(response?.error?.message || 'Remote sync request failed');
         }
     }
 
@@ -222,29 +218,42 @@ class SyncService {
      * Pull changes from server
      */
     async pullChanges(since?: number): Promise<void> {
+        if (!config.features.enableSync) {
+            return;
+        }
+
         try {
             const timestamp = since || this.lastSyncTime || 0;
+            const response = await apiClient.get<{
+                changes?: unknown;
+            }>(`/sync/changes?since=${timestamp}`);
 
-            // TODO: Enable when backend is ready
-            // const response = await apiClient.get(`/sync/changes?since=${timestamp}`);
-
-            // if (response.success && response.data) {
-            //     await this.applyRemoteChanges(response.data);
-            // }
-
-            console.log(`[OFFLINE MODE] Would pull changes since ${timestamp}`);
+            if (response.success && response.data?.changes !== undefined) {
+                await this.applyRemoteChanges(response.data.changes);
+            }
         } catch (error) {
             handleError(error, 'sync.pullChanges');
         }
     }
 
     /**
-     * Apply remote changes to local database
+     * Apply remote changes to local database.
+     * Current behavior is a guarded no-op until schema-level merge rules are finalized.
      */
-    private async applyRemoteChanges(changes: any): Promise<void> {
-        // TODO: Implement conflict resolution
-        // TODO: Apply changes to WatermelonDB
-        console.log('Applying remote changes...', changes);
+    private async applyRemoteChanges(changes: unknown): Promise<void> {
+        if (changes == null) {
+            return;
+        }
+
+        const changeCount = Array.isArray(changes)
+            ? changes.length
+            : typeof changes === 'object'
+                ? Object.keys(changes as Record<string, unknown>).length
+                : 0;
+
+        if (changeCount > 0) {
+            console.log(`[sync] Received ${changeCount} remote change(s); local apply is deferred.`);
+        }
     }
 
     /**
@@ -273,7 +282,7 @@ class SyncService {
      */
     clearQueue(): void {
         this.syncQueue = [];
-        console.log('Sync queue cleared');
+        void this.persistQueue();
     }
 
     /**
@@ -281,19 +290,80 @@ class SyncService {
      */
     enableAutoSync(interval?: number): void {
         if (interval) {
-            this.syncInterval = interval;
+            this.syncIntervalMs = interval;
         }
 
-        // TODO: Set up interval for automatic sync
-        console.log(`Auto-sync enabled with interval: ${this.syncInterval}ms`);
+        this.disableAutoSync();
+
+        if (!config.features.enableSync) {
+            return;
+        }
+
+        this.autoSyncTimer = setInterval(() => {
+            void this.performSync();
+        }, this.syncIntervalMs);
     }
 
     /**
      * Disable automatic sync
      */
     disableAutoSync(): void {
-        // TODO: Clear sync interval
-        console.log('Auto-sync disabled');
+        if (this.autoSyncTimer) {
+            clearInterval(this.autoSyncTimer);
+            this.autoSyncTimer = null;
+        }
+    }
+
+    private async restoreState(): Promise<void> {
+        try {
+            const queueJson = await storage.getItem(SYNC_QUEUE_STORAGE_KEY);
+            if (queueJson) {
+                const parsedQueue: unknown = JSON.parse(queueJson);
+                if (Array.isArray(parsedQueue)) {
+                    this.syncQueue = parsedQueue.filter(this.isValidQueueItem);
+                }
+            }
+
+            const lastSync = await storage.getItem(SYNC_LAST_SYNC_STORAGE_KEY);
+            if (lastSync) {
+                const parsedTimestamp = Number(lastSync);
+                if (Number.isFinite(parsedTimestamp) && parsedTimestamp > 0) {
+                    this.lastSyncTime = parsedTimestamp;
+                }
+            }
+        } catch (error) {
+            handleError(error, 'sync.restoreState');
+        }
+    }
+
+    private async persistQueue(): Promise<void> {
+        try {
+            await storage.setItem(SYNC_QUEUE_STORAGE_KEY, JSON.stringify(this.syncQueue));
+        } catch (error) {
+            handleError(error, 'sync.persistQueue');
+        }
+    }
+
+    private async persistLastSyncTime(): Promise<void> {
+        try {
+            await storage.setItem(SYNC_LAST_SYNC_STORAGE_KEY, String(this.lastSyncTime));
+        } catch (error) {
+            handleError(error, 'sync.persistLastSyncTime');
+        }
+    }
+
+    private isValidQueueItem(item: unknown): item is SyncQueueItem {
+        if (!item || typeof item !== 'object') return false;
+        const candidate = item as Partial<SyncQueueItem>;
+        return Boolean(
+            candidate.id &&
+            candidate.table &&
+            candidate.recordId &&
+            candidate.operation &&
+            typeof candidate.timestamp === 'number' &&
+            typeof candidate.retryCount === 'number' &&
+            typeof candidate.synced === 'boolean'
+        );
     }
 }
 

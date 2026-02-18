@@ -8,11 +8,11 @@ export default class HabitLog extends Model {
         habits: { type: 'belongs_to' as const, key: 'habit_id' },
     };
 
-    @field('habit_id') habitId!: string;
-    @field('completed_at') completedAt!: number;
+    @field('habit_id') habitId: string;
+    @field('completed_at') completedAt: number;
     @field('notes') notes?: string;
-    @readonly @date('created_at') createdAt!: Date;
-    @readonly @date('updated_at') updatedAt!: Date;
+    @readonly @date('created_at') createdAt: Date;
+    @readonly @date('updated_at') updatedAt: Date;
 
-    @relation('habits', 'habit_id') habit!: Habit;
+    @relation('habits', 'habit_id') habit: Habit;
 }

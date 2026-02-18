@@ -56,6 +56,8 @@ export interface BodyMeasurements {
     calves?: number; // cm
 }
 
+import { UserWorkoutProfile } from './workout';
+
 export interface UserModel {
     id: string;
     name: string;
@@ -75,6 +77,7 @@ export interface UserModel {
     fatsTarget: number;
     stats: UserStats;
     preferences: UserPreferences;
+    workoutPreferences?: UserWorkoutProfile; // Added for new Workout Generator
     onboardingCompleted: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -93,6 +96,15 @@ export interface UserPreferences {
     theme: 'light' | 'dark' | 'auto';
     notifications_enabled: boolean;
     language: string;
+    needsBodyMetrics?: boolean;
+    bodyFatPercentage?: number;
+    hasPCOS?: boolean;
+    hasInsulinResistance?: boolean;
+    onHormonalContraception?: boolean;
+    isPostMenopause?: boolean;
+    isAthlete?: boolean;
+    week1WeightKg?: number;
+    compliancePercentage?: number;
 }
 
 export interface MealModel {
@@ -230,12 +242,43 @@ export interface ExerciseModel {
 export interface WorkoutTemplateModel {
     id: string;
     userId: string;
+    programId?: string;
     name: string;
     description?: string;
     workoutType: string;
     exercises: WorkoutTemplateExercise[];
     isFavorite: boolean;
     useCount: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface TrainingProgramModel {
+    id: string;
+    name: string;
+    description?: string;
+    level: 'beginner' | 'intermediate' | 'advanced';
+    durationWeeks: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface TemplateExerciseModel {
+    id: string;
+    templateId: string;
+    exerciseId: string;
+    sets: number;
+    reps: number;
+    order: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface WorkoutScheduleModel {
+    id: string;
+    userId: string;
+    templateId: string;
+    dayOfWeek: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -343,3 +386,100 @@ export interface UserDietModel {
     createdAt: Date;
     updatedAt: Date;
 }
+
+/**
+ * Food item data for meal templates
+ */
+export interface TemplateFoodData {
+    name: string;
+    brand?: string;
+    servingSize: number;
+    servingUnit: string;
+    quantity: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    fiber?: number;
+    sugar?: number;
+}
+
+/**
+ * Meal Template Model
+ */
+export interface MealTemplateModel {
+    id: string;
+    userId: string;
+    name: string;
+    description?: string;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    foodsData: TemplateFoodData[];
+    totalCalories: number;
+    totalProtein: number;
+    totalCarbs: number;
+    totalFats: number;
+    isFavorite: boolean;
+    useCount: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+/**
+ * Daily macros for weekly goal plans
+ */
+export interface DailyMacros {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+}
+
+/**
+ * Weekly Goal Plan Model
+ */
+export interface WeeklyGoalPlanModel {
+    id: string;
+    userId: string;
+    planName: string;
+    isActive: boolean;
+    startDate: number; // timestamp
+    endDate?: number; // timestamp
+    // Monday
+    mondayCalories: number;
+    mondayProtein: number;
+    mondayCarbs: number;
+    mondayFats: number;
+    // Tuesday
+    tuesdayCalories: number;
+    tuesdayProtein: number;
+    tuesdayCarbs: number;
+    tuesdayFats: number;
+    // Wednesday
+    wednesdayCalories: number;
+    wednesdayProtein: number;
+    wednesdayCarbs: number;
+    wednesdayFats: number;
+    // Thursday
+    thursdayCalories: number;
+    thursdayProtein: number;
+    thursdayCarbs: number;
+    thursdayFats: number;
+    // Friday
+    fridayCalories: number;
+    fridayProtein: number;
+    fridayCarbs: number;
+    fridayFats: number;
+    // Saturday
+    saturdayCalories: number;
+    saturdayProtein: number;
+    saturdayCarbs: number;
+    saturdayFats: number;
+    // Sunday
+    sundayCalories: number;
+    sundayProtein: number;
+    sundayCarbs: number;
+    sundayFats: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+

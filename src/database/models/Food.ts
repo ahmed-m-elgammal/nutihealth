@@ -8,21 +8,21 @@ export default class Food extends Model {
         meals: { type: 'belongs_to' as const, key: 'meal_id' },
     };
 
-    @field('meal_id') mealId!: string;
-    @field('name') name!: string;
+    @field('meal_id') mealId: string;
+    @field('name') name: string;
     @field('brand') brand?: string;
     @field('barcode') barcode?: string;
-    @field('serving_size') servingSize!: number;
-    @field('serving_unit') servingUnit!: string;
-    @field('quantity') quantity!: number;
-    @field('calories') calories!: number;
-    @field('protein') protein!: number;
-    @field('carbs') carbs!: number;
-    @field('fats') fats!: number;
+    @field('serving_size') servingSize: number;
+    @field('serving_unit') servingUnit: string;
+    @field('quantity') quantity: number;
+    @field('calories') calories: number;
+    @field('protein') protein: number;
+    @field('carbs') carbs: number;
+    @field('fats') fats: number;
     @field('fiber') fiber?: number;
     @field('sugar') sugar?: number;
-    @readonly @date('created_at') createdAt!: Date;
-    @readonly @date('updated_at') updatedAt!: Date;
+    @readonly @date('created_at') createdAt: Date;
+    @readonly @date('updated_at') updatedAt: Date;
 
-    @relation('meals', 'meal_id') meal!: Meal;
+    @relation('meals', 'meal_id') meal: Meal;
 }

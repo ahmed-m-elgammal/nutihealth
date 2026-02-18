@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 /**
  * Hook for debouncing a value
@@ -10,7 +10,7 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
     useEffect(() => {
-        const handler = setTimeout(() => {
+        const handler: any = setTimeout(() => {
             setDebouncedValue(value);
         }, delay);
 
@@ -32,7 +32,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
     callback: T,
     delay: number = 500
 ): (...args: Parameters<T>) => void {
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<any>(null);
     const callbackRef = useRef(callback);
 
     // Update callback ref when callback changes
@@ -61,8 +61,5 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
 
     return debouncedCallback;
 }
-
-// Import useState
-import { useState } from 'react';
 
 export default useDebounce;

@@ -1,34 +1,14 @@
 import axios from 'axios';
 import { handleError } from '../../utils/errors';
-import { getCacheItem, setCacheItem } from '../../utils/cache';
 
-const OPENFOODFACTS_API_URL = 'https://world.openfoodfacts.org';
+const API_URL = 'https://world.openfoodfacts.org/api/v2/product';
+const SEARCH_API_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
 
-export interface OpenFoodFactsProduct {
-    product_name: string;
-    brands?: string;
-    code: string; // barcode
-    nutriments: {
-        'energy-kcal_100g'?: number;
-        'proteins_100g'?: number;
-        'carbohydrates_100g'?: number;
-        'fat_100g'?: number;
-        'fiber_100g'?: number;
-        'sugars_100g'?: number;
-        'sodium_100g'?: number;
-    };
-    serving_size?: string;
-    nutrition_grades?: string; // A, B, C, D, E
-    image_url?: string;
-}
-
-export interface SearchResult {
-    products: OpenFoodFactsProduct[];
-    count: number;
-    page: number;
-    page_count: number;
-}
-
+/**
+ * Canonical representation of a food item returned from barcode or AI flows.
+ * Macros are stored for the `servingSize` + `servingUnit` combination so we
+ * can scale up/down for user-selected portions.
+ */
 export interface FoodItem {
     name: string;
     brand?: string;
@@ -41,157 +21,187 @@ export interface FoodItem {
     fats: number;
     fiber?: number;
     sugar?: number;
-    nutritionGrade?: string;
-    imageUrl?: string;
+    quantity?: number;
+    image_url?: string;
+    source?: 'openfoodfacts' | 'database' | 'estimate' | 'api';
+}
+
+export interface FoodProduct {
+    name: string;
+    brand: string;
+    barcode: string;
+    servingSize: number;
+    servingUnit: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    fiber?: number;
+    sugar?: number;
+    image_url?: string;
 }
 
 /**
- * Search for foods in OpenFoodFacts database
+ * Primary fetcher for OpenFoodFacts products.
+ * Returns macros per 100g where possible, falling back to 0 instead of NaN.
  */
-export async function searchFoods(query: string, page: number = 1): Promise<SearchResult> {
-    // Check cache first
-    const cacheKey = `openfoodfacts:search:${query}:${page}`;
-    const cachedResult = getCacheItem<SearchResult>(cacheKey);
-
-    if (cachedResult) {
-        return cachedResult;
-    }
-
+export async function getProductByBarcode(barcode: string): Promise<FoodProduct | null> {
     try {
-        const response = await axios.get(`${OPENFOODFACTS_API_URL}/cgi/search.pl`, {
-            params: {
-                search_terms: query,
-                search_simple: 1,
-                json: 1,
-                page,
-                page_size: 20,
-                fields: 'product_name,brands,code,nutriments,serving_size,nutrition_grades,image_url',
+        const response = await axios.get(`${API_URL}/${barcode}.json`, {
+            headers: {
+                'User-Agent': 'NutriHealthApp/1.0 (contact@nutrihealth.app)',
             },
         });
 
-        const result: SearchResult = {
-            products: response.data.products || [],
-            count: response.data.count || 0,
-            page: response.data.page || 1,
-            page_count: response.data.page_count || 0,
+        const product = response.data.product;
+
+        if (!product) {
+            return null;
+        }
+
+        // Parse Serving Size (e.g., \"100g\")
+        let servingSize = 100;
+        let servingUnit = 'g';
+
+        if (product.serving_size) {
+            const match = product.serving_size.match(/([\\d.]+)\\s*([a-zA-Z]+)/);
+            if (match) {
+                servingSize = parseFloat(match[1]);
+                servingUnit = match[2];
+            }
+        }
+
+        return {
+            name: product.product_name,
+            brand: product.brands,
+            barcode: product.code,
+            servingSize,
+            servingUnit,
+            calories: product.nutriments['energy-kcal_100g'] || 0,
+            protein: product.nutriments['proteins_100g'] || 0,
+            carbs: product.nutriments['carbohydrates_100g'] || 0,
+            fats: product.nutriments['fat_100g'] || 0,
+            fiber: product.nutriments['fiber_100g'] || 0,
+            sugar: product.nutriments['sugars_100g'] || 0,
+            image_url: product.image_url,
         };
-
-        // Cache the result
-        setCacheItem(cacheKey, result);
-
-        return result;
     } catch (error) {
-        handleError(error, 'openFoodFacts.searchFoods');
-        throw new Error('Failed to search foods');
+        handleError(error, 'openFoodFacts.getProductByBarcode');
+        return null;
     }
 }
 
 /**
- * Get food by barcode
+ * Search OpenFoodFacts database by product name
  */
-export async function getFoodByBarcode(barcode: string): Promise<OpenFoodFactsProduct | null> {
-    // Check cache first
-    const cacheKey = `openfoodfacts:barcode:${barcode}`;
-    const cachedProduct = getCacheItem<OpenFoodFactsProduct>(cacheKey);
-
-    if (cachedProduct) {
-        return cachedProduct;
-    }
-
+export async function searchProducts(query: string, limit: number = 10): Promise<FoodProduct[]> {
     try {
-        const response = await axios.get(
-            `${OPENFOODFACTS_API_URL}/api/v0/product/${barcode}.json`
-        );
+        const response = await axios.get(SEARCH_API_URL, {
+            params: {
+                search_terms: query,
+                search_simple: 1,
+                action: 'process',
+                json: 1,
+                page_size: limit,
+                fields: 'product_name,brands,code,nutriments,serving_size,image_url'
+            },
+            headers: {
+                'User-Agent': 'NutriHealthApp/1.0 (contact@nutrihealth.app)',
+            },
+            timeout: 5000
+        });
 
-        if (response.data.status === 1 && response.data.product) {
-            const product = response.data.product;
-            // Cache the product
-            setCacheItem(cacheKey, product);
-            return product;
+        if (!response.data || !response.data.products) {
+            return [];
         }
 
-        return null;
+        return response.data.products
+            .filter((p: any) => p.product_name && p.nutriments)
+            .map((product: any) => {
+                // Parse Serving Size (e.g., \"100g\")
+                let servingSize = 100;
+                let servingUnit = 'g';
+
+                if (product.serving_size) {
+                    const match = product.serving_size.match(/([\\d.]+)\\s*([a-zA-Z]+)/);
+                    if (match) {
+                        servingSize = parseFloat(match[1]);
+                        servingUnit = match[2];
+                    }
+                }
+
+                return {
+                    name: product.product_name,
+                    brand: product.brands || '',
+                    barcode: product.code || '',
+                    servingSize,
+                    servingUnit,
+                    calories: product.nutriments['energy-kcal_100g'] || 0,
+                    protein: product.nutriments['proteins_100g'] || 0,
+                    carbs: product.nutriments['carbohydrates_100g'] || 0,
+                    fats: product.nutriments['fat_100g'] || 0,
+                    fiber: product.nutriments['fiber_100g'] || 0,
+                    sugar: product.nutriments['sugars_100g'] || 0,
+                    image_url: product.image_url
+                };
+            });
     } catch (error) {
-        handleError(error, 'openFoodFacts.getFoodByBarcode');
-        return null;
+        handleError(error, 'openFoodFacts.searchProducts');
+        return [];
     }
 }
 
 /**
- * Extract and normalize nutrition data from OpenFoodFacts product
+ * Backwards-compatible alias expected by UI components.
  */
-export function extractNutrition(product: OpenFoodFactsProduct): FoodItem {
-    const nutriments = product.nutriments || {};
+export const getFoodByBarcode = getProductByBarcode;
 
-    // Parse serving size (e.g., "100g", "1 cup")
-    let servingSize = 100;
-    let servingUnit = 'g';
-
-    if (product.serving_size) {
-        const match = product.serving_size.match(/(\d+)\s*([a-zA-Z]+)/);
-        if (match) {
-            servingSize = parseInt(match[1], 10);
-            servingUnit = match[2];
-        }
-    }
-
+/**
+ * Normalize a FoodProduct into our FoodItem shape and attach metadata.
+ * Values remain per `servingSize`/`servingUnit`.
+ */
+export function extractNutrition(product: FoodProduct): FoodItem {
     return {
-        name: product.product_name || 'Unknown',
-        brand: product.brands,
-        barcode: product.code,
-        servingSize,
-        servingUnit,
-        calories: nutriments['energy-kcal_100g'] || 0,
-        protein: nutriments['proteins_100g'] || 0,
-        carbs: nutriments['carbohydrates_100g'] || 0,
-        fats: nutriments['fat_100g'] || 0,
-        fiber: nutriments['fiber_100g'],
-        sugar: nutriments['sugars_100g'],
-        nutritionGrade: product.nutrition_grades,
-        imageUrl: product.image_url,
+        name: product.name,
+        brand: product.brand,
+        barcode: product.barcode,
+        servingSize: product.servingSize,
+        servingUnit: product.servingUnit,
+        calories: product.calories,
+        protein: product.protein,
+        carbs: product.carbs,
+        fats: product.fats,
+        fiber: product.fiber,
+        sugar: product.sugar,
+        image_url: product.image_url,
+        source: 'openfoodfacts',
     };
 }
 
 /**
- * Calculate nutrition for a specific serving size
+ * Scales the nutrition of a food item to an arbitrary serving size/unit.
+ * If units mismatch we skip scaling to avoid bogus values.
  */
 export function calculateNutritionForServing(
     food: FoodItem,
     targetServingSize: number,
     targetServingUnit: string
 ): FoodItem {
-    // For simplicity, assume units match or convert grams
-    const ratio = targetServingSize / food.servingSize;
+    const numericTarget = Number.isFinite(targetServingSize) ? targetServingSize : food.servingSize;
+    const sameUnit = food.servingUnit.toLowerCase() === targetServingUnit.toLowerCase();
+    const ratio = sameUnit && food.servingSize > 0 ? numericTarget / food.servingSize : 1;
+
+    const scale = (value?: number) => Math.round((value || 0) * ratio);
 
     return {
         ...food,
-        servingSize: targetServingSize,
+        servingSize: numericTarget,
         servingUnit: targetServingUnit,
-        calories: Math.round(food.calories * ratio),
-        protein: parseFloat((food.protein * ratio).toFixed(1)),
-        carbs: parseFloat((food.carbs * ratio).toFixed(1)),
-        fats: parseFloat((food.fats * ratio).toFixed(1)),
-        fiber: food.fiber ? parseFloat((food.fiber * ratio).toFixed(1)) : undefined,
-        sugar: food.sugar ? parseFloat((food.sugar * ratio).toFixed(1)) : undefined,
+        calories: scale(food.calories),
+        protein: scale(food.protein),
+        carbs: scale(food.carbs),
+        fats: scale(food.fats),
+        fiber: scale(food.fiber),
+        sugar: scale(food.sugar),
     };
-}
-
-/**
- * Cache search results locally
- * Note: This is now handled automatically in searchFoods() and getFoodByBarcode()
- * Keeping for backward compatibility
- */
-export async function cacheSearchResults(query: string, results: OpenFoodFactsProduct[]): Promise<void> {
-    const cacheKey = `openfoodfacts:manual:${query}`;
-    setCacheItem(cacheKey, results);
-}
-
-/**
- * Get cached search results
- * Note: This is now handled automatically in searchFoods() and getFoodByBarcode()
- * Keeping for backward compatibility
- */
-export async function getCachedSearchResults(query: string): Promise<OpenFoodFactsProduct[] | null> {
-    const cacheKey = `openfoodfacts:manual:${query}`;
-    return getCacheItem<OpenFoodFactsProduct[]>(cacheKey);
 }

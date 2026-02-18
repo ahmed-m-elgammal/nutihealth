@@ -1,15 +1,15 @@
 import { create } from 'zustand';
 import { database } from '../database';
+import { waitForDatabaseReady } from '../database/ready';
 import { handleError } from '../utils/errors';
 import User from '../database/models/User';
 import {
-    calculateBMR,
-    calculateTDEE,
-    calculateCalorieTarget,
-    calculateMacros,
+    calculateNutritionTargets,
     type ActivityLevel,
     type Goal,
 } from '../utils/calculations';
+import { clearAuthData } from '../utils/storage';
+import { UserWorkoutProfile } from '../types/workout';
 
 interface UserState {
     user: User | null;
@@ -20,6 +20,7 @@ interface UserState {
     updateUser: (updates: Partial<UserData>) => Promise<void>;
     updateUserTargets: () => Promise<void>;
     completeOnboarding: () => Promise<void>;
+    logout: () => Promise<void>;
 }
 
 export interface UserData {
@@ -38,60 +39,101 @@ export interface UserData {
         theme: 'light' | 'dark' | 'auto';
         notifications_enabled: boolean;
         language: string;
+        needsBodyMetrics?: boolean;
+        bodyFatPercentage?: number;
+        hasPCOS?: boolean;
+        hasInsulinResistance?: boolean;
+        onHormonalContraception?: boolean;
+        isPostMenopause?: boolean;
+        isAthlete?: boolean;
+        week1WeightKg?: number;
+        compliancePercentage?: number;
     };
+    workoutPreferences?: UserWorkoutProfile;
 }
 
 export const useUserStore = create<UserState>((set, get) => ({
-    user: null,
+    user: null, // @deprecated - components should observe DB
     isLoading: false,
     error: null,
 
     loadUser: async () => {
         try {
             set({ isLoading: true, error: null });
+            await waitForDatabaseReady();
             const usersCollection = database.get<User>('users');
             const users = await usersCollection.query().fetch();
+            // We still keep a reference for non-reactive needs, but UI should avoid it
             set({ user: users.length > 0 ? users[0] : null, isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.loadUser');
             set({ error: (error as Error).message, isLoading: false });
+            throw error;
         }
     },
 
     createUser: async (userData: UserData) => {
         try {
             set({ isLoading: true, error: null });
-            const bmr = calculateBMR(userData.weight, userData.height, userData.age, userData.gender);
-            const tdee = calculateTDEE(bmr, userData.activityLevel);
-            const calorieTarget = calculateCalorieTarget(tdee, userData.goal);
-            const macros = calculateMacros(calorieTarget, userData.goal);
+
+            const preferences = userData.preferences || {
+                allergies: [],
+                dietary_restrictions: [],
+                theme: 'auto' as const,
+                notifications_enabled: true,
+                language: 'en',
+                needsBodyMetrics: false,
+            };
+
+            const nutrition = calculateNutritionTargets({
+                age: userData.age,
+                sex: userData.gender,
+                heightCm: userData.height,
+                weightKg: userData.weight,
+                goal: userData.goal,
+                activityLevel: userData.activityLevel,
+                bodyFatPercentage: preferences.bodyFatPercentage,
+                isAthlete: preferences.isAthlete,
+                hasPCOS: preferences.hasPCOS,
+                hasInsulinResistance: preferences.hasInsulinResistance,
+                onHormonalContraception: preferences.onHormonalContraception,
+                isPostMenopause: preferences.isPostMenopause,
+                week1WeightKg: preferences.week1WeightKg,
+                currentWeightKg: userData.weight,
+                compliancePercentage: preferences.compliancePercentage,
+            });
+
+            let newUser: User;
 
             await database.write(async () => {
                 const usersCollection = database.get<User>('users');
-                const user = await usersCollection.create((newUser) => {
-                    newUser.name = userData.name;
-                    newUser.email = userData.email;
-                    newUser.age = userData.age;
-                    newUser.gender = userData.gender;
-                    newUser.height = userData.height;
-                    newUser.weight = userData.weight;
-                    newUser.goal = userData.goal;
-                    newUser.activityLevel = userData.activityLevel;
-                    newUser.targetWeight = userData.targetWeight;
-                    newUser.bmr = bmr;
-                    newUser.tdee = tdee;
-                    newUser.calorieTarget = calorieTarget;
-                    newUser.proteinTarget = macros.protein;
-                    newUser.carbsTarget = macros.carbs;
-                    newUser.fatsTarget = macros.fats;
-                    newUser.stats = { current_streak: 0, total_workouts: 0, total_meals_logged: 0, achievements: [] };
-                    newUser.preferences = userData.preferences || {
-                        allergies: [], dietary_restrictions: [], theme: 'auto', notifications_enabled: true, language: 'en',
-                    };
-                    newUser.onboardingCompleted = false;
+                newUser = await usersCollection.create((user) => {
+                    user.name = userData.name;
+                    user.email = userData.email;
+                    user.age = userData.age;
+                    user.gender = userData.gender;
+                    user.height = userData.height;
+                    user.weight = userData.weight;
+                    user.goal = userData.goal;
+                    user.activityLevel = userData.activityLevel;
+                    user.targetWeight = userData.targetWeight;
+
+                    // Initial targets
+                    user.bmr = nutrition.bmr;
+                    user.tdee = nutrition.tdee;
+                    user.calorieTarget = nutrition.calorieTarget;
+                    user.proteinTarget = nutrition.macros.protein;
+                    user.carbsTarget = nutrition.macros.carbs;
+                    user.fatsTarget = nutrition.macros.fats;
+
+                    user.stats = { current_streak: 0, total_workouts: 0, total_meals_logged: 0, achievements: [] };
+                    user.preferences = preferences;
+                    user.workoutPreferences = userData.workoutPreferences || null;
+                    user.onboardingCompleted = false;
                 });
-                set({ user, isLoading: false });
             });
+
+            set({ user: newUser!, isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.createUser');
             set({ error: (error as Error).message, isLoading: false });
@@ -103,23 +145,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         if (!user) return;
         try {
             set({ isLoading: true, error: null });
-            await database.write(async () => {
-                await user.update((record) => {
-                    if (updates.name) record.name = updates.name;
-                    if (updates.email !== undefined) record.email = updates.email;
-                    if (updates.age) record.age = updates.age;
-                    if (updates.gender) record.gender = updates.gender;
-                    if (updates.height) record.height = updates.height;
-                    if (updates.weight) record.weight = updates.weight;
-                    if (updates.goal) record.goal = updates.goal;
-                    if (updates.activityLevel) record.activityLevel = updates.activityLevel;
-                    if (updates.targetWeight !== undefined) record.targetWeight = updates.targetWeight;
-                    if (updates.preferences) record.preferences = updates.preferences;
-                });
-            });
-            if (updates.weight || updates.height || updates.age || updates.gender || updates.activityLevel || updates.goal) {
-                await get().updateUserTargets();
-            }
+            // User model now handles recalculation internally via updateProfile
+            await user.updateProfile(updates);
             set({ isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.updateUser');
@@ -128,38 +155,30 @@ export const useUserStore = create<UserState>((set, get) => ({
     },
 
     updateUserTargets: async () => {
+        // @deprecated - logic moved to User.updateProfile
         const { user } = get();
         if (!user) return;
-        try {
-            const bmr = calculateBMR(user.weight, user.height, user.age, user.gender as 'male' | 'female' | 'other');
-            const tdee = calculateTDEE(bmr, user.activityLevel as ActivityLevel);
-            const calorieTarget = calculateCalorieTarget(tdee, user.goal as Goal);
-            const macros = calculateMacros(calorieTarget, user.goal as Goal);
-            await database.write(async () => {
-                await user.update((record) => {
-                    record.bmr = bmr;
-                    record.tdee = tdee;
-                    record.calorieTarget = calorieTarget;
-                    record.proteinTarget = macros.protein;
-                    record.carbsTarget = macros.carbs;
-                    record.fatsTarget = macros.fats;
-                });
-            });
-        } catch (error) {
-            handleError(error, 'userStore.updateUserTargets');
-            set({ error: (error as Error).message });
-        }
+        // Force a profile update with current values to trigger recalculation if needed
+        await user.updateProfile({});
     },
 
     completeOnboarding: async () => {
         const { user } = get();
         if (!user) return;
         try {
-            await database.write(async () => {
-                await user.update((record) => { record.onboardingCompleted = true; });
-            });
+            await user.updateProfile({ onboardingCompleted: true });
         } catch (error) {
             handleError(error, 'userStore.completeOnboarding');
+            set({ error: (error as Error).message });
+        }
+    },
+
+    logout: async () => {
+        try {
+            await clearAuthData();
+            set({ user: null, error: null });
+        } catch (error) {
+            handleError(error, 'userStore.logout');
             set({ error: (error as Error).message });
         }
     },
