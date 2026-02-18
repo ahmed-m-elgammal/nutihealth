@@ -17,7 +17,7 @@ import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '../database';
 import '../i18n';
 import '../../global.css';
-import { registerForPushNotificationsAsync, scheduleSmartReminders } from '../services/notifications';
+import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '../services/notifications';
 
 const devLog = (...messages: unknown[]) => {
     if (__DEV__) {
@@ -130,7 +130,7 @@ function RootNavigation() {
     useEffect(() => {
         registerForPushNotificationsAsync().then((permissionGranted) => {
             if (permissionGranted) {
-                scheduleSmartReminders().catch(() => undefined);
+                scheduleAdaptiveReminders(useUserStore.getState().user?.id).catch(() => undefined);
             }
         });
     }, []);

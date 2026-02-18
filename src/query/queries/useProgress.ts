@@ -5,6 +5,7 @@ export const PROGRESS_KEYS = {
     all: ['progress'] as const,
     weight: (userId: string) => ['progress', 'weight', userId] as const,
     calories: (userId: string) => ['progress', 'calories', userId] as const,
+    insights: (userId: string) => ['progress', 'insights', userId] as const,
 };
 
 export function useWeightHistory(userId?: string) {
@@ -23,12 +24,19 @@ export function useCalorieHistory(userId?: string) {
     });
 }
 
+export function useProgressInsights(userId?: string) {
+    return useQuery({
+        queryKey: PROGRESS_KEYS.insights(userId || ''),
+        queryFn: () => progressApi.getProgressInsights(userId || ''),
+        enabled: !!userId,
+    });
+}
+
 export function useProgressMutations() {
     const queryClient = useQueryClient();
 
     const logWeight = useMutation({
-        mutationFn: ({ userId, weight }: { userId: string; weight: number }) =>
-            progressApi.logWeight(userId, weight),
+        mutationFn: ({ userId, weight }: { userId: string; weight: number }) => progressApi.logWeight(userId, weight),
         onSuccess: (_, { userId }) => {
             queryClient.invalidateQueries({ queryKey: PROGRESS_KEYS.weight(userId) });
             // Also invalidate user queries since weight is updated on user profile
