@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, PlatformColor, useColorScheme } from 'react-native';
 import { darkThemeOverrides, designTokens } from './design-tokens';
 import { getTheme, setTheme as persistTheme } from '../utils/storage';
 
@@ -15,15 +15,47 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+const getAndroidDynamicPrimary = () => {
+    if (Platform.OS !== 'android') {
+        return designTokens.colors.brand.primary[500];
+    }
+
+    // Material You readiness: consume system accent where supported.
+    return Platform.Version >= 31
+        ? (PlatformColor('?attr/colorPrimary') as unknown as string)
+        : designTokens.colors.brand.primary[500];
+};
+
 const buildTheme = (scheme: 'light' | 'dark') => {
+    const dynamicPrimary = getAndroidDynamicPrimary();
+
     if (scheme === 'light') {
-        return designTokens;
+        return {
+            ...designTokens,
+            colors: {
+                ...designTokens.colors,
+                brand: {
+                    ...designTokens.colors.brand,
+                    primary: {
+                        ...designTokens.colors.brand.primary,
+                        500: dynamicPrimary,
+                    },
+                },
+            },
+        };
     }
 
     return {
         ...designTokens,
         colors: {
             ...designTokens.colors,
+            brand: {
+                ...designTokens.colors.brand,
+                primary: {
+                    ...designTokens.colors.brand.primary,
+                    500: dynamicPrimary,
+                },
+            },
             surface: {
                 ...designTokens.colors.surface,
                 ...darkThemeOverrides.colors.surface,
@@ -51,6 +83,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
                 setModeState(saved);
             }
         };
+
         hydrate().catch(() => undefined);
     }, []);
 
@@ -90,6 +123,7 @@ export function useColors() {
 
 export function useSpacing() {
     const spacingTokens = useThemeContext().theme.spacing;
+
     return useCallback(
         (multiplier: number) => {
             const base = spacingTokens.sm;

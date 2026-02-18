@@ -3,6 +3,7 @@ import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Chrome, Utensils, Dumbbell, TrendingUp, GlassWater, User } from 'lucide-react-native';
+import { triggerHaptic } from '../../utils/haptics';
 
 const ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
     index: Chrome,
@@ -83,6 +84,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
                             });
 
                             if (!isFocused && !event.defaultPrevented) {
+                                triggerHaptic('light').catch(() => undefined);
                                 navigation.navigate(route.name);
                             }
                         };
@@ -92,12 +94,15 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
                                 accessibilityRole="button"
                                 key={route.key}
                                 onPress={onPress}
+                                android_ripple={{ color: 'rgba(22,163,74,0.16)', borderless: false }}
                                 style={{
                                     width: itemWidth,
                                     height: 52,
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: 2,
+                                    overflow: 'hidden',
+                                    borderRadius: 9999,
                                 }}
                             >
                                 <Icon size={18} color={isFocused ? '#ffffff' : '#4b5563'} />
