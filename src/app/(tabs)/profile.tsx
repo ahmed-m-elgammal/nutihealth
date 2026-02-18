@@ -22,7 +22,7 @@ import { Heading, Subheading, Body, Caption } from '../../components/ui/Typograp
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { exportBackupAndShare, restoreBackupFromFilePicker } from '../../services/export/dataExport';
-import { clearScheduledReminders, scheduleSmartReminders } from '../../services/notifications';
+import { clearScheduledReminders, scheduleAdaptiveReminders } from '../../services/notifications';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -109,7 +109,7 @@ export default function ProfileScreen() {
     const handleRefreshReminders = async () => {
         try {
             setIsRefreshingReminders(true);
-            await scheduleSmartReminders();
+            await scheduleAdaptiveReminders(user?.id);
             Alert.alert('Reminders Updated', 'Meal, workout, hydration, and streak reminders are scheduled.');
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to schedule reminders.';
