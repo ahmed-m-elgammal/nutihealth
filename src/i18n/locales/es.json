@@ -1,1 +1,146 @@
-{}
+{
+    "addMeal": {
+        "title": "Agregar comida",
+        "subtitle": "Elige cómo quieres agregar alimentos a tu diario.",
+        "options": {
+            "template": {
+                "title": "Cargar plantilla",
+                "subtitle": "Usa una plantilla de comida guardada"
+            },
+            "search": {
+                "title": "Buscar alimento",
+                "subtitle": "Busca en nuestra base de datos"
+            },
+            "barcode": {
+                "title": "Escanear código",
+                "subtitle": "Escanea el código de barras"
+            },
+            "ai": {
+                "title": "Detección IA",
+                "subtitle": "Toma una foto de tu comida"
+            },
+            "recipeImport": {
+                "title": "Importar receta",
+                "subtitle": "Importa desde cualquier URL"
+            }
+        }
+    },
+    "recipeImport": {
+        "screenTitle": "Importar receta",
+        "intro": {
+            "title": "Importa recetas desde enlaces",
+            "description": "Pega cualquier URL de receta y analizaremos título, ingredientes, instrucciones, porciones y nutrición.",
+            "steps": {
+                "1": "Pega una URL de receta en árabe o inglés.",
+                "2": "Analizamos ingredientes, instrucciones, porciones y nutrición.",
+                "3": "Previsualiza, ajusta porciones y agrega al diario."
+            }
+        },
+        "urlModal": {
+            "title": "URL de receta",
+            "subtitle": "Pega un enlace de receta para importarla.",
+            "placeholder": "https://example.com/recipe"
+        },
+        "loading": {
+            "subtitle": "Analizando detalles de la receta..."
+        },
+        "actions": {
+            "enterUrl": "Ingresar URL",
+            "retry": "Reintentar",
+            "cancel": "Cancelar",
+            "import": "Importar"
+        },
+        "preview": {
+            "title": "Vista previa",
+            "servingsInRecipe": "{{count}} porciones en esta receta",
+            "selectedServings": "Porciones a registrar",
+            "nutritionTitle": "Resumen nutricional",
+            "protein": "Proteína",
+            "carbs": "Carbohidratos",
+            "fats": "Grasas",
+            "perServingHint": "Por porción: {{calories}} kcal • P {{protein}}g • C {{carbs}}g • F {{fats}}g",
+            "ingredients": "Ingredientes",
+            "instructions": "Instrucciones",
+            "metric": "Métrico",
+            "imperial": "Imperial",
+            "mealType": "Agregar a comida",
+            "addToMeal": "Agregar a {{mealType}}"
+        },
+        "mealTypes": {
+            "breakfast": "Desayuno",
+            "lunch": "Almuerzo",
+            "dinner": "Cena",
+            "snack": "Snack"
+        },
+        "errors": {
+            "title": "Error de importación",
+            "invalidUrl": "Ingresa una URL válida",
+            "noRecipe": "No encontramos datos de receta.",
+            "network": "Error de conexión",
+            "parse": "No pudimos analizar esta receta",
+            "unknown": "Algo salió mal al importar",
+            "addMealFailed": "No se pudo agregar la receta"
+        },
+        "success": {
+            "addedToMeal": "Receta agregada al diario"
+        }
+    },
+    "foodSearch": {
+        "title": "Buscar alimentos",
+        "placeholder": "Buscar por nombre, marca o código...",
+        "loading": "Cargando alimentos recientes...",
+        "retry": "Reintentar",
+        "sections": {
+            "recent": "Alimentos recientes",
+            "database": "Tus alimentos personalizados",
+            "external": "Base OpenFoodFacts"
+        },
+        "errors": {
+            "load": "No se pudieron cargar recientes.",
+            "search": "La búsqueda falló. Intenta de nuevo."
+        },
+        "empty": {
+            "notFound": "No se encontraron alimentos.",
+            "startTyping": "Empieza a escribir para buscar.",
+            "minChars": "Escribe al menos 3 caracteres"
+        }
+    },
+    "progress": {
+        "title": "Tu progreso",
+        "subtitle": "Sigue tu bienestar",
+        "weightProgress": "Progreso de peso",
+        "current": "Actual",
+        "goal": "Meta",
+        "toGoal": "hacia la meta",
+        "toGo": "restante",
+        "periods": {
+            "week": "semana",
+            "month": "mes",
+            "year": "año"
+        },
+        "weightTrend": "Tendencia de peso",
+        "calorieTrend": "Tendencia de calorías",
+        "noWeightData": "Aún no hay datos de peso",
+        "noCalorieData": "Aún no hay datos de calorías",
+        "underTarget": "Bajo objetivo",
+        "overTarget": "Sobre objetivo",
+        "nutritionStats": "Estadísticas de nutrición",
+        "protein": "Proteína",
+        "carbs": "Carbohidratos",
+        "fats": "Grasas",
+        "avgDay": "prom/día",
+        "adherenceScore": "Puntaje de adherencia",
+        "trackingConsistency": "Consistencia",
+        "days": "Días",
+        "currentStreak": "Racha actual",
+        "hydrationGoal": "Meta de hidratación",
+        "workouts": "Entrenos"
+    },
+    "mealSuggestion": {
+        "title": "Sugerencia de próxima comida",
+        "logThisMeal": "Registrar esta comida",
+        "dismiss": "Descartar",
+        "targetCalories": "{{calories}} kcal",
+        "timeWindow": "{{start}} – {{end}}"
+    }
+}
