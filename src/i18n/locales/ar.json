@@ -142,5 +142,27 @@
         "dismiss": "إخفاء",
         "targetCalories": "{{calories}} سعرة حرارية",
         "timeWindow": "{{start}} – {{end}}"
+    },
+    "home": {
+        "todayCaloriesTitle": "سعرات اليوم",
+        "actions": {
+            "notNow": "ليس الآن",
+            "addNow": "أضف الآن"
+        },
+        "alerts": {
+            "completeProfileTitle": "أكمل الملف الشخصي أولاً",
+            "completeProfileBody": "أضف الطول والوزن مرة واحدة لتخصيص تسجيل الوجبات.",
+            "noMealsTitle": "لا توجد وجبات محددة",
+            "noMealsBody": "اختر وجبة واحدة على الأقل قبل الإضافة.",
+            "unableToApplyTitle": "تعذّر تطبيق النموذج"
+        },
+        "systemHealth": {
+            "title": "حالة النظام",
+            "connected": "الخادم متصل وإعدادات الأمان مفعّلة.",
+            "unavailable": "تعذّر الحصول على حالة الخادم. بعض الميزات قد تكون محدودة."
+        }
+    },
+    "common": {
+        "tryAgain": "يرجى المحاولة مرة أخرى."
     }
 }
