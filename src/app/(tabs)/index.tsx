@@ -248,6 +248,40 @@ export default function HomeScreen() {
         [user, handleMealEntryGate, selectedSampleMeals],
     );
 
+            const templates = useSelection
+                ? SAMPLE_HEALTHY_DAY.filter((meal) => selectedSampleMeals.includes(meal.id))
+                : SAMPLE_HEALTHY_DAY;
+
+            if (templates.length === 0) {
+                Alert.alert('No meals selected', 'Select at least one sample meal before applying.');
+                return;
+            }
+
+            setIsApplyingSampleDay(true);
+            try {
+                for (const template of templates) {
+                    const consumedAt = new Date();
+                    consumedAt.setHours(template.consumedHour, template.consumedMinute, 0, 0);
+
+                    await createMeal({
+                        name: template.name,
+                        mealType: template.mealType,
+                        consumedAt,
+                        foods: template.foods,
+                    });
+                }
+
+                setIsModifyingSampleDay(false);
+                setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
+            } catch (error) {
+                Alert.alert('Unable to apply sample', (error as Error).message || 'Please try again.');
+            } finally {
+                setIsApplyingSampleDay(false);
+            }
+        },
+        [user, handleMealEntryGate, selectedSampleMeals],
+    );
+
     const renderHeader = useCallback(
         () => (
             <View className="mb-6">
@@ -348,6 +382,24 @@ Fats: ${carbCycleMacros?.fats ?? '-'}g`,
                             )}
                         </CardContent>
                     </Card>
+                </View>
+
+                <MealSuggestionBanner userId={user?.id} date={today} />
+
+                <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
+                    <Subheading className="mb-4">Quick Add</Subheading>
+                    <View className="flex-row flex-wrap justify-between gap-2">
+                        {QUICK_ACTIONS.map((action) => (
+                            <QuickAction
+                                key={action.id}
+                                label={action.label}
+                                icon={action.icon}
+                                onPress={() => handleQuickActionPress(action.route)}
+                            />
+                        ))}
+                    </View>
+                </View>
+
                 </View>
 
                 <MealSuggestionBanner userId={user?.id} date={today} />
