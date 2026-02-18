@@ -7,7 +7,7 @@ if (typeof window !== 'undefined') {
 
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, Text, Platform, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, Text, Platform } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { queryClient } from '../query/queryClient';
@@ -17,7 +17,9 @@ import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '../database';
 import '../i18n';
 import '../../global.css';
-import { registerForPushNotificationsAsync, scheduleSmartReminders } from '../services/notifications';
+import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '../services/notifications';
+import RootErrorBoundary from '../components/errors/RootErrorBoundary';
+import OfflineIndicator from '../components/common/OfflineIndicator';
 
 const devLog = (...messages: unknown[]) => {
     if (__DEV__) {
@@ -130,7 +132,7 @@ function RootNavigation() {
     useEffect(() => {
         registerForPushNotificationsAsync().then((permissionGranted) => {
             if (permissionGranted) {
-                scheduleSmartReminders().catch(() => undefined);
+                scheduleAdaptiveReminders(useUserStore.getState().user?.id).catch(() => undefined);
             }
         });
     }, []);
@@ -222,82 +224,18 @@ function RootNavigation() {
             <Stack.Screen name="(modals)/recipe-import" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="(modals)/recipe-preview" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="(modals)/complete-profile" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="(modals)/meal-prep-planner" options={{ presentation: 'modal', headerShown: false }} />
         </Stack>
     );
-}
-
-class RootErrorBoundary extends React.Component<
-    { children: React.ReactNode },
-    { hasError: boolean; error: Error | null }
-> {
-    constructor(props: { children: React.ReactNode }) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
-
-    static getDerivedStateFromError(error: Error) {
-        return { hasError: true, error };
-    }
-
-    componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-        console.error('Uncaught error:', error, errorInfo);
-    }
-
-    private isLikelyDatabaseError(error: Error | null): boolean {
-        if (!error) return false;
-
-        const fullText = `${error.message} ${error.stack || ''}`.toLowerCase();
-        return ['watermelon', 'database', 'sqlite', 'indexeddb', 'loki'].some((term) => fullText.includes(term));
-    }
-
-    private retry = () => {
-        this.setState({ hasError: false, error: null });
-    };
-
-    render() {
-        if (this.state.hasError) {
-            const isDbError = this.isLikelyDatabaseError(this.state.error);
-
-            return (
-                <View className="flex-1 items-center justify-center bg-white p-6">
-                    <Text className="mb-2 text-2xl font-bold text-red-500">Something went wrong</Text>
-                    <Text className="mb-4 text-center text-gray-600">
-                        {isDbError
-                            ? 'We detected a local database problem. You can retry now, and if this continues you may need to reset local app data.'
-                            : 'An unexpected render error occurred.'}
-                    </Text>
-                    {!!this.state.error?.message && (
-                        <Text className="mb-5 text-center text-xs text-red-400">{this.state.error.message}</Text>
-                    )}
-
-                    <TouchableOpacity onPress={this.retry} className="mb-3 rounded-xl bg-blue-600 px-6 py-3">
-                        <Text className="font-semibold text-white">Try Again</Text>
-                    </TouchableOpacity>
-
-                    {Platform.OS === 'web' && isDbError && (
-                        <Text
-                            className="text-blue-600 underline"
-                            onPress={() => {
-                                void resetWebApplicationData();
-                            }}
-                        >
-                            Reset Application Data
-                        </Text>
-                    )}
-                </View>
-            );
-        }
-
-        return this.props.children;
-    }
 }
 
 export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <RootErrorBoundary>
+            <RootErrorBoundary onClearCache={Platform.OS === 'web' ? () => void resetWebApplicationData() : undefined}>
                 <DatabaseProvider database={database}>
                     <QueryClientProvider client={queryClient}>
+                        <OfflineIndicator />
                         <RootNavigation />
                     </QueryClientProvider>
                 </DatabaseProvider>
