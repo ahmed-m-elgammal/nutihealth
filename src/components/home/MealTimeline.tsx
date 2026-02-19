@@ -17,8 +17,6 @@ type Meal = {
 
 type MealTimelineProps = {
     meals: Meal[];
-    onEditMeal: (id: string) => void;
-    onDeleteMeal: (id: string) => void;
 };
 
 type FlattenedItem = { id: string; kind: 'header'; title: string } | { id: string; kind: 'meal'; meal: Meal };
@@ -38,7 +36,7 @@ const HeaderItem = memo(({ title }: { title: string }) => (
     </Text>
 ));
 
-function MealTimeline({ meals, onEditMeal, onDeleteMeal }: MealTimelineProps) {
+function MealTimeline({ meals }: MealTimelineProps) {
     const flattened = useMemo<FlattenedItem[]>(() => {
         const order = ['breakfast', 'lunch', 'dinner', 'snack'];
         const map = new Map<string, Meal[]>();
@@ -64,22 +62,13 @@ function MealTimeline({ meals, onEditMeal, onDeleteMeal }: MealTimelineProps) {
     const keyExtractor = useCallback((item: FlattenedItem) => item.id, []);
     const getItemType = useCallback((item: FlattenedItem) => item.kind, []);
 
-    const renderItem = useCallback(
-        ({ item }: { item: FlattenedItem }) => {
-            if (item.kind === 'header') {
-                return <HeaderItem title={item.title} />;
-            }
+    const renderItem = useCallback(({ item }: { item: FlattenedItem }) => {
+        if (item.kind === 'header') {
+            return <HeaderItem title={item.title} />;
+        }
 
-            return (
-                <MealCard
-                    meal={item.meal as any}
-                    onEdit={() => onEditMeal(item.meal.id)}
-                    onDelete={() => onDeleteMeal(item.meal.id)}
-                />
-            );
-        },
-        [onDeleteMeal, onEditMeal],
-    );
+        return <MealCard meal={item.meal as any} />;
+    }, []);
 
     if (!meals.length) {
         return (

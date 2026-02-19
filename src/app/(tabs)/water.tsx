@@ -14,6 +14,9 @@ import WaterHistory from '../../components/water/WaterHistory';
 import WaterReminderToggle from '../../components/water/WaterReminderToggle';
 import { triggerHaptic } from '../../utils/haptics';
 import { EmptyGlassIllustration } from '../../components/illustrations/EmptyStateIllustrations';
+import { storage } from '../../utils/storage-adapter';
+
+const WATER_REMINDER_STORAGE_KEY = 'water_reminders_enabled';
 
 type LastAdded = {
     id: string;
@@ -31,6 +34,21 @@ export default function WaterScreen() {
     useEffect(() => {
         loadTodaysWater().catch(() => undefined);
     }, [loadTodaysWater]);
+
+    useEffect(() => {
+        storage
+            .getItem(WATER_REMINDER_STORAGE_KEY)
+            .then((storedValue) => {
+                if (storedValue === 'true') {
+                    setRemindersEnabled(true);
+                }
+            })
+            .catch(() => undefined);
+    }, []);
+
+    useEffect(() => {
+        storage.setItem(WATER_REMINDER_STORAGE_KEY, remindersEnabled ? 'true' : 'false').catch(() => undefined);
+    }, [remindersEnabled]);
 
     const addWater = async (amount: number) => {
         const prevLatestId = todaysLogs[0]?.id;
