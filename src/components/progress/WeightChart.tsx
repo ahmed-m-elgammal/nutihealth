@@ -20,6 +20,7 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
     const [chartWidth, setChartWidth] = useState(width);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
     const zoom = useSharedValue(1);
+    const isSkiaPathAvailable = Boolean((Skia as unknown as { Path?: { Make?: () => any } })?.Path?.Make);
 
     const { points, linePath, fillPath, goalY } = useMemo(() => {
         const pLeft = 16;
@@ -32,8 +33,8 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
         if (!data.length) {
             return {
                 points: [] as { x: number; y: number; d: WeightPoint }[],
-                linePath: Skia.Path.Make(),
-                fillPath: Skia.Path.Make(),
+                linePath: null as any,
+                fillPath: null as any,
                 goalY: null as number | null,
             };
         }
@@ -47,6 +48,13 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
             const y = pTop + ((maxValue - d.weight) / Math.max(1, maxValue - minValue)) * h;
             return { x, y, d };
         });
+
+        if (!isSkiaPathAvailable) {
+            const computedGoalY =
+                goalWeight != null ? pTop + ((maxValue - goalWeight) / Math.max(1, maxValue - minValue)) * h : null;
+
+            return { points: plotted, linePath: null as any, fillPath: null as any, goalY: computedGoalY };
+        }
 
         const path = Skia.Path.Make();
         const area = Skia.Path.Make();
@@ -72,7 +80,7 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
             goalWeight != null ? pTop + ((maxValue - goalWeight) / Math.max(1, maxValue - minValue)) * h : null;
 
         return { points: plotted, linePath: path, fillPath: area, goalY: computedGoalY };
-    }, [chartWidth, data, goalWeight, height]);
+    }, [chartWidth, data, goalWeight, height, isSkiaPathAvailable]);
 
     const selected = selectedIndex != null ? points[selectedIndex] : null;
 
@@ -113,40 +121,55 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
             onLayout={onLayout}
         >
             <Text style={{ fontWeight: '700', color: '#0f172a' }}>Weight trend · {period}</Text>
-            <GestureDetector gesture={pinch}>
-                <Animated.View style={chartScale}>
-                    <Canvas style={{ width: chartWidth - 24, height, marginTop: 8 }}>
-                        <Path path={fillPath} color="rgba(34,197,94,0.18)" />
-                        <Path path={linePath} color="#16a34a" style="stroke" strokeWidth={3} />
-                        {goalY != null ? (
-                            <Line
-                                p1={vec(10, goalY)}
-                                p2={vec(chartWidth - 24 - 10, goalY)}
-                                color="#f59e0b"
-                                style="stroke"
-                                strokeWidth={2}
-                            />
-                        ) : null}
-                        {points.map((p, idx) => (
-                            <Circle
-                                key={`${p.x}-${idx}`}
-                                cx={p.x}
-                                cy={p.y}
-                                r={idx === points.length - 1 ? 5 : 3}
-                                color="#16a34a"
-                            />
-                        ))}
-                        {selected ? <Circle cx={selected.x} cy={selected.y} r={7} color="#22c55e" /> : null}
-                    </Canvas>
-                </Animated.View>
-            </GestureDetector>
+            {isSkiaPathAvailable ? (
+                <>
+                    <GestureDetector gesture={pinch}>
+                        <Animated.View style={chartScale}>
+                            <Canvas style={{ width: chartWidth - 24, height, marginTop: 8 }}>
+                                {fillPath ? <Path path={fillPath} color="rgba(34,197,94,0.18)" /> : null}
+                                {linePath ? (
+                                    <Path path={linePath} color="#16a34a" style="stroke" strokeWidth={3} />
+                                ) : null}
+                                {goalY != null ? (
+                                    <Line
+                                        p1={vec(10, goalY)}
+                                        p2={vec(chartWidth - 24 - 10, goalY)}
+                                        color="#f59e0b"
+                                        style="stroke"
+                                        strokeWidth={2}
+                                    />
+                                ) : null}
+                                {points.map((p, idx) => (
+                                    <Circle
+                                        key={`${p.x}-${idx}`}
+                                        cx={p.x}
+                                        cy={p.y}
+                                        r={idx === points.length - 1 ? 5 : 3}
+                                        color="#16a34a"
+                                    />
+                                ))}
+                                {selected ? <Circle cx={selected.x} cy={selected.y} r={7} color="#22c55e" /> : null}
+                            </Canvas>
+                        </Animated.View>
+                    </GestureDetector>
 
-            <Pressable
-                onPress={(event) => {
-                    hitSlabPress(event.nativeEvent.locationX + 12);
-                }}
-                style={{ height: 24, marginTop: -24 }}
-            />
+                    <Pressable
+                        onPress={(event) => {
+                            hitSlabPress(event.nativeEvent.locationX + 12);
+                        }}
+                        style={{ height: 24, marginTop: -24 }}
+                    />
+                </>
+            ) : (
+                <View style={{ marginTop: 10, borderRadius: 10, backgroundColor: '#f8fafc', padding: 10 }}>
+                    <Text style={{ color: '#334155', fontSize: 12 }}>
+                        Interactive chart is unavailable on this web renderer. Weight entries are still tracked.
+                    </Text>
+                    <Text style={{ marginTop: 6, color: '#0f172a', fontWeight: '700' }}>
+                        Latest: {data.length ? `${data[data.length - 1].weight.toFixed(1)} kg` : 'No data'}
+                    </Text>
+                </View>
+            )}
 
             {selected ? (
                 <View style={{ marginTop: 10, borderRadius: 10, backgroundColor: '#f8fafc', padding: 10 }}>
