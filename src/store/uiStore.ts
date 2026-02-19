@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 
-type ToastType = 'success' | 'error' | 'warning' | 'info';
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-interface ToastAction {
+export interface ToastAction {
     label: string;
     onPress?: () => void;
 }
 
-interface Toast {
+export interface Toast {
     id: string;
     type: ToastType;
     message: string;
@@ -45,7 +45,7 @@ export const useUIStore = create<UIState>((set) => ({
         const toast: Toast = { id, type, message, duration, action };
 
         set((state) => ({
-            toasts: [...state.toasts, toast],
+            toasts: [...state.toasts, toast].slice(-3),
         }));
 
         if (duration > 0) {

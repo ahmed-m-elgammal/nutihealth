@@ -3,7 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import Animated, { FadeIn, SlideOutLeft } from 'react-native-reanimated';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../utils/cn';
-import { useUIStore } from '../../store/uiStore';
+import { type Toast as ToastModel, useUIStore } from '../../store/uiStore';
 
 const toastVariants = cva('rounded-xl p-4 mb-2 flex-row items-center shadow-lg', {
     variants: {
@@ -45,6 +45,7 @@ const variantIcons = {
 
 export interface ToastProps extends VariantProps<typeof toastVariants> {
     id: string;
+    type: ToastModel['type'];
     message: string;
     action?: {
         label: string;
@@ -64,8 +65,9 @@ export function ToastContainer() {
     );
 }
 
-function Toast({ id, variant, message, action }: ToastProps) {
-    const icon = variantIcons[variant || 'default'];
+function Toast({ id, type, message, action }: ToastProps) {
+    const variant = type;
+    const icon = variantIcons[variant];
     const removeToast = useUIStore((state) => state.removeToast);
 
     return (
