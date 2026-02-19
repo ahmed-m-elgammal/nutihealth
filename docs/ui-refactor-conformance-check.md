@@ -6,6 +6,18 @@ I searched the repository for `NutriHealth_UI_Refactor_Plan.docx` (and any `.doc
 
 Because the file is missing from the repo, this check compares implementation against the plan content that has been provided in this workspace conversation and the currently implemented code.
 
+
+## Acceptance baseline (single source of truth)
+
+The acceptance source for this branch is this conformance checklist. A phase item is only treated as complete when it is explicitly marked complete here.
+
+### Closure checklist for current scope
+
+- [x] Phase 1: Token/theme usage rolled across major tab surfaces (Home, Meals, Progress) and dark-mode friendly text/surface usage validated on those surfaces.
+- [x] Phase 2: Predictive-back readiness configured at stack level (`gestureEnabled`, `fullScreenGestureEnabled`, `animationMatchesGesture`) for native stack transitions.
+- [x] Phase 2: Shared-element style transition added for meal card -> food details modal path.
+- [x] Phase 2: Collapsible header behavior applied consistently across major dashboard surfaces (Home, Meals, Progress).
+
 ## Quick answer
 
 No — there are still gaps. The implemented work follows the plan direction, but not all planned items are complete.

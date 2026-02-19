@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Activity, Flame, Target, Zap } from 'lucide-react-native';
 import { useUserStore } from '../../store/userStore';
@@ -11,6 +11,8 @@ import CalorieHistoryChart from '../../components/progress/CalorieHistoryChart';
 import MacroRingChart from '../../components/progress/MacroRingChart';
 import StatsStrip from '../../components/progress/StatsStrip';
 import BodyMeasurements from '../../components/progress/BodyMeasurements';
+import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
+import { useColors } from '../../hooks/useColors';
 
 type Period = 'Week' | 'Month' | '3 Months' | 'Year';
 
@@ -19,6 +21,7 @@ const takeByPeriod = (period: Period) =>
 
 export default function ProgressScreen() {
     const { user } = useUserStore();
+    const colors = useColors();
     const [period, setPeriod] = useState<Period>('Month');
 
     const { data: weightHistory = [] } = useWeightHistory(user?.id);
@@ -91,14 +94,26 @@ export default function ProgressScreen() {
     return (
         <ScreenErrorBoundary screenName="progress">
             <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
-                    <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a' }}>Progress</Text>
-                    <Text style={{ color: '#64748b', marginTop: 4 }}>Your momentum, visualized</Text>
-
-                    <View style={{ marginTop: 14 }}>
-                        <PeriodSelector selectedPeriod={period} onPeriodChange={(p) => setPeriod(p as Period)} />
-                    </View>
-
+                <CollapsibleHeaderScrollView
+                    header={
+                        <View>
+                            <Text style={{ fontSize: 26, fontWeight: '700', color: colors.text.primary }}>
+                                Progress
+                            </Text>
+                            <Text style={{ color: colors.text.secondary, marginTop: 4 }}>
+                                Your momentum, visualized
+                            </Text>
+                            <View style={{ marginTop: 14 }}>
+                                <PeriodSelector
+                                    selectedPeriod={period}
+                                    onPeriodChange={(p) => setPeriod(p as Period)}
+                                />
+                            </View>
+                        </View>
+                    }
+                    headerHeight={160}
+                    contentContainerStyle={{ paddingHorizontal: 16 }}
+                >
                     <WeightChart data={weightData} goalWeight={user?.targetWeight} period={period} />
                     <CalorieHistoryChart data={calorieData} period={period} />
                     <MacroRingChart
@@ -117,7 +132,7 @@ export default function ProgressScreen() {
                             // placeholder for Phase 5 measurement modal
                         }}
                     />
-                </ScrollView>
+                </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>
     );

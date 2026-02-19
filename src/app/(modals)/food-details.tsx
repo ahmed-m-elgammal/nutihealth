@@ -5,7 +5,7 @@ import FoodDetailModal from '../../components/meals/FoodDetailModal';
 
 export default function FoodDetailsModalScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams<{ food?: string }>();
+    const params = useLocalSearchParams<{ food?: string; transitionId?: string }>();
 
     const food = useMemo(() => {
         try {
@@ -38,6 +38,7 @@ export default function FoodDetailsModalScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
             <FoodDetailModal
                 food={food}
+                transitionId={params.transitionId}
                 onSave={() => {
                     Alert.alert('Saved', 'Food entry updated.');
                     router.back();

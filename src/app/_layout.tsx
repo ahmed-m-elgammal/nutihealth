@@ -218,6 +218,7 @@ function RootNavigation() {
             screenOptions={{
                 headerShown: false,
                 animation: 'slide_from_right',
+                animationMatchesGesture: true,
                 gestureEnabled: true,
                 fullScreenGestureEnabled: true,
             }}

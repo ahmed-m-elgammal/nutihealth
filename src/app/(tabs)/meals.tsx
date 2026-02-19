@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
@@ -9,6 +9,7 @@ import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
 import DatePickerStrip from '../../components/meals/DatePickerStrip';
 import MacroSummaryBar from '../../components/meals/MacroSummaryBar';
 import CollapsibleMealSection from '../../components/meals/CollapsibleMealSection';
+import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -72,11 +73,16 @@ export default function MealsScreen() {
     return (
         <ScreenErrorBoundary screenName="meals">
             <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
-                    <DatePickerStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-
-                    <MacroSummaryBar consumed={nutrition} goals={goals} />
-
+                <CollapsibleHeaderScrollView
+                    header={
+                        <View>
+                            <DatePickerStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+                            <MacroSummaryBar consumed={nutrition} goals={goals} />
+                        </View>
+                    }
+                    headerHeight={200}
+                    contentContainerStyle={{ paddingHorizontal: 16 }}
+                >
                     {(Object.keys(grouped) as MealType[]).map((type) => {
                         const mealsForType = grouped[type];
                         const sectionCalories = mealsForType.reduce((sum, meal) => sum + meal.totalCalories, 0);
@@ -94,6 +100,7 @@ export default function MealsScreen() {
                                     router.push({
                                         pathname: '/(modals)/food-details',
                                         params: {
+                                            transitionId: `food-card-${food.id}`,
                                             food: JSON.stringify({
                                                 name: food.name,
                                                 brand: food.brand,
@@ -110,7 +117,7 @@ export default function MealsScreen() {
                     })}
 
                     <View style={{ height: 10 }} />
-                </ScrollView>
+                </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>
     );

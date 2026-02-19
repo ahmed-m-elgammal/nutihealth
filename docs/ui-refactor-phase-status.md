@@ -10,7 +10,7 @@ No — all phases are **not** fully implemented yet.
 
 ### Phase 1: Design Token System & Theme Engine
 
-**Status:** Partially implemented
+**Status:** Implemented across core app surfaces
 
 Implemented:
 - `src/theme/design-tokens.ts` with token groups for color, spacing, typography, elevation, and motion.
@@ -20,12 +20,12 @@ Implemented:
 - Role-based typography primitives in `src/components/ui/Typography.tsx`.
 
 Not yet complete:
-- Full app-wide migration of every screen/component to consume the new token+theme context.
-- Comprehensive dark-mode QA for all screens.
+- Remaining migration is focused on long-tail legacy/utility screens outside core tab experience.
+- Full edge-case dark-mode QA on every modal and deep-linked route is still recommended.
 
 ### Phase 2: Tab Bar & Navigation Overhaul
 
-**Status:** Partially implemented
+**Status:** Implemented with advanced polish remaining
 
 Implemented:
 - Custom floating tab bar (`src/components/navigation/FloatingTabBar.tsx`).
@@ -35,9 +35,9 @@ Implemented:
 Not yet complete:
 - Advanced icon crossfade/label motion details from the spec.
 - Haptics on tab press.
-- Predictive back workflow enhancements.
-- Shared element navigation transitions.
-- Reusable `CollapsibleHeaderScrollView` applied across major screens.
+- Predictive-back stack readiness is configured; remaining work is platform/device validation breadth.
+- Shared-element transition is implemented on meal card -> food details route; broader rollout to other routes can be added.
+- Collapsible headers are now applied across major dashboard surfaces (Home, Meals, Progress).
 
 ### Phase 3: Home Dashboard Redesign
 

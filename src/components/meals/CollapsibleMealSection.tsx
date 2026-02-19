@@ -78,6 +78,7 @@ export default function CollapsibleMealSection({
                             renderItem={({ item }) => (
                                 <FoodItemCard
                                     item={item}
+                                    transitionId={`food-card-${item.id}`}
                                     onPress={() => onFoodPress(item)}
                                     onDelete={() => {}}
                                     onDuplicate={() => {}}

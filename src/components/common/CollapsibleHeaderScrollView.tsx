@@ -1,6 +1,7 @@
 import React from 'react';
-import { RefreshControl, View, StyleSheet } from 'react-native';
+import { RefreshControl, View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { useColors } from '../../hooks/useColors';
 
 type CollapsibleHeaderScrollViewProps = {
     header: React.ReactNode;
@@ -8,6 +9,7 @@ type CollapsibleHeaderScrollViewProps = {
     headerHeight?: number;
     refreshing?: boolean;
     onRefresh?: () => void;
+    contentContainerStyle?: StyleProp<ViewStyle>;
 };
 
 export default function CollapsibleHeaderScrollView({
@@ -16,8 +18,10 @@ export default function CollapsibleHeaderScrollView({
     headerHeight = 180,
     refreshing = false,
     onRefresh,
+    contentContainerStyle,
 }: CollapsibleHeaderScrollViewProps) {
     const scrollY = useSharedValue(0);
+    const colors = useColors();
 
     const headerStyle = useAnimatedStyle(() => {
         const opacity = interpolate(scrollY.value, [0, headerHeight * 0.75], [1, 0.2], Extrapolation.CLAMP);
@@ -38,12 +42,19 @@ export default function CollapsibleHeaderScrollView({
     return (
         <Animated.ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[styles.content, contentContainerStyle]}
             onScroll={(event) => {
                 scrollY.value = event.nativeEvent.contentOffset.y;
             }}
             scrollEventThrottle={16}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16a34a" />}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={colors.brand.semantic.success}
+                    colors={[colors.brand.semantic.success]}
+                />
+            }
         >
             <Animated.View style={[styles.headerWrap, { minHeight: headerHeight }, headerStyle]}>
                 {header}

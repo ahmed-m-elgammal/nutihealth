@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 type FoodDetailModalProps = {
     food: {
@@ -10,11 +11,12 @@ type FoodDetailModalProps = {
         carbs: number;
         fats: number;
     };
+    transitionId?: string;
     onSave: () => void;
     onRemove: () => void;
 };
 
-export default function FoodDetailModal({ food, onSave, onRemove }: FoodDetailModalProps) {
+export default function FoodDetailModal({ food, transitionId, onSave, onRemove }: FoodDetailModalProps) {
     const [qty, setQty] = useState('1');
     const q = Number(qty) || 1;
 
@@ -36,13 +38,16 @@ export default function FoodDetailModal({ food, onSave, onRemove }: FoodDetailMo
             <Text style={{ fontSize: 24, fontWeight: '700', color: '#0f172a' }}>{food.name}</Text>
             <Text style={{ color: '#64748b', marginTop: 2 }}>{food.brand || 'Unknown brand'}</Text>
 
-            <View style={{ marginTop: 14, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', padding: 12 }}>
+            <Animated.View
+                sharedTransitionTag={transitionId}
+                style={{ marginTop: 14, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', padding: 12 }}
+            >
                 <Text style={{ fontWeight: '700', color: '#0f172a' }}>Nutrition facts</Text>
                 <Text style={{ marginTop: 6, color: '#334155' }}>{totals.calories} kcal</Text>
                 <Text style={{ color: '#2563eb' }}>Protein: {totals.protein}g</Text>
                 <Text style={{ color: '#d97706' }}>Carbs: {totals.carbs}g</Text>
                 <Text style={{ color: '#db2777' }}>Fats: {totals.fats}g</Text>
-            </View>
+            </Animated.View>
 
             <View style={{ marginTop: 14 }}>
                 <Text style={{ color: '#334155', marginBottom: 6 }}>Quantity</Text>
