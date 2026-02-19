@@ -2,17 +2,23 @@ import { create } from 'zustand';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
+interface ToastAction {
+    label: string;
+    onPress?: () => void;
+}
+
 interface Toast {
     id: string;
     type: ToastType;
     message: string;
     duration?: number;
+    action?: ToastAction;
 }
 
 interface BottomSheet {
     id: string;
-    component: React.ComponentType<any>; // Generic component type is acceptable
-    props?: Record<string, unknown>; // Flexible props object with unknown values
+    component: React.ComponentType<any>;
+    props?: Record<string, unknown>;
 }
 
 interface UIState {
@@ -20,19 +26,11 @@ interface UIState {
     toasts: Toast[];
     activeBottomSheet: BottomSheet | null;
     isLoading: boolean;
-
-    // Toast actions
-    showToast: (type: ToastType, message: string, duration?: number) => void;
+    showToast: (type: ToastType, message: string, duration?: number, action?: ToastAction) => void;
     removeToast: (id: string) => void;
-
-    // Bottom sheet actions
     openBottomSheet: (component: React.ComponentType<any>, props?: Record<string, unknown>) => void;
     closeBottomSheet: () => void;
-
-    // Theme actions
     setTheme: (theme: 'light' | 'dark' | 'auto') => void;
-
-    // Loading state
     setLoading: (isLoading: boolean) => void;
 }
 
@@ -42,15 +40,14 @@ export const useUIStore = create<UIState>((set) => ({
     activeBottomSheet: null,
     isLoading: false,
 
-    showToast: (type, message, duration = 3000) => {
+    showToast: (type, message, duration = 3000, action) => {
         const id = `toast-${Date.now()}-${Math.random()}`;
-        const toast: Toast = { id, type, message, duration };
+        const toast: Toast = { id, type, message, duration, action };
 
         set((state) => ({
             toasts: [...state.toasts, toast],
         }));
 
-        // Auto-remove toast after duration
         if (duration > 0) {
             setTimeout(() => {
                 set((state) => ({

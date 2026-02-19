@@ -24,6 +24,10 @@ type CollapsibleMealSectionProps = {
     expanded: boolean;
     onToggle: () => void;
     onFoodPress: (food: Food) => void;
+    onDeleteFood: (food: Food) => void;
+    onDuplicateFood: (food: Food) => void;
+    onEditFood: (food: Food) => void;
+    onAddNoteFood: (food: Food) => void;
 };
 
 export default function CollapsibleMealSection({
@@ -33,6 +37,10 @@ export default function CollapsibleMealSection({
     expanded,
     onToggle,
     onFoodPress,
+    onDeleteFood,
+    onDuplicateFood,
+    onEditFood,
+    onAddNoteFood,
 }: CollapsibleMealSectionProps) {
     return (
         <Animated.View layout={Layout.springify()} style={{ marginTop: 12 }}>
@@ -80,8 +88,10 @@ export default function CollapsibleMealSection({
                                     item={item}
                                     transitionId={`food-card-${item.id}`}
                                     onPress={() => onFoodPress(item)}
-                                    onDelete={() => {}}
-                                    onDuplicate={() => {}}
+                                    onDelete={() => onDeleteFood(item)}
+                                    onDuplicate={() => onDuplicateFood(item)}
+                                    onEdit={() => onEditFood(item)}
+                                    onAddNote={() => onAddNoteFood(item)}
                                 />
                             )}
                         />

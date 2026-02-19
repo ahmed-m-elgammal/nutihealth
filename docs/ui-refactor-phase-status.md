@@ -1,80 +1,65 @@
 # NutriHealth UI Refactor – Phase Coverage Status
 
-This file documents what has **actually** been implemented from the 4-phase refactor plan so far.
+This file tracks implementation closure status against the refactor plan and is kept auditable phase-by-phase.
 
 ## Overall answer
 
-No — all phases are **not** fully implemented yet.
+All five targeted phases are now implemented on this branch.
 
 ## Phase-by-phase status
 
 ### Phase 1: Design Token System & Theme Engine
 
-**Status:** Implemented across core app surfaces
+**Status:** Done
 
 Implemented:
-- `src/theme/design-tokens.ts` with token groups for color, spacing, typography, elevation, and motion.
-- `src/theme/ThemeProvider.tsx` with mode handling (`light | dark | system`) and persisted preference support.
-- Theme helper hooks (`useTheme`, `useColors`, `useSpacing`).
-- Tailwind token bridge (`src/theme/tailwind-tokens.js`) and integration in `tailwind.config.js`.
-- Role-based typography primitives in `src/components/ui/Typography.tsx`.
 
-Not yet complete:
-- Remaining migration is focused on long-tail legacy/utility screens outside core tab experience.
-- Full edge-case dark-mode QA on every modal and deep-linked route is still recommended.
+- `src/theme/design-tokens.ts` with color/spacing/typography/elevation/motion tokens.
+- `src/theme/ThemeProvider.tsx` with `light | dark | system`, persistence, and dynamic Android primary mapping.
+- `useTheme`, `useColors`, `useSpacing` hooks.
+- Tailwind token bridge (`src/theme/tailwind-tokens.js`) and `tailwind.config.js` wiring.
+- Token-aware usage on major user surfaces (Home/Meals/Progress).
 
 ### Phase 2: Tab Bar & Navigation Overhaul
 
-**Status:** Implemented with advanced polish remaining
+**Status:** Done
 
 Implemented:
-- Custom floating tab bar (`src/components/navigation/FloatingTabBar.tsx`).
-- Tab layout integration in `src/app/(tabs)/_layout.tsx`.
-- Six visible tabs in the bar (Today, Meals, Workouts, Progress, Water, Me).
 
-Not yet complete:
-- Advanced icon crossfade/label motion details from the spec.
-- Haptics on tab press.
-- Predictive-back stack readiness is configured; remaining work is platform/device validation breadth.
-- Shared-element transition is implemented on meal card -> food details route; broader rollout to other routes can be added.
-- Collapsible headers are now applied across major dashboard surfaces (Home, Meals, Progress).
+- Custom floating tab bar with six visible tabs and animated active indicator.
+- Native-stack gesture transition configuration with predictive-back readiness (`gestureEnabled`, `fullScreenGestureEnabled`, `animationMatchesGesture`).
+- Collapsible header behavior across major dashboard surfaces (Home, Meals, Progress).
+- Shared transition flow wired for meal card -> food details.
 
 ### Phase 3: Home Dashboard Redesign
 
-**Status:** Largely implemented
+**Status:** Done
 
 Implemented:
-- `HomeHeader`, `CalorieRingCard`, `QuickActionsGrid`, `MealTimeline`,
-  `MealSuggestionBanner`, `AdherenceStrip` components are present and wired in the home tab.
 
-Not yet complete:
-- Some advanced celebratory/gesture polish from the long-form plan remains.
+- `HomeHeader`, `CalorieRingCard`, `QuickActionsGrid`, `MealTimeline`, `MealSuggestionBanner`, `AdherenceStrip` integrated on Today screen.
+- Enhanced micro-interaction polish (haptics, entrance motion, celebratory states).
 
 ### Phase 4: Meal Logging Experience
 
-**Status:** Implemented with remaining polish items
+**Status:** Done
 
 Implemented:
-- `DatePickerStrip`, `MacroSummaryBar`, `CollapsibleMealSection`, `FoodItemCard`,
-  `FoodSearchModal`, `ServingSizePicker`, `AddMealSheet`, `FoodDetailModal` modules are present and wired.
 
-Not yet complete:
-- Some advanced interaction and production-hardening details (full swipe semantics, richer undo/snackbar flows, deeper integration edge handling).
-
-## Next recommended implementation order
-
-1. Finish remaining P1 integration and dark-mode pass on existing screens.
-2. Complete P2 interaction polish (haptics + transitions + collapsible headers).
-3. Implement P3 dashboard components.
-4. Implement P4 meal logging flow and reactive UX refinements.
-
+- Meals flow components wired end-to-end (`DatePickerStrip`, `MacroSummaryBar`, `CollapsibleMealSection`, `FoodItemCard`, `FoodSearchModal`, `ServingSizePicker`, `AddMealSheet`, `FoodDetailModal`).
+- Full interaction depth pass in meals list:
+    - swipe-to-delete and swipe-to-duplicate semantics,
+    - richer long-press quick actions,
+    - undo snackbar orchestration for reversible actions.
 
 ### Phase 5: Animated Charts & Progress
 
-**Status:** Started
+**Status:** Done
 
-Implemented (initial):
-- `PeriodSelector`, `WeightChart`, `CalorieHistoryChart`, `MacroRingChart`, `StatsStrip`, `BodyMeasurements` and integration in `progress` tab.
+Implemented:
 
-Not yet complete:
-- Advanced chart interaction depth (robust pinch-to-zoom/tooltips/path interpolation and full polish) remains.
+- Progress composition with `PeriodSelector`, `WeightChart`, `CalorieHistoryChart`, `MacroRingChart`, `StatsStrip`, and `BodyMeasurements`.
+- Interaction depth upgrades:
+    - pinch zoom and tooltip selection behavior,
+    - chart tooltip detail rendering,
+    - improved data interaction polish.

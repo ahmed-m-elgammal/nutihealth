@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
+import { triggerHaptic } from '../../utils/haptics';
 
 type MacroRingChartProps = {
     macros: { protein: number; carbs: number; fats: number };
@@ -67,6 +68,7 @@ export default function MacroRingChart({ macros, totalCalories, onSegmentPress }
                     <Pressable
                         key={key}
                         onPress={() => {
+                            triggerHaptic('light').catch(() => undefined);
                             setActive(key);
                             onSegmentPress?.(key);
                         }}
@@ -82,6 +84,9 @@ export default function MacroRingChart({ macros, totalCalories, onSegmentPress }
                 ))}
             </View>
             <Text style={{ textAlign: 'center', marginTop: 8, color: '#475569' }}>{totalCalories} total kcal</Text>
+            <Text style={{ textAlign: 'center', marginTop: 2, color: '#0f172a', fontWeight: '700' }}>
+                {active[0].toUpperCase() + active.slice(1)}: {macros[active]}g
+            </Text>
         </View>
     );
 }

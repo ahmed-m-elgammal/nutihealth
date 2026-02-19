@@ -21,6 +21,7 @@ import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '..
 import RootErrorBoundary from '../components/errors/RootErrorBoundary';
 import OfflineIndicator from '../components/common/OfflineIndicator';
 import { ThemeProvider } from '../theme/ThemeProvider';
+import ToastContainer from '../components/ui/Toast';
 
 const devLog = (...messages: unknown[]) => {
     if (__DEV__) {
@@ -270,6 +271,7 @@ export default function RootLayout() {
                     <QueryClientProvider client={queryClient}>
                         <ThemeProvider>
                             <OfflineIndicator />
+                            <ToastContainer />
                             <RootNavigation />
                         </ThemeProvider>
                     </QueryClientProvider>
