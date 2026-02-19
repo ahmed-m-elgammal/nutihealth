@@ -17,8 +17,9 @@ module.exports = function (api) {
                 },
             },
         ],
-        ['@babel/plugin-proposal-decorators', { 'legacy': true }],
-        ['@babel/plugin-proposal-class-properties', { 'loose': true }],
+        ['@babel/plugin-transform-typescript', { allowDeclareFields: true }],
+        ['@babel/plugin-proposal-decorators', { legacy: true }],
+        ['@babel/plugin-proposal-class-properties', { loose: true }],
     ];
 
     if (process.env.NODE_ENV === 'production') {
@@ -28,10 +29,7 @@ module.exports = function (api) {
     plugins.push('react-native-reanimated/plugin');
 
     return {
-        presets: [
-            ["babel-preset-expo", { jsxImportSource: "nativewind" }],
-            "nativewind/babel",
-        ],
+        presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
         plugins,
     };
 };

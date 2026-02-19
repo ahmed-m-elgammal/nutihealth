@@ -9,16 +9,19 @@ import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHead
 import ProfileHeader from '../../components/profile/ProfileHeader';
 import SettingsList from '../../components/profile/SettingsList';
 import { useUserStore } from '../../store/userStore';
+import { useUIStore } from '../../store/uiStore';
 import { exportBackupAndShare, restoreBackupFromFilePicker } from '../../services/export/dataExport';
 import { clearScheduledReminders, scheduleAdaptiveReminders } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
 import { ProfileSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { triggerHaptic } from '../../utils/haptics';
 import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const { user, logout, updateUser } = useUserStore();
     const { isDark, setThemeMode } = useTheme();
+    const showToast = useUIStore((state) => state.showToast);
 
     const profileUser = {
         name: user?.name || 'Guest User',
@@ -56,7 +59,7 @@ export default function ProfileScreen() {
                         icon: <ShieldCheck size={17} color="#334155" />,
                         label: 'Privacy & Security',
                         subtitle: 'Control account and data preferences',
-                        onPress: () => Alert.alert('Coming soon', 'Privacy settings are being prepared.'),
+                        onPress: () => showToast('info', 'Privacy controls are available in the next update.'),
                     },
                 ],
             },
@@ -104,7 +107,7 @@ export default function ProfileScreen() {
                         icon: <Globe size={17} color="#334155" />,
                         label: 'Language',
                         badge: (user?.preferences?.language || 'en').toUpperCase(),
-                        onPress: () => Alert.alert('Language', 'Language picker will be added next.'),
+                        onPress: () => showToast('info', 'Language picker is temporarily locked in this build.'),
                     },
                 ],
             },
@@ -154,7 +157,7 @@ export default function ProfileScreen() {
                 ],
             },
         ],
-        [isDark, logout, router, setThemeMode, updateUser, user?.id, user?.preferences],
+        [isDark, logout, router, setThemeMode, showToast, updateUser, user?.id, user?.preferences],
     );
 
     return (
@@ -165,7 +168,10 @@ export default function ProfileScreen() {
                         <ProfileHeader
                             user={profileUser}
                             stats={stats}
-                            onAvatarPress={() => Alert.alert('Avatar', 'Photo picker coming soon.')}
+                            onAvatarPress={() => {
+                                triggerHaptic('light').catch(() => undefined);
+                                showToast('info', 'Avatar upload is temporarily unavailable.');
+                            }}
                         />
                     }
                     headerHeight={290}

@@ -4,6 +4,8 @@ import { BlurView } from 'expo-blur';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Chrome, Utensils, Dumbbell, TrendingUp, GlassWater, User } from 'lucide-react-native';
 import { triggerHaptic } from '../../utils/haptics';
+import { useColors } from '../../hooks/useColors';
+import { designTokens } from '../../theme/design-tokens';
 
 const ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
     index: Chrome,
@@ -22,7 +24,8 @@ type TabBarProps = {
 
 export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) {
     const { width } = useWindowDimensions();
-    const containerWidth = Math.min(width - 24, 500);
+    const colors = useColors();
+    const containerWidth = Math.min(width - designTokens.spacing.lg * 1.5, 500);
     const itemWidth = containerWidth / state.routes.length;
     const indicatorX = useSharedValue(state.index * itemWidth);
 
@@ -38,21 +41,21 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
     return (
         <View
             pointerEvents="box-none"
-            style={{ position: 'absolute', bottom: 16, width: '100%', alignItems: 'center' }}
+            style={{ position: 'absolute', bottom: designTokens.spacing.lg, width: '100%', alignItems: 'center' }}
         >
             <BlurView
                 intensity={20}
-                tint="light"
+                tint="default"
                 style={{
                     width: containerWidth,
-                    borderRadius: 9999,
+                    borderRadius: designTokens.borderRadius.full,
                     overflow: 'hidden',
-                    backgroundColor: 'rgba(255,255,255,0.85)',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 8 },
+                    backgroundColor: colors.surface.surface,
+                    shadowColor: colors.text.primary,
+                    shadowOffset: { width: 0, height: designTokens.spacing.sm },
                     shadowOpacity: 0.15,
                     shadowRadius: 18,
-                    elevation: 8,
+                    elevation: designTokens.elevation[4],
                 }}
             >
                 <View style={{ flexDirection: 'row', padding: 6 }}>
@@ -64,8 +67,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
                                 top: 6,
                                 width: itemWidth - 2,
                                 height: 52,
-                                borderRadius: 9999,
-                                backgroundColor: '#16a34a',
+                                borderRadius: designTokens.borderRadius.full,
+                                backgroundColor: colors.brand.primary[600],
                             },
                             animatedStyle,
                         ]}
@@ -102,12 +105,14 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
                                     justifyContent: 'center',
                                     gap: 2,
                                     overflow: 'hidden',
-                                    borderRadius: 9999,
+                                    borderRadius: designTokens.borderRadius.full,
                                 }}
                             >
-                                <Icon size={18} color={isFocused ? '#ffffff' : '#4b5563'} />
+                                <Icon size={18} color={isFocused ? colors.text.inverse : colors.text.secondary} />
                                 {isFocused && (
-                                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>{label}</Text>
+                                    <Text style={{ color: colors.text.inverse, fontSize: 10, fontWeight: '600' }}>
+                                        {label}
+                                    </Text>
                                 )}
                             </Pressable>
                         );
