@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { Chrome, Utensils, Dumbbell, TrendingUp, GlassWater, User } from 'lucide-react-native';
+import { Chrome, Utensils, Dumbbell, TrendingUp, GlassWater, User, Leaf } from 'lucide-react-native';
 import { triggerHaptic } from '../../utils/haptics';
 import { useColors } from '../../hooks/useColors';
 import { designTokens } from '../../theme/design-tokens';
@@ -11,8 +11,9 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; color?: string 
     index: Chrome,
     meals: Utensils,
     workouts: Dumbbell,
-    progress: TrendingUp,
+    plans: Leaf,
     water: GlassWater,
+    progress: TrendingUp,
     profile: User,
 };
 

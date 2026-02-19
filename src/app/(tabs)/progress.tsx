@@ -22,6 +22,15 @@ type Period = 'Week' | 'Month' | '3 Months' | 'Year';
 const takeByPeriod = (period: Period) =>
     period === 'Week' ? 7 : period === 'Month' ? 30 : period === '3 Months' ? 90 : 365;
 
+const toSafeDate = (value: unknown): Date | null => {
+    const date = value instanceof Date ? value : new Date(value as string | number);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return date;
+};
+
 export default function ProgressScreen() {
     const { user } = useUserStore();
     const colors = useColors();
@@ -35,20 +44,36 @@ export default function ProgressScreen() {
 
     const weightData = useMemo(
         () =>
-            weightHistory.slice(-size).map((d) => ({
-                date: d.date.toISOString(),
-                weight: d.weight,
-            })),
+            weightHistory
+                .slice(-size)
+                .map((entry) => {
+                    const safeDate = toSafeDate((entry as { date: unknown }).date);
+                    if (!safeDate) return null;
+
+                    return {
+                        date: safeDate.toISOString(),
+                        weight: Number(entry.weight) || 0,
+                    };
+                })
+                .filter((entry): entry is { date: string; weight: number } => Boolean(entry)),
         [size, weightHistory],
     );
 
     const calorieData = useMemo(
         () =>
-            calorieHistory.slice(-size).map((d) => ({
-                date: d.date.toISOString(),
-                consumed: d.calories,
-                target: d.target,
-            })),
+            calorieHistory
+                .slice(-size)
+                .map((entry) => {
+                    const safeDate = toSafeDate((entry as { date: unknown }).date);
+                    if (!safeDate) return null;
+
+                    return {
+                        date: safeDate.toISOString(),
+                        consumed: Number(entry.calories) || 0,
+                        target: Number(entry.target) || 0,
+                    };
+                })
+                .filter((entry): entry is { date: string; consumed: number; target: number } => Boolean(entry)),
         [calorieHistory, size],
     );
 
@@ -92,7 +117,14 @@ export default function ProgressScreen() {
         .slice()
         .reverse()
         .slice(0, 12)
-        .map((w, idx) => ({ id: `${w.date.toISOString()}-${idx}`, date: w.date, weight: w.weight }));
+        .map((entry, idx) => {
+            const safeDate = toSafeDate((entry as { date: unknown }).date) || new Date();
+            return {
+                id: `${safeDate.toISOString()}-${idx}`,
+                date: safeDate,
+                weight: Number(entry.weight) || 0,
+            };
+        });
 
     return (
         <ScreenErrorBoundary screenName="progress">
