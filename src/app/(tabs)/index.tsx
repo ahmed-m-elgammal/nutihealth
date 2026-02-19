@@ -1,564 +1,164 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Platform, FlatList, Alert } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Alert, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { FlashList } from '@shopify/flash-list';
-import { Plus, Scan, Search, Droplet, Check, ChefHat, ShieldCheck, ServerCrash } from 'lucide-react-native';
-import Header from '../../components/common/Header';
-import CalorieCircle from '../../components/charts/CalorieCircle';
-import ProgressBar from '../../components/charts/ProgressBar';
-import MealCard from '../../components/meal/MealCard';
-import QuickAction from '../../components/dashboard/QuickAction';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
-import { Body, Subheading } from '../../components/ui/Typography';
-import { Button } from '../../components/ui/Button';
-import { Skeleton } from '../../components/ui/Skeleton';
-import { useMeals } from '../../query/queries/useMeals';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { createMeal } from '../../services/api/meals';
-import { SAMPLE_HEALTHY_DAY } from '../../data/sampleHealthyDay';
-import { needsBodyMetrics, buildCompleteProfileRoute } from '../../utils/profileCompletion';
-import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
-import MealSuggestionBanner from '../../components/DietPlan/MealSuggestionBanner';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
-import { getAdjustedTargetsForDate } from '../../services/dietPlan/workoutCalorieAdjuster';
-import { calculateDailyAdherence } from '../../services/dietPlan/mealSuggestionService';
-import { getTodayCarbCycleDay, getTodayCarbCycleTargets } from '../../services/dietPlan/carbCycling';
-import { getSystemHealth, SystemHealthResponse } from '../../services/api/systemHealth';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useMeals } from '../../query/queries/useMeals';
+import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
+import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
+import HomeHeader from '../../components/home/HomeHeader';
+import CalorieRingCard from '../../components/home/CalorieRingCard';
+import QuickActionsGrid from '../../components/home/QuickActionsGrid';
+import MealTimeline from '../../components/home/MealTimeline';
+import MealSuggestionBanner from '../../components/home/MealSuggestionBanner';
+import AdherenceStrip from '../../components/home/AdherenceStrip';
+import { HomeSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
-// FlashList is not fully web-compatible, use FlatList on web.
-const List = Platform.OS === 'web' ? FlatList : FlashList;
+type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
-// Icon color mapping using semantic theme colors
-const iconColors = {
-    primary: 'hsl(var(--primary))', // Green
-    secondary: 'hsl(var(--secondary))', // Blue
-    warning: 'hsl(var(--warning))', // Amber/Yellow
-    info: '#14b8a6', // Teal (keep for now, add to theme later)
-};
-
-const QUICK_ACTIONS = [
-    { id: '1', label: 'Meal', icon: <Plus size={24} color={iconColors.primary} />, route: '/(modals)/add-meal' },
-    {
-        id: '2',
-        label: 'Scan',
-        icon: <Scan size={24} color={iconColors.secondary} />,
-        route: '/(modals)/barcode-scanner',
-    },
-    { id: '3', label: 'Search', icon: <Search size={24} color={iconColors.warning} />, route: '/(modals)/food-search' },
-    { id: '4', label: 'Water', icon: <Droplet size={24} color={iconColors.info} />, route: '/(tabs)/water' },
-    {
-        id: '5',
-        label: 'Meal Prep',
-        icon: <ChefHat size={24} color={iconColors.primary} />,
-        route: '/(modals)/meal-prep-planner',
-    },
-] as const;
-
-const MEAL_ENTRY_ROUTES = new Set<string>([
-    '/(modals)/add-meal',
-    '/(modals)/barcode-scanner',
-    '/(modals)/food-search',
-    '/(modals)/ai-food-detect',
-    '/(modals)/load-template',
-]);
-
-const getMealTemplateCalories = (templateId: string): number => {
-    const meal = SAMPLE_HEALTHY_DAY.find((item) => item.id === templateId);
-    if (!meal) return 0;
-    return meal.foods.reduce((sum, food) => sum + food.calories * food.quantity, 0);
-};
+const MEAL_ORDER: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 export default function HomeScreen() {
     const router = useRouter();
-    const { t } = useTranslation();
     const { user } = useCurrentUser();
     const userName = user?.name || 'User';
+    const streak = 12;
+    const [isSuggestionDismissed, setIsSuggestionDismissed] = useState(false);
 
     const today = new Date();
-    const { data: meals, isLoading: isLoadingMeals } = useMeals(today);
-    const isLoadingStats = isLoadingMeals;
-    const [isApplyingSampleDay, setIsApplyingSampleDay] = useState(false);
-    const [isModifyingSampleDay, setIsModifyingSampleDay] = useState(false);
-    const [selectedSampleMeals, setSelectedSampleMeals] = useState<string[]>(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
+    const { data: meals = [], isLoading: isLoadingMeals, refetch } = useMeals(today);
 
-    const [workoutAdjustedCalories, setWorkoutAdjustedCalories] = useState<number | null>(null);
-    const [workoutAdjustmentReason, setWorkoutAdjustmentReason] = useState<string | null>(null);
-    const [workoutAdjustmentDelta, setWorkoutAdjustmentDelta] = useState(0);
-    const [hasWorkoutAdjustment, setHasWorkoutAdjustment] = useState(false);
-    const [adherenceScore, setAdherenceScore] = useState<number | null>(null);
-    const [carbCycleDay, setCarbCycleDay] = useState<'high' | 'low' | 'refeed' | null>(null);
-    const [carbCycleMacros, setCarbCycleMacros] = useState<{
-        calories: number;
-        protein: number;
-        carbs: number;
-        fats: number;
-    } | null>(null);
-    const [systemHealth, setSystemHealth] = useState<SystemHealthResponse | null>(null);
-
-    useEffect(() => {
-        if (!user?.id) {
-            setWorkoutAdjustedCalories(null);
-            setWorkoutAdjustmentReason(null);
-            setHasWorkoutAdjustment(false);
-            setWorkoutAdjustmentDelta(0);
-            setAdherenceScore(null);
-            setCarbCycleDay(null);
-            setCarbCycleMacros(null);
-            return;
-        }
-
-        (async () => {
-            const [adjustment, adherence, cycleDay, cycleMacros] = await Promise.all([
-                getAdjustedTargetsForDate(user.id, new Date()),
-                calculateDailyAdherence(user.id, new Date()),
-                getTodayCarbCycleDay(user.id),
-                getTodayCarbCycleTargets(user.id),
-            ]);
-
-            setWorkoutAdjustedCalories(adjustment.adjustedCalories);
-            setWorkoutAdjustmentReason(adjustment.reason);
-            setWorkoutAdjustmentDelta(Math.max(0, adjustment.adjustedCalories - adjustment.baseCalories));
-            setHasWorkoutAdjustment(adjustment.workoutIntensity !== 'none');
-            setAdherenceScore(adherence);
-            setCarbCycleDay(cycleDay);
-            setCarbCycleMacros(cycleMacros);
-        })().catch(() => undefined);
-    }, [user?.id, meals?.length]);
-
-    useEffect(() => {
-        getSystemHealth().then((health) => setSystemHealth(health));
-    }, []);
-
-    const dailyNutrition = useMemo(
+    const nutrition = useMemo(
         () =>
-            (meals || []).reduce(
+            meals.reduce(
                 (acc, meal) => {
-                    acc.totalCalories += meal.totalCalories;
-                    acc.totalProtein += meal.totalProtein;
-                    acc.totalCarbs += meal.totalCarbs;
-                    acc.totalFats += meal.totalFats;
+                    acc.calories += meal.totalCalories;
+                    acc.protein += meal.totalProtein;
+                    acc.carbs += meal.totalCarbs;
+                    acc.fats += meal.totalFats;
+
                     return acc;
                 },
-                {
-                    totalCalories: 0,
-                    totalProtein: 0,
-                    totalCarbs: 0,
-                    totalFats: 0,
-                },
+                { calories: 0, protein: 0, carbs: 0, fats: 0 },
             ),
         [meals],
     );
 
-    const baseTargetCalories = user?.calorieTarget || DEFAULT_TARGETS.calories;
-    const targetCalories = workoutAdjustedCalories || baseTargetCalories;
-    const targetProtein = user?.proteinTarget || DEFAULT_TARGETS.protein;
-    const targetCarbs = user?.carbsTarget || DEFAULT_TARGETS.carbs;
-    const targetFats = user?.fatsTarget || DEFAULT_TARGETS.fats;
-    const currentCalories = dailyNutrition.totalCalories;
+    const goals = {
+        calories: user?.calorieTarget || DEFAULT_TARGETS.calories,
+        protein: user?.proteinTarget || DEFAULT_TARGETS.protein,
+        carbs: user?.carbsTarget || DEFAULT_TARGETS.carbs,
+        fats: user?.fatsTarget || DEFAULT_TARGETS.fats,
+    };
 
-    const macros = useMemo(
-        () => ({
-            protein: { current: dailyNutrition.totalProtein, target: targetProtein },
-            carbs: { current: dailyNutrition.totalCarbs, target: targetCarbs },
-            fats: { current: dailyNutrition.totalFats, target: targetFats },
-        }),
-        [dailyNutrition, targetProtein, targetCarbs, targetFats],
-    );
+    const adherence = goals.calories > 0 ? (nutrition.calories / goals.calories) * 100 : 0;
 
-    const recentMeals = useMemo(() => meals?.slice(0, 3) || [], [meals]);
+    const loggedMealTypes = new Set(meals.map((meal) => meal.mealType as MealType));
+    const suggestedType = MEAL_ORDER.find((type) => !loggedMealTypes.has(type));
 
-    const adherenceBarColor =
-        (adherenceScore ?? 0) < 50 ? 'bg-red-500' : (adherenceScore ?? 0) < 80 ? 'bg-amber-500' : 'bg-emerald-500';
-
-    const carbCycleLabel =
-        carbCycleDay === 'high'
-            ? '🔴 High Carb Day'
-            : carbCycleDay === 'low'
-              ? '🔵 Low Carb Day'
-              : carbCycleDay === 'refeed'
-                ? '🟡 Refeed Day'
-                : null;
-
-    const handleMealEntryGate = useCallback(
-        (nextRoute: string) => {
-            Alert.alert(t('home.alerts.completeProfileTitle'), t('home.alerts.completeProfileBody'), [
-                { text: t('home.actions.notNow'), style: 'cancel' },
-                {
-                    text: t('home.actions.addNow'),
-                    onPress: () => router.push(buildCompleteProfileRoute(nextRoute) as any),
-                },
-            ]);
-        },
-        [router, t],
-    );
-
-    const handleQuickActionPress = useCallback(
-        (route: string) => {
-            if (MEAL_ENTRY_ROUTES.has(route) && needsBodyMetrics(user)) {
-                handleMealEntryGate(route);
-                return;
-            }
-
-            router.push(route as any);
-        },
-        [user, handleMealEntryGate, router],
-    );
-
-    const toggleSampleMeal = useCallback((mealId: string) => {
-        setSelectedSampleMeals((current) => {
-            if (current.includes(mealId)) {
-                return current.filter((id) => id !== mealId);
-            }
-            return [...current, mealId];
-        });
+    const handleEditMeal = useCallback(() => {
+        Alert.alert('Coming soon', 'Meal editing is coming in phase 4.');
     }, []);
 
-    const applySampleHealthyDay = useCallback(
-        (useSelection: boolean) => {
-            if (needsBodyMetrics(user)) {
-                handleMealEntryGate('/(tabs)/index');
-                return;
-            }
-
-            const templates = useSelection
-                ? SAMPLE_HEALTHY_DAY.filter((meal) => selectedSampleMeals.includes(meal.id))
-                : SAMPLE_HEALTHY_DAY;
-
-            if (templates.length === 0) {
-                Alert.alert(t('home.alerts.noMealsTitle'), t('home.alerts.noMealsBody'));
-                return;
-            }
-
-            setIsApplyingSampleDay(true);
-
-            const createRequests = templates.map((template) => {
-                const consumedAt = new Date();
-                consumedAt.setHours(template.consumedHour, template.consumedMinute, 0, 0);
-
-                return createMeal({
-                    name: template.name,
-                    mealType: template.mealType,
-                    consumedAt,
-                    foods: template.foods,
-                });
-            });
-
-            Promise.all(createRequests)
-                .then(() => {
-                    setIsModifyingSampleDay(false);
-                    setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
-                })
-                .catch((error) => {
-                    Alert.alert(t('home.alerts.unableToApplyTitle'), (error as Error).message || t('common.tryAgain'));
-                })
-                .finally(() => {
-                    setIsApplyingSampleDay(false);
-                });
-        },
-        [user, handleMealEntryGate, selectedSampleMeals, t],
-    );
-
-    const renderHeader = useCallback(
-        () => (
-            <View className="mb-6">
-                <Header userName={userName} />
-
-                {carbCycleLabel && (
-                    <TouchableOpacity
-                        className="mb-3 self-start rounded-full bg-amber-100 px-3 py-1.5"
-                        onPress={() =>
-                            Alert.alert(
-                                'Carb Cycle Targets',
-                                `Today: ${carbCycleLabel}
-Calories: ${carbCycleMacros?.calories ?? '-'}
-Protein: ${carbCycleMacros?.protein ?? '-'}g
-Carbs: ${carbCycleMacros?.carbs ?? '-'}g
-Fats: ${carbCycleMacros?.fats ?? '-'}g`,
-                            )
-                        }
-                    >
-                        <Text className="text-xs font-semibold text-amber-800">{carbCycleLabel}</Text>
-                    </TouchableOpacity>
-                )}
-
-                <Card className="mb-4 border border-emerald-200 bg-emerald-50">
-                    <CardContent className="flex-row items-center justify-between py-4">
-                        <View className="flex-1 pr-3">
-                            <Text className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                                {t('home.systemHealth.title')}
-                            </Text>
-                            <Text className="mt-1 text-sm text-emerald-900">
-                                {systemHealth?.status === 'ok'
-                                    ? t('home.systemHealth.connected')
-                                    : t('home.systemHealth.unavailable')}
-                            </Text>
-                        </View>
-                        {systemHealth?.status === 'ok' ? (
-                            <ShieldCheck size={20} color="#047857" />
-                        ) : (
-                            <ServerCrash size={20} color="#b45309" />
-                        )}
-                    </CardContent>
-                </Card>
-
-                <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
-                    <Card className="items-center">
-                        <CardHeader>
-                            <CardTitle>{t('home.todayCaloriesTitle')}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="items-center">
-                            {isLoadingStats ? (
-                                <View className="items-center">
-                                    <Skeleton className="h-[180px] w-[180px] rounded-full" />
-                                    <Skeleton className="mt-4 h-4 w-[150px] rounded-md" />
-                                </View>
-                            ) : (
-                                <>
-                                    <CalorieCircle current={currentCalories} target={targetCalories} size={180} />
-                                    <Text className="mt-4 text-sm text-muted-foreground">
-                                        {Math.max(0, targetCalories - currentCalories)} kcal remaining
-                                    </Text>
-
-                                    <View className="mt-6 w-full space-y-4">
-                                        <ProgressBar
-                                            current={macros.protein.current}
-                                            target={macros.protein.target}
-                                            color="bg-blue-500"
-                                            label="Protein"
-                                        />
-                                        <ProgressBar
-                                            current={macros.carbs.current}
-                                            target={macros.carbs.target}
-                                            color="bg-orange-500"
-                                            label="Carbs"
-                                        />
-                                        <ProgressBar
-                                            current={macros.fats.current}
-                                            target={macros.fats.target}
-                                            color="bg-purple-500"
-                                            label="Fats"
-                                        />
-                                    </View>
-
-                                    {hasWorkoutAdjustment && (
-                                        <TouchableOpacity
-                                            className="mt-4 self-start rounded-full bg-amber-100 px-3 py-1.5"
-                                            onPress={() =>
-                                                Alert.alert(
-                                                    'Workout Target Adjustment',
-                                                    `${workoutAdjustmentReason || 'Workout day adjustment applied.'}`,
-                                                )
-                                            }
-                                        >
-                                            <Text className="text-xs font-semibold text-amber-800">
-                                                🏋️ Workout day: +{workoutAdjustmentDelta} kcal added to your target
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
-
-                                    {Boolean((meals?.length || 0) > 0 && adherenceScore !== null) && (
-                                        <View className="mt-4 w-full">
-                                            <Text className="mb-2 text-sm font-semibold text-foreground">
-                                                Today's Adherence
-                                            </Text>
-                                            <View className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                                                <View
-                                                    className={`h-full rounded-full ${adherenceBarColor}`}
-                                                    style={{
-                                                        width: `${Math.max(0, Math.min(100, adherenceScore || 0))}%`,
-                                                    }}
-                                                />
-                                            </View>
-                                            <Text className="mt-2 text-xs text-muted-foreground">
-                                                {(adherenceScore || 0).toFixed(0)}% of today's goal logged
-                                            </Text>
-                                        </View>
-                                    )}
-                                </>
-                            )}
-                        </CardContent>
-                    </Card>
-                </View>
-
-                <MealSuggestionBanner userId={user?.id} />
-
-                <View className="mb-8 w-full px-6 md:mx-auto md:max-w-3xl">
-                    <Subheading className="mb-4">Quick Add</Subheading>
-                    <View className="flex-row flex-wrap justify-between gap-2">
-                        {QUICK_ACTIONS.map((action) => (
-                            <QuickAction
-                                key={action.id}
-                                label={action.label}
-                                icon={action.icon}
-                                onPress={() => handleQuickActionPress(action.route)}
-                            />
-                        ))}
-                    </View>
-                </View>
-
-                <View className="mb-2 w-full flex-row items-center justify-between px-6 md:mx-auto md:max-w-3xl">
-                    <Subheading>Recent Meals</Subheading>
-                    <TouchableOpacity
-                        accessibilityRole="button"
-                        accessibilityLabel="Open all meals"
-                        onPress={() => router.push('/(tabs)/meals')}
-                    >
-                        <Text className="font-semibold text-primary">See All</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        ),
-        [
-            userName,
-            isLoadingStats,
-            currentCalories,
-            targetCalories,
-            router,
-            carbCycleLabel,
-            carbCycleMacros?.calories,
-            carbCycleMacros?.protein,
-            carbCycleMacros?.carbs,
-            carbCycleMacros?.fats,
-            hasWorkoutAdjustment,
-            workoutAdjustmentDelta,
-            workoutAdjustmentReason,
-            meals?.length,
-            adherenceScore,
-            adherenceBarColor,
-            handleQuickActionPress,
-            macros.protein,
-            macros.carbs,
-            macros.fats,
-            user?.id,
-            t,
-            systemHealth?.status,
-        ],
-    );
-
-    const renderSampleDayEmptyState = useCallback(
-        () => (
-            <View className="mb-4 px-6">
-                <Card className="border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20">
-                    <CardHeader className="pb-2">
-                        <CardTitle>Sample Healthy Day</CardTitle>
-                        <Body className="text-sm text-muted-foreground">
-                            Start with a balanced day, then tweak it to fit your routine.
-                        </Body>
-                    </CardHeader>
-                    <CardContent className="pt-2">
-                        <View className="space-y-3">
-                            {SAMPLE_HEALTHY_DAY.map((meal) => {
-                                const isSelected = selectedSampleMeals.includes(meal.id);
-                                const calories = getMealTemplateCalories(meal.id);
-
-                                return (
-                                    <TouchableOpacity
-                                        key={meal.id}
-                                        activeOpacity={isModifyingSampleDay ? 0.75 : 1}
-                                        disabled={!isModifyingSampleDay}
-                                        onPress={() => toggleSampleMeal(meal.id)}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={`${isSelected ? 'Unselect' : 'Select'} ${meal.name}`}
-                                        className={`flex-row items-center rounded-lg border px-3 py-3 ${
-                                            isModifyingSampleDay && !isSelected
-                                                ? 'border-border bg-background'
-                                                : 'border-emerald-200 bg-white'
-                                        }`}
-                                    >
-                                        <View
-                                            className={`mr-3 h-5 w-5 items-center justify-center rounded-full border ${
-                                                isSelected ? 'border-emerald-600 bg-emerald-600' : 'border-neutral-300'
-                                            }`}
-                                        >
-                                            {isSelected && <Check size={12} color="#ffffff" />}
-                                        </View>
-                                        <View className="flex-1">
-                                            <Text className="font-semibold text-foreground">{meal.name}</Text>
-                                            <Text className="text-xs text-muted-foreground">{meal.preview}</Text>
-                                        </View>
-                                        <Text className="text-sm font-semibold text-foreground">{calories} kcal</Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-
-                        {isModifyingSampleDay && (
-                            <Text className="mt-3 text-xs text-muted-foreground">
-                                Tap meals to include or exclude before logging.
-                            </Text>
-                        )}
-
-                        <View className="mt-4 flex-row gap-3">
-                            <Button
-                                className="flex-1"
-                                loading={isApplyingSampleDay}
-                                onPress={() => applySampleHealthyDay(isModifyingSampleDay)}
-                                accessibilityLabel={
-                                    isModifyingSampleDay ? 'Log selected sample meals' : 'Log all sample meals'
-                                }
-                            >
-                                {isModifyingSampleDay ? 'Eat selected' : 'Eat all'}
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="flex-1"
-                                disabled={isApplyingSampleDay}
-                                accessibilityLabel={
-                                    isModifyingSampleDay ? 'Cancel sample meal edits' : 'Modify sample meal selection'
-                                }
-                                onPress={() => {
-                                    if (isModifyingSampleDay) {
-                                        setIsModifyingSampleDay(false);
-                                        setSelectedSampleMeals(SAMPLE_HEALTHY_DAY.map((meal) => meal.id));
-                                    } else {
-                                        setIsModifyingSampleDay(true);
-                                    }
-                                }}
-                            >
-                                {isModifyingSampleDay ? 'Cancel' : 'Modify'}
-                            </Button>
-                        </View>
-                    </CardContent>
-                </Card>
-            </View>
-        ),
-        [isModifyingSampleDay, isApplyingSampleDay, selectedSampleMeals, toggleSampleMeal, applySampleHealthyDay],
-    );
+    const handleDeleteMeal = useCallback(() => {
+        Alert.alert('Coming soon', 'Meal delete flow is coming in phase 4.');
+    }, []);
 
     return (
         <ScreenErrorBoundary screenName="home">
             <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                {isLoadingMeals ? (
-                    <View className="flex-1 px-6 pt-4">
-                        <Skeleton className="mb-4 h-[200px] w-full rounded-lg" />
-                        <Skeleton className="mb-4 h-[100px] w-full rounded-lg" />
-                        <Skeleton className="h-[100px] w-full rounded-lg" />
-                    </View>
-                ) : (
-                    <List
-                        data={recentMeals}
-                        ListHeaderComponent={renderHeader}
-                        renderItem={({ item }) => (
-                            <View className="mb-3 px-6">
-                                <MealCard
-                                    meal={item}
-                                    onEdit={() =>
-                                        Alert.alert('Coming soon', 'Meal editing from dashboard is in progress.')
-                                    }
-                                    onDelete={() =>
-                                        Alert.alert('Coming soon', 'Meal deletion from dashboard is in progress.')
-                                    }
-                                />
-                            </View>
+                <CollapsibleHeaderScrollView
+                    refreshing={isLoadingMeals}
+                    onRefresh={() => {
+                        refetch().catch(() => undefined);
+                    }}
+                    header={
+                        <HomeHeader
+                            userName={userName}
+                            streak={streak}
+                            onAvatarPress={() => router.push('/(tabs)/profile')}
+                        />
+                    }
+                >
+                    <View style={{ paddingHorizontal: 16 }}>
+                        {isLoadingMeals ? (
+                            <HomeSkeleton />
+                        ) : meals.length === 0 ? (
+                            <EmptyState
+                                illustration={<EmptyPlateIllustration />}
+                                title="No meals logged yet"
+                                message="Start by logging your first meal to unlock your daily insights."
+                                actionLabel="Log Meal"
+                                onAction={() => router.push('/(modals)/add-meal')}
+                            />
+                        ) : (
+                            <>
+                                <Animated.View entering={FadeInDown.duration(280)}>
+                                    <CalorieRingCard
+                                        consumedCalories={nutrition.calories}
+                                        goalCalories={goals.calories}
+                                        macros={{
+                                            protein: nutrition.protein,
+                                            carbs: nutrition.carbs,
+                                            fats: nutrition.fats,
+                                        }}
+                                        macroGoals={{
+                                            protein: goals.protein,
+                                            carbs: goals.carbs,
+                                            fats: goals.fats,
+                                        }}
+                                        delta={
+                                            meals.length > 0
+                                                ? `↑ ${Math.round(meals[0]?.totalCalories || 0)} since last meal`
+                                                : undefined
+                                        }
+                                    />
+                                </Animated.View>
+
+                                <Animated.View entering={FadeInDown.delay(80).duration(300)}>
+                                    <QuickActionsGrid
+                                        onLogMeal={() => router.push('/(modals)/add-meal')}
+                                        onScanFood={() => router.push('/(modals)/barcode-scanner')}
+                                        onSearchFood={() => router.push('/(modals)/food-search')}
+                                        onDetectAi={() => router.push('/(modals)/ai-food-detect')}
+                                    />
+                                </Animated.View>
+
+                                <Animated.View entering={FadeInDown.delay(120).duration(320)}>
+                                    <MealSuggestionBanner
+                                        visible={Boolean(suggestedType) && !isSuggestionDismissed}
+                                        mealName={
+                                            suggestedType
+                                                ? suggestedType[0].toUpperCase() + suggestedType.slice(1)
+                                                : 'Meal'
+                                        }
+                                        targetCalories={Math.round(goals.calories / 4)}
+                                        onLogMeal={() => router.push('/(modals)/add-meal')}
+                                        onDismiss={() => setIsSuggestionDismissed(true)}
+                                    />
+                                </Animated.View>
+
+                                {meals.length > 0 ? (
+                                    <Animated.View entering={FadeInDown.delay(140).duration(340)}>
+                                        <AdherenceStrip percentage={adherence} />
+                                    </Animated.View>
+                                ) : null}
+
+                                <Animated.View entering={FadeInDown.delay(180).duration(360)}>
+                                    <MealTimeline
+                                        meals={meals as any}
+                                        onEditMeal={handleEditMeal}
+                                        onDeleteMeal={handleDeleteMeal}
+                                    />
+                                </Animated.View>
+                            </>
                         )}
-                        keyExtractor={(item) => item.id}
-                        contentContainerStyle={{ paddingBottom: 100 }}
-                        {...(Platform.OS !== 'web' && { estimatedItemSize: 80 })}
-                        ListEmptyComponent={renderSampleDayEmptyState}
-                    />
-                )}
+                    </View>
+                </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>
     );

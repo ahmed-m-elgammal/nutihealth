@@ -1,223 +1,276 @@
-import { useRouter } from 'expo-router';
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Sparkles, ChefHat, Loader } from 'lucide-react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
-import { useDietTemplates, useActiveDiet, useDietMutations } from '../../query/queries/useDiets';
+import { useDietMutations, useDietTemplates, useActiveDiet } from '../../query/queries/useDiets';
 import { useUserStore } from '../../store/userStore';
+import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
+import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
+import ActivePlanHero from '../../components/plans/ActivePlanHero';
+import PlanFeaturesTabs from '../../components/plans/PlanFeaturesTabs';
+import PlannedMealsTab from '../../components/plans/PlannedMealsTab';
+import CarbCycleTab from '../../components/plans/CarbCycleTab';
+import PrepTab from '../../components/plans/PrepTab';
+import TemplateLibrary from '../../components/plans/TemplateLibrary';
+import { useUIStore } from '../../store/uiStore';
+import { ProgressSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { NoPlanIllustration } from '../../components/illustrations/EmptyStateIllustrations';
+
+type TabType = 'Meals' | 'Carb Cycle' | 'Prep';
 
 export default function PlansScreen() {
-    const user = useUserStore((state) => state.user);
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'plans' | 'templates'>('plans');
+    const user = useUserStore((state) => state.user);
+    const showToast = useUIStore((state) => state.showToast);
 
-    // Real data hooks
+    const [activeTab, setActiveTab] = useState<TabType>('Meals');
+    const [ingredients, setIngredients] = useState([
+        { name: 'Chicken breast', amount: '1.2kg', checked: false },
+        { name: 'Brown rice', amount: '900g', checked: false },
+        { name: 'Mixed vegetables', amount: '1kg', checked: true },
+        { name: 'Greek yogurt', amount: '700g', checked: false },
+    ]);
+
     const { data: templates = [], isLoading: isLoadingTemplates } = useDietTemplates();
-    const { data: activeUserDiet } = useActiveDiet(user?.id);
+    const { data: activeUserDiet, isLoading: isLoadingActiveDiet } = useActiveDiet(user?.id);
     const { activateDiet } = useDietMutations();
 
-    // Find full diet object for active user diet
     const activeDiet = useMemo(() => {
-        if (!activeUserDiet?.userDiet || !templates) return null;
-        return templates.find(t => t.id === activeUserDiet.userDiet.dietId);
-    }, [activeUserDiet, templates]);
+        if (!activeUserDiet?.userDiet) return null;
+        const matched = templates.find((diet) => diet.id === activeUserDiet.userDiet.dietId);
+        if (!matched) return null;
 
-    const handleActivatePlan = async (dietId: string) => {
-        if (!user?.id) return;
-        try {
-            await activateDiet.mutateAsync({ userId: user.id, dietId });
-            setActiveTab('plans');
-        } catch (error) {
-            Alert.alert('Unable to activate plan', 'Please try again.');
-        }
-    };
+        return {
+            id: matched.id,
+            name: matched.name,
+            isActive: activeUserDiet.userDiet.isActive,
+            dailyCalories: matched.calorieTarget,
+            macros: {
+                protein: matched.proteinTarget,
+                carbs: matched.carbsTarget,
+                fats: matched.fatsTarget,
+            },
+            startDate: new Date(activeUserDiet.userDiet.startDate),
+            endDate: activeUserDiet.userDiet.endDate ? new Date(activeUserDiet.userDiet.endDate) : undefined,
+        };
+    }, [activeUserDiet?.userDiet, templates]);
 
-    if (isLoadingTemplates) {
-        return (
-            <SafeAreaView className="flex-1 bg-neutral-50 items-center justify-center">
-                <Loader size={32} color="#10b981" />
-            </SafeAreaView>
-        );
-    }
+    const plannedMeals = useMemo(
+        () => [
+            {
+                type: 'Breakfast',
+                time: '08:00',
+                targetCalories: 520,
+                foods: [
+                    { name: 'Overnight oats', amount: '1 bowl', macros: { protein: 28, carbs: 54, fats: 10 } },
+                    { name: 'Berries', amount: '120g', macros: { protein: 1, carbs: 14, fats: 0 } },
+                ],
+            },
+            {
+                type: 'Lunch',
+                time: '13:00',
+                targetCalories: 680,
+                foods: [
+                    { name: 'Chicken rice bowl', amount: '1 plate', macros: { protein: 48, carbs: 65, fats: 16 } },
+                    { name: 'Salad', amount: '1 cup', macros: { protein: 2, carbs: 6, fats: 2 } },
+                ],
+            },
+            {
+                type: 'Dinner',
+                time: '19:00',
+                targetCalories: 620,
+                foods: [
+                    { name: 'Salmon', amount: '180g', macros: { protein: 40, carbs: 0, fats: 24 } },
+                    { name: 'Quinoa', amount: '150g', macros: { protein: 6, carbs: 31, fats: 3 } },
+                ],
+            },
+        ],
+        [],
+    );
+
+    const cycle = useMemo(
+        () => [
+            {
+                day: 'Monday',
+                type: 'high' as const,
+                adjustedCalories: 2400,
+                adjustedMacros: { protein: 170, carbs: 280, fats: 65 },
+            },
+            {
+                day: 'Tuesday',
+                type: 'low' as const,
+                adjustedCalories: 2050,
+                adjustedMacros: { protein: 170, carbs: 170, fats: 75 },
+            },
+            {
+                day: 'Wednesday',
+                type: 'high' as const,
+                adjustedCalories: 2400,
+                adjustedMacros: { protein: 170, carbs: 280, fats: 65 },
+            },
+            {
+                day: 'Thursday',
+                type: 'low' as const,
+                adjustedCalories: 2050,
+                adjustedMacros: { protein: 170, carbs: 170, fats: 75 },
+            },
+            {
+                day: 'Friday',
+                type: 'refeed' as const,
+                adjustedCalories: 2550,
+                adjustedMacros: { protein: 165, carbs: 320, fats: 60 },
+            },
+            {
+                day: 'Saturday',
+                type: 'high' as const,
+                adjustedCalories: 2400,
+                adjustedMacros: { protein: 170, carbs: 280, fats: 65 },
+            },
+            {
+                day: 'Sunday',
+                type: 'low' as const,
+                adjustedCalories: 2000,
+                adjustedMacros: { protein: 170, carbs: 160, fats: 70 },
+            },
+        ],
+        [],
+    );
+
+    const templateCards = useMemo(
+        () =>
+            templates.map((template) => ({
+                id: template.id,
+                name: template.name,
+                type: template.type,
+                calories: `${template.calorieTarget} kcal target`,
+                color: ['#22c55e', '#0ea5e9', '#f59e0b', '#8b5cf6'][template.name.length % 4],
+            })),
+        [templates],
+    );
+
+    const today = format(new Date(), 'EEEE');
 
     return (
-        <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-            {/* Header */}
-            <View className="bg-white px-6 py-4 border-b border-neutral-100 shadow-sm">
-                <Text className="text-2xl font-bold text-neutral-900">Meal Plans</Text>
-                <Text className="text-neutral-500 text-sm mt-1">
-                    {activeTab === 'plans' ? 'Your nutrition roadmap' : 'Pre-built diet templates'}
-                </Text>
-            </View>
-
-            {/* Tab Switcher */}
-            <View className="bg-white px-6 py-3 flex-row gap-3 border-b border-neutral-100">
-                <TouchableOpacity
-                    onPress={() => setActiveTab('plans')}
-                    accessibilityRole="button"
-                    accessibilityLabel="Show my active plans"
-                    className={`flex-1 py-3 rounded-xl ${activeTab === 'plans' ? 'bg-primary-600' : 'bg-neutral-100'
-                        }`}
-                >
-                    <Text
-                        className={`text-center font-semibold ${activeTab === 'plans' ? 'text-white' : 'text-neutral-600'
-                            }`}
-                    >
-                        My Plans
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={() => setActiveTab('templates')}
-                    accessibilityRole="button"
-                    accessibilityLabel="Show plan templates"
-                    className={`flex-1 py-3 rounded-xl ${activeTab === 'templates' ? 'bg-primary-600' : 'bg-neutral-100'
-                        }`}
-                >
-                    <Text
-                        className={`text-center font-semibold ${activeTab === 'templates' ? 'text-white' : 'text-neutral-600'
-                            }`}
-                    >
-                        Templates
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            <ScrollView className="flex-1" contentContainerStyle={{ padding: 24, paddingBottom: 100 }}>
-                {activeTab === 'plans' ? (
-                    <>
-                        {/* Active Plan Card */}
-                        {activeUserDiet?.userDiet && activeDiet ? (
-                            <View className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-3xl p-6 mb-8 shadow-xl">
-                                <View className="flex-row items-center justify-between mb-4">
-                                    <View className="flex-row items-center gap-2">
-                                        <ChefHat size={24} color="white" />
-                                        <Text className="text-white font-bold text-lg">Active Plan</Text>
-                                    </View>
-                                    <View className="bg-white/20 px-3 py-1 rounded-full">
-                                        <Text className="text-white text-xs font-medium">Ongoing</Text>
-                                    </View>
-                                </View>
-
-                                <Text className="text-white text-2xl font-bold mb-2">{activeDiet.name}</Text>
-                                <Text className="text-white/80 text-sm mb-4">
-                                    Started {format(new Date(activeUserDiet.userDiet.startDate), 'MMM d, yyyy')}
-                                </Text>
-
-                                <View className="flex-row gap-4">
-                                    <View className="flex-1 bg-white/10 rounded-xl p-3">
-                                        <Text className="text-white/70 text-xs mb-1">Daily Target</Text>
-                                        <Text className="text-white font-bold text-lg">{activeDiet.calorieTarget}</Text>
-                                        <Text className="text-white/70 text-xs">kcal</Text>
-                                    </View>
-                                    <View className="flex-1 bg-white/10 rounded-xl p-3">
-                                        <Text className="text-white/70 text-xs mb-1">Type</Text>
-                                        <Text className="text-white font-bold text-lg capitalize">{activeDiet.type}</Text>
-                                    </View>
-                                </View>
-                            </View>
-                        ) : (
-                            <View className="bg-white rounded-3xl p-8 mb-8 shadow-sm border border-neutral-100 items-center justify-center">
-                                <Text className="text-neutral-900 font-bold text-lg mb-2">No Active Plan</Text>
-                                <Text className="text-neutral-500 text-center mb-6">Select a template to get started with a structured diet plan.</Text>
-                                <TouchableOpacity
-                                    onPress={() => setActiveTab('templates')}
-                                    className="bg-primary-600 px-6 py-3 rounded-xl"
+        <ScreenErrorBoundary screenName="plans">
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+                <CollapsibleHeaderScrollView
+                    header={
+                        <View>
+                            <View>
+                                <Animated.Text
+                                    entering={FadeIn.duration(220)}
+                                    style={{ fontSize: 28, fontWeight: '800', color: '#0f172a' }}
                                 >
-                                    <Text className="text-white font-bold">Browse Templates</Text>
-                                </TouchableOpacity>
+                                    Plans
+                                </Animated.Text>
+                                <Animated.Text
+                                    entering={FadeIn.delay(80).duration(240)}
+                                    style={{ marginTop: 4, color: '#64748b' }}
+                                >
+                                    Active diet, carb cycle, prep and templates
+                                </Animated.Text>
                             </View>
-                        )}
-
-                        {/* Weekly Calendar Placeholder - To be implemented in Phase 3 with Meal Planning */}
-                        <View className="bg-white rounded-3xl p-6 mb-6 shadow-sm border border-neutral-100 opacity-50">
-                            <View className="flex-row items-center justify-between mb-4">
-                                <Text className="text-neutral-900 font-bold text-lg">Weekly Schedule</Text>
-                                <View className="bg-neutral-100 px-2 py-1 rounded">
-                                    <Text className="text-xs text-neutral-500">Coming Soon</Text>
-                                </View>
-                            </View>
-                            <Text className="text-neutral-500 text-sm">Meal planning calendar will be available in the next update.</Text>
                         </View>
+                    }
+                    headerHeight={120}
+                    contentContainerStyle={{ paddingHorizontal: 16 }}
+                >
+                    {isLoadingTemplates || isLoadingActiveDiet ? (
+                        <ProgressSkeleton />
+                    ) : (
+                        <>
+                            <ActivePlanHero
+                                plan={activeDiet}
+                                onEdit={() => router.push('/(modals)/create-weekly-plan')}
+                                onDeactivate={() => {
+                                    Alert.alert('Deactivate plan', 'Do you want to deactivate your current plan?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        {
+                                            text: 'Deactivate',
+                                            style: 'destructive',
+                                            onPress: () => showToast('info', 'Plan deactivated'),
+                                        },
+                                    ]);
+                                }}
+                                onCreatePlan={() => router.push('/(modals)/create-weekly-plan')}
+                            />
 
-                        {/* AI Generate New Plan */}
-                        <TouchableOpacity
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-6 flex-row items-center justify-between shadow-lg active:opacity-80"
-                            onPress={() => router.push('/(modals)/ai-chat')}
-                            accessibilityRole="button"
-                            accessibilityLabel="Open AI meal planner"
-                        >
-                            <View className="flex-1">
-                                <View className="flex-row items-center gap-2 mb-2">
-                                    <Sparkles size={20} color="white" />
-                                    <Text className="text-white font-bold text-lg">AI Meal Planner</Text>
-                                </View>
-                                <Text className="text-white/80 text-sm">
-                                    Generate a personalized plan with AI
-                                </Text>
-                            </View>
-                            <View className="bg-white/20 p-3 rounded-full">
-                                <Plus size={24} color="white" />
-                            </View>
-                        </TouchableOpacity>
-                    </>
-                ) : (
-                    <>
-                        {/* Diet Templates */}
-                        <Text className="text-neutral-900 font-bold text-lg mb-4">Popular Diet Plans</Text>
-                        {templates.map((template) => (
-                            <TouchableOpacity
-                                key={template.id}
-                                className="bg-white rounded-3xl p-6 mb-4 shadow-sm border border-neutral-100 active:opacity-80"
-                                onPress={() => handleActivatePlan(template.id)}
-                            >
-                                <View className="flex-row items-start justify-between mb-3">
-                                    <View className="flex-1">
-                                        <View className="flex-row items-center gap-2 mb-1">
-                                            <Text className="text-neutral-900 font-bold text-lg">{template.name}</Text>
-                                        </View>
-                                        <Text className="text-neutral-500 text-sm">{template.description}</Text>
-                                    </View>
-                                    <View
-                                        className="px-3 py-1 rounded-full bg-primary-50"
-                                    >
-                                        <Text className="font-semibold text-xs text-primary-600">
-                                            {template.calorieTarget} kcal
-                                        </Text>
-                                    </View>
-                                </View>
+                            {!activeDiet ? (
+                                <EmptyState
+                                    illustration={<NoPlanIllustration />}
+                                    title="No active plan"
+                                    message="Activate a template or create a weekly plan to get meal and prep guidance."
+                                    actionLabel="Create Plan"
+                                    onAction={() => router.push('/(modals)/create-weekly-plan')}
+                                />
+                            ) : null}
 
-                                <View className="flex-row gap-3 mt-3">
-                                    <View className="flex-1 bg-blue-50 rounded-xl p-3">
-                                        <Text className="text-blue-600 text-xs font-medium mb-1">Protein</Text>
-                                        <Text className="text-blue-900 font-bold">{template.proteinTarget}g</Text>
-                                    </View>
-                                    <View className="flex-1 bg-orange-50 rounded-xl p-3">
-                                        <Text className="text-orange-600 text-xs font-medium mb-1">Carbs</Text>
-                                        <Text className="text-orange-900 font-bold">{template.carbsTarget}g</Text>
-                                    </View>
-                                    <View className="flex-1 bg-purple-50 rounded-xl p-3">
-                                        <Text className="text-purple-600 text-xs font-medium mb-1">Fats</Text>
-                                        <Text className="text-purple-900 font-bold">{template.fatsTarget}g</Text>
-                                    </View>
-                                </View>
+                            <PlanFeaturesTabs
+                                activeTab={activeTab}
+                                onTabChange={(tab) => setActiveTab(tab as TabType)}
+                            />
 
-                                <TouchableOpacity
-                                    className="bg-neutral-900 rounded-xl py-3 mt-4"
-                                    onPress={() => handleActivatePlan(template.id)}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Use ${template.name} plan`}
-                                >
-                                    <Text className="text-white font-semibold text-center">Use This Plan</Text>
-                                </TouchableOpacity>
-                            </TouchableOpacity>
-                        ))}
-                        {templates.length === 0 && (
-                            <Text className="text-neutral-500 text-center mt-4">No templates found. Run seeds to populate.</Text>
-                        )}
-                    </>
-                )}
-            </ScrollView>
-        </SafeAreaView>
+                            {activeTab === 'Meals' ? (
+                                <Animated.View entering={FadeIn.duration(240)}>
+                                    <PlannedMealsTab
+                                        plannedMeals={plannedMeals}
+                                        onFoodPress={(foodName) => {
+                                            showToast('info', `${foodName} ready to prefill add-meal`);
+                                        }}
+                                    />
+                                </Animated.View>
+                            ) : null}
+
+                            {activeTab === 'Carb Cycle' ? (
+                                <Animated.View entering={FadeIn.duration(240)}>
+                                    <CarbCycleTab cycle={cycle} today={today} />
+                                </Animated.View>
+                            ) : null}
+
+                            {activeTab === 'Prep' ? (
+                                <Animated.View entering={FadeIn.duration(240)}>
+                                    <PrepTab
+                                        ingredients={ingredients}
+                                        prepTime={55}
+                                        onToggleIngredient={(index) => {
+                                            setIngredients((prev) =>
+                                                prev.map((item, itemIndex) =>
+                                                    itemIndex === index ? { ...item, checked: !item.checked } : item,
+                                                ),
+                                            );
+                                        }}
+                                    />
+                                </Animated.View>
+                            ) : null}
+
+                            <TemplateLibrary
+                                templates={templateCards}
+                                onTemplatePress={(template) => {
+                                    Alert.alert(template.name, `${template.type} • ${template.calories}`, [
+                                        {
+                                            text: 'Activate',
+                                            onPress: () => {
+                                                if (!user?.id) return;
+                                                activateDiet.mutate({ userId: user.id, dietId: template.id });
+                                                showToast('success', `${template.name} activated`);
+                                            },
+                                        },
+                                        { text: 'Close', style: 'cancel' },
+                                    ]);
+                                }}
+                                onTemplateLongPress={(template) => {
+                                    if (!user?.id) return;
+                                    activateDiet.mutate({ userId: user.id, dietId: template.id });
+                                    showToast('success', `${template.name} activated`);
+                                }}
+                            />
+                        </>
+                    )}
+                </CollapsibleHeaderScrollView>
+            </SafeAreaView>
+        </ScreenErrorBoundary>
     );
 }
