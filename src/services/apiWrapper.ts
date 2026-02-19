@@ -24,9 +24,13 @@ const DEFAULT_TIMEOUT = 30000;
 const DEFAULT_RETRY_COUNT = 2;
 const inFlightGetRequests = new Map<string, Promise<unknown>>();
 
+export function resetInFlightGetRequests() {
+    inFlightGetRequests.clear();
+}
+
 /**
  * Unified API wrapper for all HTTP requests
- * 
+ *
  * Features:
  * - Type-safe responses with TypeScript generics
  * - Automatic error handling with user-friendly toast notifications
@@ -34,13 +38,10 @@ const inFlightGetRequests = new Map<string, Promise<unknown>>();
  * - Query parameter support
  * - Token management integration with SecureStore
  * - Timeout handling
- * 
+ *
  * Inspired by SparkyFitness's api.ts but adapted for React Native/Expo
  */
-export async function apiCall<T = any>(
-    endpoint: string,
-    options?: ApiCallOptions
-): Promise<T> {
+export async function apiCall<T = any>(endpoint: string, options?: ApiCallOptions): Promise<T> {
     const method = (options?.method || 'GET').toUpperCase();
     let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
@@ -53,7 +54,7 @@ export async function apiCall<T = any>(
     // Setup headers
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(options?.headers as Record<string, string> || {}),
+        ...((options?.headers as Record<string, string>) || {}),
     };
 
     // Get auth token from SecureStore (if available)
@@ -84,13 +85,20 @@ export async function apiCall<T = any>(
         let lastError: Error | null = null;
 
         for (let attempt = 0; attempt <= retryCount; attempt++) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
-            config.signal = controller.signal;
-
             try {
-                const response = await fetch(url, config);
-                clearTimeout(timeoutId);
+                const response = await new Promise<Response>((resolve, reject) => {
+                    const timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeout);
+
+                    fetch(url, config)
+                        .then((res) => {
+                            clearTimeout(timeoutId);
+                            resolve(res);
+                        })
+                        .catch((error) => {
+                            clearTimeout(timeoutId);
+                            reject(error);
+                        });
+                });
 
                 if (!response.ok) {
                     let errorData: any;
@@ -106,10 +114,7 @@ export async function apiCall<T = any>(
                         errorData = { message: await response.text() };
                     }
 
-                    const errorMessage =
-                        errorData.error ||
-                        errorData.message ||
-                        `API Error: ${response.status}`;
+                    const errorMessage = errorData.error || errorData.message || `API Error: ${response.status}`;
 
                     if (response.status === 404 && options?.suppress404) {
                         return null as T;
@@ -126,14 +131,15 @@ export async function apiCall<T = any>(
                 const jsonResponse = text ? JSON.parse(text) : {};
                 return jsonResponse as T;
             } catch (err: any) {
-                clearTimeout(timeoutId);
                 lastError = err as Error;
 
                 const isNetworkError =
                     err?.name?.includes('AbortError') ||
                     err?.message?.includes('fetch') ||
                     err?.message?.includes('Network request failed') ||
-                    err?.message?.includes('timeout');
+                    err?.message?.includes('timeout') ||
+                    err?.message?.includes('Network error') ||
+                    err?.message?.includes('Request timeout');
 
                 if (!isNetworkError) {
                     throw err;
@@ -157,9 +163,11 @@ export async function apiCall<T = any>(
 
     if (dedupeKey) {
         inFlightGetRequests.set(dedupeKey, requestPromise);
-        requestPromise.finally(() => {
-            inFlightGetRequests.delete(dedupeKey);
-        });
+        requestPromise
+            .finally(() => {
+                inFlightGetRequests.delete(dedupeKey);
+            })
+            .catch(() => undefined);
     }
 
     return requestPromise;
@@ -169,8 +177,7 @@ export async function apiCall<T = any>(
  * Convenience methods for common HTTP verbs
  */
 export const api = {
-    get: <T = any>(endpoint: string, options?: ApiCallOptions) =>
-        apiCall<T>(endpoint, { ...options, method: 'GET' }),
+    get: <T = any>(endpoint: string, options?: ApiCallOptions) => apiCall<T>(endpoint, { ...options, method: 'GET' }),
 
     post: <T = any>(endpoint: string, body?: any, options?: ApiCallOptions) =>
         apiCall<T>(endpoint, { ...options, method: 'POST', body }),
