@@ -1,25 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './apiWrapper';
 import { findNutritionData } from './api/nutrition';
-import {
-    ImportedRecipe,
-    normalizeRecipeResponse,
-    RecipeIngredient,
-    RecipeNutrition,
-} from '../utils/recipeParser';
+import { ImportedRecipe, normalizeRecipeResponse, RecipeIngredient, RecipeNutrition } from '../utils/recipeParser';
 import { normalizeUnit } from '../utils/arabicNumberConverter';
+import { storage } from '../utils/storage-adapter';
 
 const CACHE_PREFIX = 'recipe-import:';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24h
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_MIN_LOADING_MS = 3000;
 
-export type RecipeImportErrorCode =
-    | 'INVALID_URL'
-    | 'NO_RECIPE'
-    | 'NETWORK'
-    | 'PARSE'
-    | 'UNKNOWN';
+export type RecipeImportErrorCode = 'INVALID_URL' | 'NO_RECIPE' | 'NETWORK' | 'PARSE' | 'UNKNOWN';
 
 export interface RecipeImportApiResponse {
     title: string;
@@ -51,7 +41,7 @@ export interface ImportRecipeOptions {
 export class RecipeImportError extends Error {
     constructor(
         public readonly code: RecipeImportErrorCode,
-        message: string
+        message: string,
     ) {
         super(message);
         this.name = 'RecipeImportError';
@@ -61,10 +51,7 @@ export class RecipeImportError extends Error {
 /**
  * Imports a recipe from URL with cache + retry support.
  */
-export async function importRecipeFromUrl(
-    url: string,
-    options: ImportRecipeOptions = {}
-): Promise<ImportedRecipe> {
+export async function importRecipeFromUrl(url: string, options: ImportRecipeOptions = {}): Promise<ImportedRecipe> {
     const normalizedUrl = validateRecipeUrl(url);
     const minLoadingMs = options.minLoadingMs ?? DEFAULT_MIN_LOADING_MS;
     const start = Date.now();
@@ -80,12 +67,17 @@ export async function importRecipeFromUrl(
 
     try {
         const response = await executeWithRetry(
-            async () => api.post<RecipeImportApiResponse>('/recipes/import', { url: normalizedUrl }, {
-                suppressErrors: true,
-                retryCount: 0,
-                timeout: 20000,
-            }),
-            DEFAULT_MAX_RETRIES
+            async () =>
+                api.post<RecipeImportApiResponse>(
+                    '/recipes/import',
+                    { url: normalizedUrl },
+                    {
+                        suppressErrors: true,
+                        retryCount: 0,
+                        timeout: 20000,
+                    },
+                ),
+            DEFAULT_MAX_RETRIES,
         );
 
         const normalizedRecipe = normalizeRecipeResponse(response, normalizedUrl);
@@ -124,10 +116,10 @@ export function mapImportErrorToMessageKey(code: RecipeImportErrorCode): string 
  * Clears cached recipe entries (used for debugging/testing).
  */
 export async function clearRecipeImportCache(): Promise<void> {
-    const keys = await AsyncStorage.getAllKeys();
+    const keys = await storage.getAllKeys();
     const recipeKeys = keys.filter((key) => key.startsWith(CACHE_PREFIX));
     if (recipeKeys.length > 0) {
-        await AsyncStorage.multiRemove(recipeKeys);
+        await storage.multiRemove(recipeKeys);
     }
 }
 
@@ -216,7 +208,7 @@ function toRecipeImportError(error: unknown): RecipeImportError {
 async function readCachedRecipe(url: string): Promise<ImportedRecipe | null> {
     try {
         const key = buildCacheKey(url);
-        const raw = await AsyncStorage.getItem(key);
+        const raw = await storage.getItem(key);
         if (!raw) {
             return null;
         }
@@ -227,7 +219,7 @@ async function readCachedRecipe(url: string): Promise<ImportedRecipe | null> {
         }
 
         if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
-            await AsyncStorage.removeItem(key);
+            await storage.removeItem(key);
             return null;
         }
 
@@ -243,7 +235,7 @@ async function cacheRecipe(url: string, recipe: ImportedRecipe): Promise<void> {
         data: recipe,
     };
 
-    await AsyncStorage.setItem(buildCacheKey(url), JSON.stringify(entry));
+    await storage.setItem(buildCacheKey(url), JSON.stringify(entry));
 }
 
 function buildCacheKey(url: string): string {
@@ -253,11 +245,7 @@ function buildCacheKey(url: string): string {
 
 async function ensureRecipeNutrition(recipe: ImportedRecipe): Promise<ImportedRecipe> {
     const nutrition = recipe.nutrition;
-    const hasNutrition =
-        nutrition.calories > 0 ||
-        nutrition.protein > 0 ||
-        nutrition.carbs > 0 ||
-        nutrition.fats > 0;
+    const hasNutrition = nutrition.calories > 0 || nutrition.protein > 0 || nutrition.carbs > 0 || nutrition.fats > 0;
 
     if (hasNutrition) {
         return recipe;
@@ -272,7 +260,7 @@ async function ensureRecipeNutrition(recipe: ImportedRecipe): Promise<ImportedRe
 
 async function estimateNutritionFromIngredients(
     ingredients: RecipeIngredient[],
-    servings: number
+    servings: number,
 ): Promise<RecipeNutrition> {
     let calories = 0;
     let protein = 0;
@@ -291,7 +279,7 @@ async function estimateNutritionFromIngredients(
                 carbs: baseNutrition.carbs * multiplier,
                 fats: baseNutrition.fats * multiplier,
             };
-        })
+        }),
     );
 
     for (const item of nutritionLookups) {
@@ -372,14 +360,14 @@ function trackRecipeImportSuccess(recipe: ImportedRecipe, sourceUrl: string, cac
         cached,
     };
 
-    const globalAnalytics = (globalThis as unknown as {
-        analytics?: { track?: (event: string, data?: Record<string, unknown>) => void };
-    }).analytics;
+    const globalAnalytics = (
+        globalThis as unknown as {
+            analytics?: { track?: (event: string, data?: Record<string, unknown>) => void };
+        }
+    ).analytics;
 
     if (globalAnalytics?.track) {
         globalAnalytics.track('recipe_import_success', payload);
         return;
     }
-
-    console.info('[analytics]', payload);
 }

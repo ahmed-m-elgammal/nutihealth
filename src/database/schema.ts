@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-    version: 5,
+    version: 6,
     tables: [
         // User Profile
         tableSchema({
@@ -37,7 +37,7 @@ export const schema = appSchema({
             columns: [
                 { name: 'user_id', type: 'string', isIndexed: true },
                 { name: 'name', type: 'string' },
-                { name: 'meal_type', type: 'string' }, // 'breakfast', 'lunch', 'dinner', 'snack'
+                { name: 'meal_type', type: 'string', isIndexed: true }, // 'breakfast', 'lunch', 'dinner', 'snack'
                 { name: 'consumed_at', type: 'number', isIndexed: true },
                 { name: 'photo_uri', type: 'string', isOptional: true },
                 { name: 'total_calories', type: 'number' },
@@ -343,7 +343,7 @@ export const schema = appSchema({
                 { name: 'user_id', type: 'string', isIndexed: true },
                 { name: 'name', type: 'string' },
                 { name: 'description', type: 'string', isOptional: true },
-                { name: 'meal_type', type: 'string' }, // 'breakfast', 'lunch', 'dinner', 'snack'
+                { name: 'meal_type', type: 'string', isIndexed: true }, // 'breakfast', 'lunch', 'dinner', 'snack'
                 { name: 'foods_data', type: 'string' }, // JSON array of food items with quantities
                 { name: 'total_calories', type: 'number' },
                 { name: 'total_protein', type: 'number' },

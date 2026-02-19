@@ -2,15 +2,16 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { handleError } from '../../utils/errors';
 import { API_BASE_URL } from '../../constants/api';
+import { API_KEY_HEADER, APP_API_KEY } from '../../constants/security';
 
 /**
  * API Client for Backend Communication
- * 
+ *
  * OFFLINE-FIRST MODE:
  * This client is structured and ready for backend integration,
  * but currently inactive. The app operates in offline-first mode
  * using WatermelonDB for local storage.
- * 
+ *
  * TO ENABLE:
  * 1. Set API_BASE_URL to your backend endpoint
  * 2. Implement authentication flow in auth.ts
@@ -55,6 +56,7 @@ class APIClient {
             timeout: API_TIMEOUT,
             headers: {
                 'Content-Type': 'application/json',
+                ...(APP_API_KEY ? { [API_KEY_HEADER]: APP_API_KEY } : {}),
             },
         });
 
@@ -80,7 +82,7 @@ class APIClient {
             },
             (error) => {
                 return Promise.reject(error);
-            }
+            },
         );
 
         // Response interceptor - handle common errors
@@ -103,7 +105,7 @@ class APIClient {
                 }
 
                 return Promise.reject(error);
-            }
+            },
         );
     }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +17,6 @@ import MealSuggestionBanner from '../../components/home/MealSuggestionBanner';
 import AdherenceStrip from '../../components/home/AdherenceStrip';
 import { HomeSkeleton } from '../../components/skeletons/ScreenSkeletons';
 import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
-import { useUIStore } from '../../store/uiStore';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -29,7 +28,6 @@ export default function HomeScreen() {
     const userName = user?.name || 'User';
     const streak = 12;
     const [isSuggestionDismissed, setIsSuggestionDismissed] = useState(false);
-    const showToast = useUIStore((state) => state.showToast);
 
     const today = new Date();
     const { data: meals = [], isLoading: isLoadingMeals, refetch } = useMeals(today);
@@ -61,21 +59,6 @@ export default function HomeScreen() {
 
     const loggedMealTypes = new Set(meals.map((meal) => meal.mealType as MealType));
     const suggestedType = MEAL_ORDER.find((type) => !loggedMealTypes.has(type));
-
-    const handleEditMeal = useCallback(
-        (id: string) => {
-            showToast('info', 'Edit meal is temporarily unavailable in this build.');
-            router.push({
-                pathname: '/(modals)/food-details',
-                params: { transitionId: `food-card-${id}` },
-            });
-        },
-        [router, showToast],
-    );
-
-    const handleDeleteMeal = useCallback(() => {
-        showToast('warning', 'Delete meal is disabled until server sync is enabled.');
-    }, [showToast]);
 
     return (
         <ScreenErrorBoundary screenName="home">
@@ -158,11 +141,7 @@ export default function HomeScreen() {
                                 ) : null}
 
                                 <Animated.View entering={FadeInDown.delay(180).duration(360)}>
-                                    <MealTimeline
-                                        meals={meals as any}
-                                        onEditMeal={handleEditMeal}
-                                        onDeleteMeal={handleDeleteMeal}
-                                    />
+                                    <MealTimeline meals={meals as any} />
                                 </Animated.View>
                             </>
                         )}
