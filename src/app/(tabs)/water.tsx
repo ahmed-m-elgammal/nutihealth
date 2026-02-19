@@ -1,146 +1,128 @@
-import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Droplets, Plus, TrendingUp } from 'lucide-react-native';
-import CalorieCircle from '../../components/charts/CalorieCircle';
+import { format } from 'date-fns';
 import { useWaterStore } from '../../store/waterStore';
+import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
+import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
+import WaterFill from '../../components/water/WaterFill';
+import WaterQuickAdd from '../../components/water/WaterQuickAdd';
+import WaterCustomInput from '../../components/water/WaterCustomInput';
+import WaterUndoButton from '../../components/water/WaterUndoButton';
+import WaterHistory from '../../components/water/WaterHistory';
+import WaterReminderToggle from '../../components/water/WaterReminderToggle';
+import { triggerHaptic } from '../../utils/haptics';
+
+type LastAdded = {
+    id: string;
+    amount: number;
+};
 
 export default function WaterScreen() {
-    const {
-        totalConsumed,
-        percentage,
-        targetAmount,
-        addWaterLog,
-        loadTodaysWater,
-    } = useWaterStore();
+    const { todaysLogs, totalConsumed, targetAmount, percentage, addWaterLog, deleteWaterLog, loadTodaysWater } =
+        useWaterStore();
+
+    const [undoVisible, setUndoVisible] = useState(false);
+    const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
+    const [remindersEnabled, setRemindersEnabled] = useState(false);
 
     useEffect(() => {
-        loadTodaysWater();
-    }, []);
-
-    const targetIntake = targetAmount;
-    const glassSize = 250;
-
-    // Derived values
-    const currentIntake = totalConsumed;
-    const glassesConsumed = Math.floor(currentIntake / glassSize);
-    const totalGlasses = Math.ceil(targetIntake / glassSize);
-    const waterPercentage = Math.round(percentage);
+        loadTodaysWater().catch(() => undefined);
+    }, [loadTodaysWater]);
 
     const addWater = async (amount: number) => {
-        await addWaterLog(amount);
+        const prevLatestId = todaysLogs[0]?.id;
+        await addWaterLog(amount, 'custom');
+        await loadTodaysWater();
+
+        const nextLatest = useWaterStore.getState().todaysLogs[0];
+        if (nextLatest && nextLatest.id !== prevLatestId) {
+            setLastAdded({ id: nextLatest.id, amount: nextLatest.amount });
+            setUndoVisible(true);
+        }
     };
 
+    const handleUndo = async () => {
+        if (!lastAdded) return;
+        await deleteWaterLog(lastAdded.id);
+        await loadTodaysWater();
+        setUndoVisible(false);
+        setLastAdded(null);
+    };
+
+    const entries = useMemo(
+        () =>
+            todaysLogs.map((log) => ({
+                id: log.id,
+                time: format(new Date(log.loggedAt), 'HH:mm'),
+                amount: log.amount,
+            })),
+        [todaysLogs],
+    );
+
     return (
-        <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-            <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* Header */}
-                <View className="px-6 pt-4 pb-6">
-                    <Text className="text-3xl font-bold text-neutral-900">Hydration</Text>
-                    <Text className="text-neutral-500 mt-1">Stay healthy, drink water 💧</Text>
-                </View>
-
-                {/* Water Intake Card */}
-                <View className="mx-6 bg-teal-600 rounded-3xl p-6 mb-8 shadow-xl items-center">
-                    <Text className="text-white/90 font-medium mb-4">Today's Water Intake</Text>
-                    <CalorieCircle
-                        current={currentIntake}
-                        target={targetIntake}
-                        size={180}
-                    />
-                    <View className="mt-4 items-center">
-                        <Text className="text-white text-2xl font-bold">{currentIntake}ml</Text>
-                        <Text className="text-white/80 text-sm">of {targetIntake}ml goal</Text>
-                    </View>
-                </View>
-
-                {/* Quick Add Water */}
-                <View className="mx-6 mb-8">
-                    <Text className="text-neutral-900 font-bold text-lg mb-4">Quick Add</Text>
-                    <View className="flex-row justify-between gap-3">
-                        <TouchableOpacity
-                            onPress={() => addWater(250)}
-                            className="flex-1 bg-teal-500 rounded-2xl p-4 items-center shadow-md active:opacity-80"
-                        >
-                            <Droplets size={28} color="white" />
-                            <Text className="text-white font-bold text-lg mt-2">250ml</Text>
-                            <Text className="text-white/80 text-xs">Glass</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => addWater(500)}
-                            className="flex-1 bg-teal-600 rounded-2xl p-4 items-center shadow-md active:opacity-80"
-                        >
-                            <Droplets size={28} color="white" />
-                            <Text className="text-white font-bold text-lg mt-2">500ml</Text>
-                            <Text className="text-white/80 text-xs">Bottle</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => addWater(1000)}
-                            className="flex-1 bg-teal-700 rounded-2xl p-4 items-center shadow-md active:opacity-80"
-                        >
-                            <Droplets size={28} color="white" />
-                            <Text className="text-white font-bold text-lg mt-2">1L</Text>
-                            <Text className="text-white/80 text-xs">Large</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* Progress Details */}
-                <View className="mx-6 bg-white rounded-3xl p-6 mb-8 shadow-sm border border-neutral-100">
-                    <Text className="text-neutral-900 font-bold text-lg mb-4">Progress Details</Text>
-
-                    <View className="flex-row items-center justify-between mb-4 pb-4 border-b border-neutral-100">
-                        <View className="flex-row items-center">
-                            <View className="w-10 h-10 bg-teal-100 rounded-full items-center justify-center mr-3">
-                                <Droplets size={20} color="#0d9488" />
-                            </View>
-                            <View>
-                                <Text className="text-neutral-900 font-semibold">Glasses Today</Text>
-                                <Text className="text-neutral-500 text-sm">{glassesConsumed} of {totalGlasses} glasses</Text>
-                            </View>
+        <ScreenErrorBoundary screenName="water">
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+                <CollapsibleHeaderScrollView
+                    header={
+                        <View>
+                            <Text style={{ fontSize: 28, fontWeight: '800', color: '#0f172a' }}>Hydration</Text>
+                            <Text style={{ marginTop: 4, color: '#64748b' }}>
+                                Engaging water tracking with quick rituals
+                            </Text>
                         </View>
-                        <Text className="text-teal-600 font-bold text-xl">{glassesConsumed}</Text>
-                    </View>
+                    }
+                    headerHeight={120}
+                    contentContainerStyle={{ paddingHorizontal: 16 }}
+                >
+                    <View
+                        style={{
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: '#dbeafe',
+                            backgroundColor: '#f0fdfa',
+                            padding: 14,
+                        }}
+                    >
+                        <WaterFill currentAmount={totalConsumed} goalAmount={targetAmount} width={320} height={240} />
 
-                    <View className="flex-row items-center justify-between mb-4 pb-4 border-b border-neutral-100">
-                        <View className="flex-row items-center">
-                            <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center mr-3">
-                                <TrendingUp size={20} color="#3b82f6" />
-                            </View>
-                            <View>
-                                <Text className="text-neutral-900 font-semibold">Completion</Text>
-                                <Text className="text-neutral-500 text-sm">Daily goal progress</Text>
-                            </View>
-                        </View>
-                        <Text className="text-blue-600 font-bold text-xl">{waterPercentage}%</Text>
-                    </View>
-
-                    <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                            <View className="w-10 h-10 bg-emerald-100 rounded-full items-center justify-center mr-3">
-                                <Plus size={20} color="#059669" />
-                            </View>
-                            <View>
-                                <Text className="text-neutral-900 font-semibold">Remaining</Text>
-                                <Text className="text-neutral-500 text-sm">To reach your goal</Text>
-                            </View>
-                        </View>
-                        <Text className="text-emerald-600 font-bold text-xl">
-                            {Math.max(0, targetIntake - currentIntake)}ml
+                        <Text style={{ marginTop: 10, color: '#0f172a', fontWeight: '700' }}>
+                            {Math.round(totalConsumed)} / {Math.round(targetAmount)} ml · {Math.round(percentage)}%
                         </Text>
-                    </View>
-                </View>
 
-                {/* Hydration Tips */}
-                <View className="mx-6 bg-blue-50 rounded-2xl p-5 mb-6 border border-blue-100">
-                    <Text className="text-blue-900 font-bold text-base mb-2">💡 Hydration Tip</Text>
-                    <Text className="text-blue-700 text-sm leading-5">
-                        Drinking water regularly throughout the day helps maintain energy levels and supports overall health.
-                    </Text>
-                </View>
-            </ScrollView>
-        </SafeAreaView>
+                        <View style={{ marginTop: 12 }}>
+                            <WaterQuickAdd
+                                onAdd={(amount) => {
+                                    triggerHaptic('light').catch(() => undefined);
+                                    addWater(amount).catch(() => undefined);
+                                }}
+                            />
+                        </View>
+
+                        <WaterCustomInput
+                            onSubmit={(amount) => {
+                                addWater(amount).catch(() => undefined);
+                            }}
+                        />
+
+                        <WaterUndoButton
+                            visible={undoVisible}
+                            timeout={5000}
+                            onUndo={() => {
+                                handleUndo().catch(() => undefined);
+                            }}
+                            onExpire={() => {
+                                setUndoVisible(false);
+                                setLastAdded(null);
+                            }}
+                        />
+                    </View>
+
+                    <WaterReminderToggle enabled={remindersEnabled} onToggle={setRemindersEnabled} />
+
+                    <WaterHistory entries={entries} />
+                </CollapsibleHeaderScrollView>
+            </SafeAreaView>
+        </ScreenErrorBoundary>
     );
 }

@@ -63,3 +63,17 @@ Implemented:
     - pinch zoom and tooltip selection behavior,
     - chart tooltip detail rendering,
     - improved data interaction polish.
+
+### Phase 6: Water Tracking Redesign
+
+**Status:** Done
+
+Implemented:
+
+- Added `WaterFill` animated bottle visualization with sine-wave surface, fill interpolation, and animated bubbles.
+- Added `WaterQuickAdd` chips with ripple + floating drop feedback and haptics.
+- Added `WaterCustomInput` for numeric mL entry with validation.
+- Added `WaterUndoButton` with countdown arc for 5-second reversible actions.
+- Added `WaterHistory` timeline of today's logs.
+- Added `WaterReminderToggle` with reminder scheduling and weather-based hydration notice card.
+- Rebuilt `src/app/(tabs)/water.tsx` around the new Phase-6 components and interactions.
