@@ -4,7 +4,7 @@ This file tracks implementation closure status against the refactor plan and is 
 
 ## Overall answer
 
-All seven targeted phases are now implemented on this branch.
+All eight targeted phases are now implemented on this branch.
 
 ## Phase-by-phase status
 
@@ -88,3 +88,17 @@ Implemented:
 - Added `TodayWorkoutCard` hero section with workout or rest-day variant and contextual CTA.
 - Added full-screen `WorkoutTrackerModal` with integrated `WorkoutTimer`, `ExerciseList`, `SetRepInput`, `RestTimer`, and `WorkoutCompletionCelebration`.
 - Added workout completion toast feedback and redesigned `src/app/(tabs)/workouts.tsx` to orchestrate the Phase-7 flow.
+
+### Phase 8: Plans & Diet Screen
+
+**Status:** Done
+
+Implemented:
+
+- Added `ActivePlanHero` with active badge, calories, macro distribution bar, duration metadata, and edit/deactivate actions.
+- Added `PlanFeaturesTabs` with animated sliding indicator for Meals / Carb Cycle / Prep sections.
+- Added `PlannedMealsTab` with meal cards, food chips, and planned meal macros context.
+- Added `CarbCycleTab` with weekly cycle grid and today-adjusted macro summary card.
+- Added `PrepTab` with ingredient checklist, prep progress, and prep-time estimate.
+- Added `TemplateLibrary` with horizontal template cards, preview, and long-press quick activation flow.
+- Rebuilt `src/app/(tabs)/plans.tsx` to orchestrate active plan hero, feature tabs, and template activation UX.

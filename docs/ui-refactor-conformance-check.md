@@ -12,6 +12,7 @@ This conformance checklist is the acceptance source for this branch.
 
 ### Closure checklist
 
+- [x] Phase 8: Plans redesign with active hero, meals/carb/prep tab system, and template library activation flows.
 - [x] Phase 7: Workout redesign with weekly calendar strip, hero workout card, active tracker modal, rest timer, and completion celebration.
 - [x] Phase 6: Water redesign with animated fill, quick-add/custom input, undo countdown, history timeline, and reminder toggle.
 - [x] Phase 1: Token/theme usage across major app surfaces and dark-mode-safe surface/text mapping.
@@ -24,4 +25,4 @@ This conformance checklist is the acceptance source for this branch.
 
 ## Conclusion
 
-All requested closure items for Phases 1–7 are implemented in this branch and the status file has been updated to reflect explicit, auditable completion.
+All requested closure items for Phases 1–8 are implemented in this branch and the status file has been updated to reflect explicit, auditable completion.
