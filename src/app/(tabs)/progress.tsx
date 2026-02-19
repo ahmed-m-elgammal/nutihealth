@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Activity, Flame, Target, Zap } from 'lucide-react-native';
 import { useUserStore } from '../../store/userStore';
@@ -13,6 +14,8 @@ import StatsStrip from '../../components/progress/StatsStrip';
 import BodyMeasurements from '../../components/progress/BodyMeasurements';
 import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 import { useColors } from '../../hooks/useColors';
+import { ProgressSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { SeedlingChartIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 type Period = 'Week' | 'Month' | '3 Months' | 'Year';
 
@@ -24,9 +27,9 @@ export default function ProgressScreen() {
     const colors = useColors();
     const [period, setPeriod] = useState<Period>('Month');
 
-    const { data: weightHistory = [] } = useWeightHistory(user?.id);
-    const { data: calorieHistory = [] } = useCalorieHistory(user?.id);
-    const { data: insights } = useProgressInsights(user?.id);
+    const { data: weightHistory = [], isLoading: isLoadingWeight } = useWeightHistory(user?.id);
+    const { data: calorieHistory = [], isLoading: isLoadingCalories } = useCalorieHistory(user?.id);
+    const { data: insights, isLoading: isLoadingInsights } = useProgressInsights(user?.id);
 
     const size = takeByPeriod(period);
 
@@ -114,24 +117,36 @@ export default function ProgressScreen() {
                     headerHeight={160}
                     contentContainerStyle={{ paddingHorizontal: 16 }}
                 >
-                    <WeightChart data={weightData} goalWeight={user?.targetWeight} period={period} />
-                    <CalorieHistoryChart data={calorieData} period={period} />
-                    <MacroRingChart
-                        macros={macroTotals}
-                        totalCalories={Math.round(calorieData.reduce((sum, d) => sum + d.consumed, 0))}
-                    />
+                    {isLoadingWeight || isLoadingCalories || isLoadingInsights ? (
+                        <ProgressSkeleton />
+                    ) : weightData.length < 2 || calorieData.length < 2 ? (
+                        <EmptyState
+                            illustration={<SeedlingChartIllustration />}
+                            title="Not enough progress data yet"
+                            message="Log meals and weigh-ins for a few days to unlock charts and trend insights."
+                        />
+                    ) : (
+                        <>
+                            <WeightChart data={weightData} goalWeight={user?.targetWeight} period={period} />
+                            <CalorieHistoryChart data={calorieData} period={period} />
+                            <MacroRingChart
+                                macros={macroTotals}
+                                totalCalories={Math.round(calorieData.reduce((sum, d) => sum + d.consumed, 0))}
+                            />
 
-                    <View style={{ marginTop: 12 }}>
-                        <StatsStrip stats={stats} />
-                    </View>
+                            <View style={{ marginTop: 12 }}>
+                                <StatsStrip stats={stats} />
+                            </View>
 
-                    <BodyMeasurements
-                        entries={measurementEntries}
-                        heightCm={user?.height}
-                        onAddMeasurement={() => {
-                            // placeholder for Phase 5 measurement modal
-                        }}
-                    />
+                            <BodyMeasurements
+                                entries={measurementEntries}
+                                heightCm={user?.height}
+                                onAddMeasurement={() => {
+                                    // placeholder for Phase 5 measurement modal
+                                }}
+                            />
+                        </>
+                    )}
                 </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>

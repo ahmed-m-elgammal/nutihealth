@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Alert, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Bell, Download, Globe, LogOut, Moon, ShieldCheck, User as UserIcon } from 'lucide-react-native';
@@ -11,6 +12,8 @@ import { useUserStore } from '../../store/userStore';
 import { exportBackupAndShare, restoreBackupFromFilePicker } from '../../services/export/dataExport';
 import { clearScheduledReminders, scheduleAdaptiveReminders } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
+import { ProfileSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -168,9 +171,22 @@ export default function ProfileScreen() {
                     headerHeight={290}
                     contentContainerStyle={{ paddingHorizontal: 16 }}
                 >
-                    <View style={{ marginTop: 8 }}>
-                        <SettingsList sections={sections} />
-                    </View>
+                    {!user ? (
+                        <>
+                            <ProfileSkeleton />
+                            <EmptyState
+                                illustration={<EmptyPlateIllustration />}
+                                title="Profile not set up"
+                                message="Complete onboarding to unlock personalized settings and recommendations."
+                                actionLabel="Start Onboarding"
+                                onAction={() => router.replace('/onboarding/welcome')}
+                            />
+                        </>
+                    ) : (
+                        <View style={{ marginTop: 8 }}>
+                            <SettingsList sections={sections} />
+                        </View>
+                    )}
                 </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>

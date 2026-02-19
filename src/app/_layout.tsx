@@ -19,6 +19,7 @@ import '../i18n';
 import '../../global.css';
 import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '../services/notifications';
 import RootErrorBoundary from '../components/errors/RootErrorBoundary';
+import { SkeletonAnimationProvider } from '../components/ui/Skeleton';
 import OfflineIndicator from '../components/common/OfflineIndicator';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import ToastContainer from '../components/ui/Toast';
@@ -270,9 +271,11 @@ export default function RootLayout() {
                 <DatabaseProvider database={database}>
                     <QueryClientProvider client={queryClient}>
                         <ThemeProvider>
-                            <OfflineIndicator />
-                            <ToastContainer />
-                            <RootNavigation />
+                            <SkeletonAnimationProvider>
+                                <OfflineIndicator />
+                                <ToastContainer />
+                                <RootNavigation />
+                            </SkeletonAnimationProvider>
                         </ThemeProvider>
                     </QueryClientProvider>
                 </DatabaseProvider>

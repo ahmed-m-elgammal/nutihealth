@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
@@ -12,6 +13,8 @@ import CollapsibleMealSection from '../../components/meals/CollapsibleMealSectio
 import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 import { useUIStore } from '../../store/uiStore';
 import { triggerHaptic } from '../../utils/haptics';
+import { MealsSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { EmptyCalendarIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 type FoodItem = {
@@ -41,7 +44,7 @@ export default function MealsScreen() {
     const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
     const [localFoods, setLocalFoods] = useState<FoodItem[]>([]);
 
-    const { data: meals = [] } = useMeals(selectedDate);
+    const { data: meals = [], isLoading: isLoadingMeals } = useMeals(selectedDate);
 
     const baseFoods = useMemo<FoodItem[]>(
         () =>
@@ -173,41 +176,53 @@ export default function MealsScreen() {
                     headerHeight={200}
                     contentContainerStyle={{ paddingHorizontal: 16 }}
                 >
-                    {(Object.keys(grouped) as MealType[]).map((type) => {
-                        const mealsForType = grouped[type];
-                        const sectionCalories = mealsForType.reduce((sum, meal) => sum + meal.calories, 0);
+                    {isLoadingMeals ? (
+                        <MealsSkeleton />
+                    ) : visibleFoods.length === 0 ? (
+                        <EmptyState
+                            illustration={<EmptyCalendarIllustration />}
+                            title="No meals for this day"
+                            message="Try another date or add a meal to get your macro summary started."
+                            actionLabel="Add Meal"
+                            onAction={() => router.push('/(modals)/add-meal')}
+                        />
+                    ) : (
+                        (Object.keys(grouped) as MealType[]).map((type) => {
+                            const mealsForType = grouped[type];
+                            const sectionCalories = mealsForType.reduce((sum, meal) => sum + meal.calories, 0);
 
-                        return (
-                            <CollapsibleMealSection
-                                key={type}
-                                title={type}
-                                calories={sectionCalories}
-                                foods={mealsForType}
-                                expanded={Boolean(expanded[type])}
-                                onToggle={() => setExpanded((p) => ({ ...p, [type]: !p[type] }))}
-                                onFoodPress={(food) => {
-                                    router.push({
-                                        pathname: '/(modals)/food-details',
-                                        params: {
-                                            transitionId: `food-card-${food.id}`,
-                                            food: JSON.stringify({
-                                                name: food.name,
-                                                brand: food.brand,
-                                                calories: food.calories,
-                                                protein: food.protein,
-                                                carbs: food.carbs,
-                                                fats: food.fats,
-                                            }),
-                                        },
-                                    });
-                                }}
-                                onDeleteFood={handleDeleteFood}
-                                onDuplicateFood={handleDuplicateFood}
-                                onEditFood={handleEditFood}
-                                onAddNoteFood={handleAddNote}
-                            />
-                        );
-                    })}
+                            return (
+                                <CollapsibleMealSection
+                                    key={type}
+                                    title={type}
+                                    calories={sectionCalories}
+                                    foods={mealsForType}
+                                    expanded={Boolean(expanded[type])}
+                                    onToggle={() => setExpanded((p) => ({ ...p, [type]: !p[type] }))}
+                                    onFoodPress={(food) => {
+                                        router.push({
+                                            pathname: '/(modals)/food-details',
+                                            params: {
+                                                transitionId: `food-card-${food.id}`,
+                                                food: JSON.stringify({
+                                                    name: food.name,
+                                                    brand: food.brand,
+                                                    calories: food.calories,
+                                                    protein: food.protein,
+                                                    carbs: food.carbs,
+                                                    fats: food.fats,
+                                                }),
+                                            },
+                                        });
+                                    }}
+                                    onDeleteFood={handleDeleteFood}
+                                    onDuplicateFood={handleDuplicateFood}
+                                    onEditFood={handleEditFood}
+                                    onAddNoteFood={handleAddNote}
+                                />
+                            );
+                        })
+                    )}
 
                     <View style={{ height: 10 }} />
                 </CollapsibleHeaderScrollView>
