@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { LayoutChangeEvent, Pressable, Text, View } from 'react-native';
 import { Canvas, Line, Path, Rect, Skia, vec } from '@shopify/react-native-skia';
 import { format } from 'date-fns';
 import { triggerHaptic } from '../../utils/haptics';
+import { useColors } from '../../hooks/useColors';
 
 type CaloriePoint = { date: string; consumed: number; target: number };
 
@@ -15,11 +16,21 @@ type CalorieHistoryChartProps = {
 
 export default function CalorieHistoryChart({ data, period, width = 340, height = 220 }: CalorieHistoryChartProps) {
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    const [chartWidth, setChartWidth] = useState(width);
+    const colors = useColors();
+
+    const makeSafePath = () => {
+        try {
+            return Skia.Path.Make();
+        } catch {
+            return null;
+        }
+    };
 
     const { bars, avgPath, targetY } = useMemo(() => {
         const p = 16;
         const barGap = 6;
-        const innerW = width - p * 2;
+        const innerW = chartWidth - p * 2;
         const innerH = height - p * 2;
         const maxValue = Math.max(1, ...data.map((d) => Math.max(d.consumed, d.target)));
 
@@ -39,21 +50,27 @@ export default function CalorieHistoryChart({ data, period, width = 340, height 
             return slice.reduce((sum, item) => sum + item.consumed, 0) / Math.max(1, slice.length);
         });
 
-        const path = Skia.Path.Make();
-        rolling.forEach((v, i) => {
-            const x = nextBars[i] ? nextBars[i].x + nextBars[i].w / 2 : p;
-            const y = p + innerH - (v / maxValue) * innerH;
-            if (i === 0) path.moveTo(x, y);
-            else path.lineTo(x, y);
-        });
+        const path = makeSafePath();
+        if (path) {
+            rolling.forEach((v, i) => {
+                const x = nextBars[i] ? nextBars[i].x + nextBars[i].w / 2 : p;
+                const y = p + innerH - (v / maxValue) * innerH;
+                if (i === 0) path.moveTo(x, y);
+                else path.lineTo(x, y);
+            });
+        }
 
         const avgTarget = data.length ? data.reduce((sum, d) => sum + d.target, 0) / data.length : 0;
         const computedTargetY = p + innerH - (avgTarget / maxValue) * innerH;
 
         return { bars: nextBars, avgPath: path, targetY: computedTargetY };
-    }, [data, height, width]);
+    }, [chartWidth, data, height]);
 
     const selected = selectedIndex != null ? bars[selectedIndex] : null;
+
+    const onLayout = (event: LayoutChangeEvent) => {
+        setChartWidth(event.nativeEvent.layout.width - 24);
+    };
 
     return (
         <View
@@ -61,24 +78,25 @@ export default function CalorieHistoryChart({ data, period, width = 340, height 
                 marginTop: 12,
                 borderRadius: 16,
                 borderWidth: 1,
-                borderColor: '#e2e8f0',
-                backgroundColor: '#fff',
+                borderColor: colors.border.default,
+                backgroundColor: colors.surface.card,
                 padding: 12,
             }}
+            onLayout={onLayout}
         >
-            <Text style={{ fontWeight: '700', color: '#0f172a' }}>Calories vs target · {period}</Text>
-            <Canvas style={{ width: width - 24, height, marginTop: 8 }}>
+            <Text style={{ fontWeight: '700', color: colors.text.primary }}>Calories vs target · {period}</Text>
+            <Canvas style={{ width: chartWidth, height, marginTop: 8 }}>
                 {bars.map((b, idx) => (
                     <Rect key={idx} x={b.x} y={b.y} width={b.w} height={b.h} color={b.color} />
                 ))}
                 <Line
                     p1={vec(10, targetY)}
-                    p2={vec(width - 24 - 10, targetY)}
+                    p2={vec(chartWidth - 10, targetY)}
                     color="#f59e0b"
                     style="stroke"
                     strokeWidth={2}
                 />
-                <Path path={avgPath} color="#ffffff" style="stroke" strokeWidth={2} />
+                {avgPath ? <Path path={avgPath} color="#ffffff" style="stroke" strokeWidth={2} /> : null}
             </Canvas>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
@@ -96,13 +114,13 @@ export default function CalorieHistoryChart({ data, period, width = 340, height 
 
             {selected ? (
                 <View style={{ marginTop: 8, borderRadius: 10, backgroundColor: '#f8fafc', padding: 10 }}>
-                    <Text style={{ color: '#0f172a', fontWeight: '700' }}>
+                    <Text style={{ color: colors.text.primary, fontWeight: '700' }}>
                         {format(new Date(selected.d.date), 'MMM d')}
                     </Text>
-                    <Text style={{ color: '#334155', marginTop: 2 }}>
+                    <Text style={{ color: colors.text.secondary, marginTop: 2 }}>
                         {Math.round(selected.d.consumed)} kcal consumed
                     </Text>
-                    <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                    <Text style={{ color: colors.text.tertiary, fontSize: 12, marginTop: 2 }}>
                         Target: {Math.round(selected.d.target)} kcal • Δ{' '}
                         {Math.round(selected.d.consumed - selected.d.target)}
                     </Text>

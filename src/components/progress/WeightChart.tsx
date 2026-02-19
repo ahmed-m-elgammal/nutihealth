@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { triggerHaptic } from '../../utils/haptics';
+import { useColors } from '../../hooks/useColors';
 
 type WeightPoint = { date: string; weight: number };
 
@@ -20,7 +21,15 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
     const [chartWidth, setChartWidth] = useState(width);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
     const zoom = useSharedValue(1);
-    const isSkiaPathAvailable = Boolean((Skia as unknown as { Path?: { Make?: () => any } })?.Path?.Make);
+    const colors = useColors();
+
+    const makeSafePath = () => {
+        try {
+            return Skia.Path.Make();
+        } catch {
+            return null;
+        }
+    };
 
     const { points, linePath, fillPath, goalY } = useMemo(() => {
         const pLeft = 16;
@@ -33,8 +42,8 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
         if (!data.length) {
             return {
                 points: [] as { x: number; y: number; d: WeightPoint }[],
-                linePath: null as any,
-                fillPath: null as any,
+                linePath: null as ReturnType<typeof Skia.Path.Make> | null,
+                fillPath: null as ReturnType<typeof Skia.Path.Make> | null,
                 goalY: null as number | null,
             };
         }
@@ -49,15 +58,14 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
             return { x, y, d };
         });
 
-        if (!isSkiaPathAvailable) {
+        const path = makeSafePath();
+        const area = makeSafePath();
+        if (!path || !area) {
             const computedGoalY =
                 goalWeight != null ? pTop + ((maxValue - goalWeight) / Math.max(1, maxValue - minValue)) * h : null;
 
-            return { points: plotted, linePath: null as any, fillPath: null as any, goalY: computedGoalY };
+            return { points: plotted, linePath: null, fillPath: null, goalY: computedGoalY };
         }
-
-        const path = Skia.Path.Make();
-        const area = Skia.Path.Make();
 
         plotted.forEach((p, idx) => {
             if (idx === 0) {
@@ -117,11 +125,17 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
 
     return (
         <View
-            style={{ borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff', padding: 12 }}
+            style={{
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border.default,
+                backgroundColor: colors.surface.card,
+                padding: 12,
+            }}
             onLayout={onLayout}
         >
-            <Text style={{ fontWeight: '700', color: '#0f172a' }}>Weight trend · {period}</Text>
-            {isSkiaPathAvailable ? (
+            <Text style={{ fontWeight: '700', color: colors.text.primary }}>Weight trend · {period}</Text>
+            {linePath && fillPath ? (
                 <>
                     <GestureDetector gesture={pinch}>
                         <Animated.View style={chartScale}>
@@ -161,23 +175,39 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
                     />
                 </>
             ) : (
-                <View style={{ marginTop: 10, borderRadius: 10, backgroundColor: '#f8fafc', padding: 10 }}>
-                    <Text style={{ color: '#334155', fontSize: 12 }}>
+                <View
+                    style={{
+                        marginTop: 10,
+                        borderRadius: 10,
+                        backgroundColor: colors.surface.elevated,
+                        padding: 10,
+                    }}
+                >
+                    <Text style={{ color: colors.text.secondary, fontSize: 12 }}>
                         Interactive chart is unavailable on this web renderer. Weight entries are still tracked.
                     </Text>
-                    <Text style={{ marginTop: 6, color: '#0f172a', fontWeight: '700' }}>
+                    <Text style={{ marginTop: 6, color: colors.text.primary, fontWeight: '700' }}>
                         Latest: {data.length ? `${data[data.length - 1].weight.toFixed(1)} kg` : 'No data'}
                     </Text>
                 </View>
             )}
 
             {selected ? (
-                <View style={{ marginTop: 10, borderRadius: 10, backgroundColor: '#f8fafc', padding: 10 }}>
-                    <Text style={{ fontWeight: '700', color: '#0f172a' }}>
+                <View
+                    style={{
+                        marginTop: 10,
+                        borderRadius: 10,
+                        backgroundColor: colors.surface.elevated,
+                        padding: 10,
+                    }}
+                >
+                    <Text style={{ fontWeight: '700', color: colors.text.primary }}>
                         {format(new Date(selected.d.date), 'MMM d')}
                     </Text>
-                    <Text style={{ color: '#334155', marginTop: 2 }}>{selected.d.weight.toFixed(1)} kg</Text>
-                    <Text style={{ color: '#64748b', marginTop: 2, fontSize: 12 }}>
+                    <Text style={{ color: colors.text.secondary, marginTop: 2 }}>
+                        {selected.d.weight.toFixed(1)} kg
+                    </Text>
+                    <Text style={{ color: colors.text.tertiary, marginTop: 2, fontSize: 12 }}>
                         Δ{' '}
                         {selectedIndex && points[selectedIndex - 1]
                             ? (selected.d.weight - points[selectedIndex - 1].d.weight).toFixed(1)
