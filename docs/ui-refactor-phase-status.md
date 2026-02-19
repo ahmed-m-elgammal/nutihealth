@@ -4,7 +4,7 @@ This file tracks implementation closure status against the refactor plan and is 
 
 ## Overall answer
 
-All five targeted phases are now implemented on this branch.
+All seven targeted phases are now implemented on this branch.
 
 ## Phase-by-phase status
 
@@ -77,3 +77,14 @@ Implemented:
 - Added `WaterHistory` timeline of today's logs.
 - Added `WaterReminderToggle` with reminder scheduling and weather-based hydration notice card.
 - Rebuilt `src/app/(tabs)/water.tsx` around the new Phase-6 components and interactions.
+
+### Phase 7: Workout Screen Redesign
+
+**Status:** Done
+
+Implemented:
+
+- Added `WorkoutCalendarStrip` with 7-day horizontal snapping cards, intensity dots, rest-pill state, and prev/next week controls.
+- Added `TodayWorkoutCard` hero section with workout or rest-day variant and contextual CTA.
+- Added full-screen `WorkoutTrackerModal` with integrated `WorkoutTimer`, `ExerciseList`, `SetRepInput`, `RestTimer`, and `WorkoutCompletionCelebration`.
+- Added workout completion toast feedback and redesigned `src/app/(tabs)/workouts.tsx` to orchestrate the Phase-7 flow.
