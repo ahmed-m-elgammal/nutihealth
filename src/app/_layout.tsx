@@ -20,6 +20,8 @@ import '../../global.css';
 import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '../services/notifications';
 import RootErrorBoundary from '../components/errors/RootErrorBoundary';
 import OfflineIndicator from '../components/common/OfflineIndicator';
+import { ThemeProvider } from '../theme/ThemeProvider';
+import ToastContainer from '../components/ui/Toast';
 
 const devLog = (...messages: unknown[]) => {
     if (__DEV__) {
@@ -213,18 +215,50 @@ function RootNavigation() {
     }
 
     return (
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+            screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+                animationMatchesGesture: true,
+                gestureEnabled: true,
+                fullScreenGestureEnabled: true,
+            }}
+        >
             <Stack.Screen name="onboarding" />
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(modals)/add-meal" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/food-search" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/barcode-scanner" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/ai-food-detect" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/recipe-import" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/recipe-preview" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/complete-profile" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="(modals)/meal-prep-planner" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen
+                name="(modals)/add-meal"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/food-search"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/barcode-scanner"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/ai-food-detect"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/recipe-import"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/recipe-preview"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/complete-profile"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
+            <Stack.Screen
+                name="(modals)/meal-prep-planner"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+            />
         </Stack>
     );
 }
@@ -235,8 +269,11 @@ export default function RootLayout() {
             <RootErrorBoundary onClearCache={Platform.OS === 'web' ? () => void resetWebApplicationData() : undefined}>
                 <DatabaseProvider database={database}>
                     <QueryClientProvider client={queryClient}>
-                        <OfflineIndicator />
-                        <RootNavigation />
+                        <ThemeProvider>
+                            <OfflineIndicator />
+                            <ToastContainer />
+                            <RootNavigation />
+                        </ThemeProvider>
                     </QueryClientProvider>
                 </DatabaseProvider>
             </RootErrorBoundary>
