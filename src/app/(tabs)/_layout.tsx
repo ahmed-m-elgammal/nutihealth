@@ -14,19 +14,13 @@ export default function TabLayout() {
             }}
             tabBar={renderTabBar}
         >
-            <Tabs.Screen name="index" options={{ title: 'Today' }} />
+            <Tabs.Screen name="index" options={{ title: 'Main' }} />
             <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
             <Tabs.Screen name="workouts" options={{ title: 'Workouts' }} />
-            <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
+            <Tabs.Screen name="plans" options={{ title: 'Plans' }} />
             <Tabs.Screen name="water" options={{ title: 'Water' }} />
-            <Tabs.Screen name="profile" options={{ title: 'Me' }} />
-            <Tabs.Screen
-                name="plans"
-                options={{
-                    href: null,
-                    title: 'Plans',
-                }}
-            />
+            <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
+            <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
         </Tabs>
     );
 }

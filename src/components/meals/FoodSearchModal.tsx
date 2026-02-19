@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Search } from 'lucide-react-native';
@@ -7,6 +7,7 @@ import ServingSizePicker from './ServingSizePicker';
 import EmptyState from '../common/EmptyState';
 import { FoodSearchSkeleton } from '../skeletons/ScreenSkeletons';
 import { NoResultsIllustration } from '../illustrations/EmptyStateIllustrations';
+import { useDebounce } from '../../hooks/useDebounce';
 
 type FoodSearchModalProps = {
     onClose: () => void;
@@ -42,17 +43,32 @@ function FoodSearchModal({ onClose }: FoodSearchModalProps) {
     const [results, setResults] = useState<SearchResults>({ recent: [], database: [], external: [] });
     const [isSearching, setIsSearching] = useState(false);
     const [selectedFood, setSelectedFood] = useState<SearchResult | null>(null);
+    const debouncedQuery = useDebounce(query, 300);
+    const requestIdRef = useRef(0);
 
     useEffect(() => {
-        const timer = setTimeout(async () => {
-            setIsSearching(true);
-            const r = await searchFoods(query);
-            setResults(r);
-            setIsSearching(false);
-        }, 300);
+        const activeRequestId = ++requestIdRef.current;
 
-        return () => clearTimeout(timer);
-    }, [query]);
+        const runSearch = async () => {
+            setIsSearching(true);
+            try {
+                const response = await searchFoods(debouncedQuery);
+                if (activeRequestId === requestIdRef.current) {
+                    setResults(response);
+                }
+            } finally {
+                if (activeRequestId === requestIdRef.current) {
+                    setIsSearching(false);
+                }
+            }
+        };
+
+        runSearch().catch(() => {
+            if (activeRequestId === requestIdRef.current) {
+                setIsSearching(false);
+            }
+        });
+    }, [debouncedQuery]);
 
     const rows = useMemo<SearchRow[]>(() => {
         const sections = [
