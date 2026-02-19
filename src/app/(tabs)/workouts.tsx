@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDatabase } from '@nozbe/watermelondb/hooks';
@@ -15,6 +16,8 @@ import { getSchedulePreferencesFromUser, sanitizeSchedulePreferences } from '../
 import WorkoutCalendarStrip from '../../components/workout/WorkoutCalendarStrip';
 import TodayWorkoutCard from '../../components/workout/TodayWorkoutCard';
 import WorkoutTrackerModal from '../../components/workout/WorkoutTrackerModal';
+import { WorkoutSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { HammockIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 import { useUIStore } from '../../store/uiStore';
 
 export default function WorkoutsScreen() {
@@ -146,10 +149,32 @@ export default function WorkoutsScreen() {
                     contentContainerStyle={{ paddingHorizontal: 16 }}
                 >
                     {isLoadingPlan ? (
-                        <View style={{ marginTop: 24, alignItems: 'center' }}>
-                            <ActivityIndicator color="#4f46e5" />
-                            <Text style={{ marginTop: 8, color: '#64748b' }}>Loading workout schedule...</Text>
-                        </View>
+                        <WorkoutSkeleton />
+                    ) : !selectedDay || selectedDay.isRestDay ? (
+                        <>
+                            <WorkoutCalendarStrip
+                                weekDays={weekDays}
+                                selectedDate={selectedDate}
+                                onDateSelect={setSelectedDate}
+                                onPrevWeek={() => {
+                                    const next = addDays(weekStart, -7);
+                                    setWeekStart(next);
+                                    setSelectedDate(next);
+                                }}
+                                onNextWeek={() => {
+                                    const next = addDays(weekStart, 7);
+                                    setWeekStart(next);
+                                    setSelectedDate(next);
+                                }}
+                            />
+                            <EmptyState
+                                illustration={<HammockIllustration />}
+                                title="Recovery day"
+                                message="No workout is scheduled for this day. Use it to recover and hydrate."
+                                actionLabel="Browse Programs"
+                                onAction={() => router.push('/(modals)/browse-programs')}
+                            />
+                        </>
                     ) : (
                         <>
                             <WorkoutCalendarStrip

@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from 'react-native';
+import { Pressable, SectionList, Text, TextInput, View } from 'react-native';
 import { Search } from 'lucide-react-native';
 import { searchFoods, SearchResult, SearchResults } from '../../services/api/foodSearch';
 import ServingSizePicker from './ServingSizePicker';
+import EmptyState from '../common/EmptyState';
+import { FoodSearchSkeleton } from '../skeletons/ScreenSkeletons';
+import { NoResultsIllustration } from '../illustrations/EmptyStateIllustrations';
 
 type FoodSearchModalProps = {
     onClose: () => void;
@@ -64,40 +67,50 @@ export default function FoodSearchModal({ onClose }: FoodSearchModalProps) {
                 </Pressable>
             </View>
 
-            {isSearching ? <ActivityIndicator style={{ marginTop: 20 }} color="#16a34a" /> : null}
+            {isSearching ? <FoodSearchSkeleton /> : null}
 
-            <SectionList
-                sections={sections}
-                keyExtractor={(item) => item.id}
-                style={{ marginTop: 10 }}
-                renderSectionHeader={({ section }) => (
-                    <Text style={{ marginTop: 14, marginBottom: 6, color: '#475569', fontWeight: '700' }}>
-                        {section.title}
-                    </Text>
-                )}
-                renderItem={({ item }) => (
-                    <Pressable
-                        onPress={() => setSelectedFood(item)}
-                        android_ripple={{ color: 'rgba(15,23,42,0.06)' }}
-                        style={{
-                            borderRadius: 12,
-                            borderWidth: 1,
-                            borderColor: '#e2e8f0',
-                            padding: 12,
-                            marginBottom: 8,
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <Text style={{ fontWeight: '700', color: '#0f172a' }}>{item.name}</Text>
-                        <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-                            {item.brand || 'Unknown brand'}
+            {!isSearching && sections.length === 0 && query.trim().length > 0 ? (
+                <EmptyState
+                    illustration={<NoResultsIllustration />}
+                    title="No results found"
+                    message="Try a different keyword or check your spelling."
+                />
+            ) : null}
+
+            {!isSearching ? (
+                <SectionList
+                    sections={sections}
+                    keyExtractor={(item) => item.id}
+                    style={{ marginTop: 10 }}
+                    renderSectionHeader={({ section }) => (
+                        <Text style={{ marginTop: 14, marginBottom: 6, color: '#475569', fontWeight: '700' }}>
+                            {section.title}
                         </Text>
-                        <Text style={{ color: '#334155', fontSize: 12, marginTop: 6 }}>
-                            {Math.round(item.calories)} kcal / 100g
-                        </Text>
-                    </Pressable>
-                )}
-            />
+                    )}
+                    renderItem={({ item }) => (
+                        <Pressable
+                            onPress={() => setSelectedFood(item)}
+                            android_ripple={{ color: 'rgba(15,23,42,0.06)' }}
+                            style={{
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: '#e2e8f0',
+                                padding: 12,
+                                marginBottom: 8,
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <Text style={{ fontWeight: '700', color: '#0f172a' }}>{item.name}</Text>
+                            <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                                {item.brand || 'Unknown brand'}
+                            </Text>
+                            <Text style={{ color: '#334155', fontSize: 12, marginTop: 6 }}>
+                                {Math.round(item.calories)} kcal / 100g
+                            </Text>
+                        </Pressable>
+                    )}
+                />
+            ) : null}
 
             <ServingSizePicker
                 visible={Boolean(selectedFood)}

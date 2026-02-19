@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -15,6 +16,8 @@ import CarbCycleTab from '../../components/plans/CarbCycleTab';
 import PrepTab from '../../components/plans/PrepTab';
 import TemplateLibrary from '../../components/plans/TemplateLibrary';
 import { useUIStore } from '../../store/uiStore';
+import { ProgressSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { NoPlanIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 type TabType = 'Meals' | 'Carb Cycle' | 'Prep';
 
@@ -31,8 +34,8 @@ export default function PlansScreen() {
         { name: 'Greek yogurt', amount: '700g', checked: false },
     ]);
 
-    const { data: templates = [] } = useDietTemplates();
-    const { data: activeUserDiet } = useActiveDiet(user?.id);
+    const { data: templates = [], isLoading: isLoadingTemplates } = useDietTemplates();
+    const { data: activeUserDiet, isLoading: isLoadingActiveDiet } = useActiveDiet(user?.id);
     const { activateDiet } = useDietMutations();
 
     const activeDiet = useMemo(() => {
@@ -175,78 +178,97 @@ export default function PlansScreen() {
                     headerHeight={120}
                     contentContainerStyle={{ paddingHorizontal: 16 }}
                 >
-                    <ActivePlanHero
-                        plan={activeDiet}
-                        onEdit={() => router.push('/(modals)/create-weekly-plan')}
-                        onDeactivate={() => {
-                            Alert.alert('Deactivate plan', 'Do you want to deactivate your current plan?', [
-                                { text: 'Cancel', style: 'cancel' },
-                                {
-                                    text: 'Deactivate',
-                                    style: 'destructive',
-                                    onPress: () => showToast('info', 'Plan deactivated'),
-                                },
-                            ]);
-                        }}
-                        onCreatePlan={() => router.push('/(modals)/create-weekly-plan')}
-                    />
+                    {isLoadingTemplates || isLoadingActiveDiet ? (
+                        <ProgressSkeleton />
+                    ) : (
+                        <>
+                            <ActivePlanHero
+                                plan={activeDiet}
+                                onEdit={() => router.push('/(modals)/create-weekly-plan')}
+                                onDeactivate={() => {
+                                    Alert.alert('Deactivate plan', 'Do you want to deactivate your current plan?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        {
+                                            text: 'Deactivate',
+                                            style: 'destructive',
+                                            onPress: () => showToast('info', 'Plan deactivated'),
+                                        },
+                                    ]);
+                                }}
+                                onCreatePlan={() => router.push('/(modals)/create-weekly-plan')}
+                            />
 
-                    <PlanFeaturesTabs activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab as TabType)} />
+                            {!activeDiet ? (
+                                <EmptyState
+                                    illustration={<NoPlanIllustration />}
+                                    title="No active plan"
+                                    message="Activate a template or create a weekly plan to get meal and prep guidance."
+                                    actionLabel="Create Plan"
+                                    onAction={() => router.push('/(modals)/create-weekly-plan')}
+                                />
+                            ) : null}
 
-                    {activeTab === 'Meals' ? (
-                        <Animated.View entering={FadeIn.duration(240)}>
-                            <PlannedMealsTab
-                                plannedMeals={plannedMeals}
-                                onFoodPress={(foodName) => {
-                                    showToast('info', `${foodName} ready to prefill add-meal`);
+                            <PlanFeaturesTabs
+                                activeTab={activeTab}
+                                onTabChange={(tab) => setActiveTab(tab as TabType)}
+                            />
+
+                            {activeTab === 'Meals' ? (
+                                <Animated.View entering={FadeIn.duration(240)}>
+                                    <PlannedMealsTab
+                                        plannedMeals={plannedMeals}
+                                        onFoodPress={(foodName) => {
+                                            showToast('info', `${foodName} ready to prefill add-meal`);
+                                        }}
+                                    />
+                                </Animated.View>
+                            ) : null}
+
+                            {activeTab === 'Carb Cycle' ? (
+                                <Animated.View entering={FadeIn.duration(240)}>
+                                    <CarbCycleTab cycle={cycle} today={today} />
+                                </Animated.View>
+                            ) : null}
+
+                            {activeTab === 'Prep' ? (
+                                <Animated.View entering={FadeIn.duration(240)}>
+                                    <PrepTab
+                                        ingredients={ingredients}
+                                        prepTime={55}
+                                        onToggleIngredient={(index) => {
+                                            setIngredients((prev) =>
+                                                prev.map((item, itemIndex) =>
+                                                    itemIndex === index ? { ...item, checked: !item.checked } : item,
+                                                ),
+                                            );
+                                        }}
+                                    />
+                                </Animated.View>
+                            ) : null}
+
+                            <TemplateLibrary
+                                templates={templateCards}
+                                onTemplatePress={(template) => {
+                                    Alert.alert(template.name, `${template.type} • ${template.calories}`, [
+                                        {
+                                            text: 'Activate',
+                                            onPress: () => {
+                                                if (!user?.id) return;
+                                                activateDiet.mutate({ userId: user.id, dietId: template.id });
+                                                showToast('success', `${template.name} activated`);
+                                            },
+                                        },
+                                        { text: 'Close', style: 'cancel' },
+                                    ]);
+                                }}
+                                onTemplateLongPress={(template) => {
+                                    if (!user?.id) return;
+                                    activateDiet.mutate({ userId: user.id, dietId: template.id });
+                                    showToast('success', `${template.name} activated`);
                                 }}
                             />
-                        </Animated.View>
-                    ) : null}
-
-                    {activeTab === 'Carb Cycle' ? (
-                        <Animated.View entering={FadeIn.duration(240)}>
-                            <CarbCycleTab cycle={cycle} today={today} />
-                        </Animated.View>
-                    ) : null}
-
-                    {activeTab === 'Prep' ? (
-                        <Animated.View entering={FadeIn.duration(240)}>
-                            <PrepTab
-                                ingredients={ingredients}
-                                prepTime={55}
-                                onToggleIngredient={(index) => {
-                                    setIngredients((prev) =>
-                                        prev.map((item, itemIndex) =>
-                                            itemIndex === index ? { ...item, checked: !item.checked } : item,
-                                        ),
-                                    );
-                                }}
-                            />
-                        </Animated.View>
-                    ) : null}
-
-                    <TemplateLibrary
-                        templates={templateCards}
-                        onTemplatePress={(template) => {
-                            Alert.alert(template.name, `${template.type} • ${template.calories}`, [
-                                {
-                                    text: 'Activate',
-                                    onPress: () => {
-                                        if (!user?.id) return;
-                                        activateDiet.mutate({ userId: user.id, dietId: template.id });
-                                        showToast('success', `${template.name} activated`);
-                                    },
-                                },
-                                { text: 'Close', style: 'cancel' },
-                            ]);
-                        }}
-                        onTemplateLongPress={(template) => {
-                            if (!user?.id) return;
-                            activateDiet.mutate({ userId: user.id, dietId: template.id });
-                            showToast('success', `${template.name} activated`);
-                        }}
-                    />
+                        </>
+                    )}
                 </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>

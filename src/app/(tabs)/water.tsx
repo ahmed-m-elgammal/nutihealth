@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { useWaterStore } from '../../store/waterStore';
@@ -12,6 +13,7 @@ import WaterUndoButton from '../../components/water/WaterUndoButton';
 import WaterHistory from '../../components/water/WaterHistory';
 import WaterReminderToggle from '../../components/water/WaterReminderToggle';
 import { triggerHaptic } from '../../utils/haptics';
+import { EmptyGlassIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 type LastAdded = {
     id: string;
@@ -120,7 +122,15 @@ export default function WaterScreen() {
 
                     <WaterReminderToggle enabled={remindersEnabled} onToggle={setRemindersEnabled} />
 
-                    <WaterHistory entries={entries} />
+                    {entries.length === 0 ? (
+                        <EmptyState
+                            illustration={<EmptyGlassIllustration />}
+                            title="Fresh hydration start"
+                            message="Log your first glass to build today's hydration timeline."
+                        />
+                    ) : (
+                        <WaterHistory entries={entries} />
+                    )}
                 </CollapsibleHeaderScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>

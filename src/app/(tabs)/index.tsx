@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
+import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -14,6 +15,8 @@ import QuickActionsGrid from '../../components/home/QuickActionsGrid';
 import MealTimeline from '../../components/home/MealTimeline';
 import MealSuggestionBanner from '../../components/home/MealSuggestionBanner';
 import AdherenceStrip from '../../components/home/AdherenceStrip';
+import { HomeSkeleton } from '../../components/skeletons/ScreenSkeletons';
+import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -74,64 +77,82 @@ export default function HomeScreen() {
                     }
                 >
                     <View style={{ paddingHorizontal: 16 }}>
-                        <Animated.View entering={FadeInDown.duration(280)}>
-                            <CalorieRingCard
-                                consumedCalories={nutrition.calories}
-                                goalCalories={goals.calories}
-                                macros={{
-                                    protein: nutrition.protein,
-                                    carbs: nutrition.carbs,
-                                    fats: nutrition.fats,
-                                }}
-                                macroGoals={{
-                                    protein: goals.protein,
-                                    carbs: goals.carbs,
-                                    fats: goals.fats,
-                                }}
-                                delta={
-                                    meals.length > 0
-                                        ? `↑ ${Math.round(meals[0]?.totalCalories || 0)} since last meal`
-                                        : undefined
-                                }
+                        {isLoadingMeals ? (
+                            <HomeSkeleton />
+                        ) : meals.length === 0 ? (
+                            <EmptyState
+                                illustration={<EmptyPlateIllustration />}
+                                title="No meals logged yet"
+                                message="Start by logging your first meal to unlock your daily insights."
+                                actionLabel="Log Meal"
+                                onAction={() => router.push('/(modals)/add-meal')}
                             />
-                        </Animated.View>
+                        ) : (
+                            <>
+                                <Animated.View entering={FadeInDown.duration(280)}>
+                                    <CalorieRingCard
+                                        consumedCalories={nutrition.calories}
+                                        goalCalories={goals.calories}
+                                        macros={{
+                                            protein: nutrition.protein,
+                                            carbs: nutrition.carbs,
+                                            fats: nutrition.fats,
+                                        }}
+                                        macroGoals={{
+                                            protein: goals.protein,
+                                            carbs: goals.carbs,
+                                            fats: goals.fats,
+                                        }}
+                                        delta={
+                                            meals.length > 0
+                                                ? `↑ ${Math.round(meals[0]?.totalCalories || 0)} since last meal`
+                                                : undefined
+                                        }
+                                    />
+                                </Animated.View>
 
-                        <Animated.View entering={FadeInDown.delay(80).duration(300)}>
-                            <QuickActionsGrid
-                                onLogMeal={() => router.push('/(modals)/add-meal')}
-                                onScanFood={() => router.push('/(modals)/barcode-scanner')}
-                                onSearchFood={() => router.push('/(modals)/food-search')}
-                                onDetectAi={() => router.push('/(modals)/ai-food-detect')}
-                            />
-                        </Animated.View>
+                                <Animated.View entering={FadeInDown.delay(80).duration(300)}>
+                                    <QuickActionsGrid
+                                        onLogMeal={() => router.push('/(modals)/add-meal')}
+                                        onScanFood={() => router.push('/(modals)/barcode-scanner')}
+                                        onSearchFood={() => router.push('/(modals)/food-search')}
+                                        onDetectAi={() => router.push('/(modals)/ai-food-detect')}
+                                    />
+                                </Animated.View>
 
-                        <Animated.View entering={FadeInDown.delay(120).duration(320)}>
-                            <MealSuggestionBanner
-                                visible={Boolean(suggestedType) && !isSuggestionDismissed}
-                                mealName={
-                                    suggestedType ? suggestedType[0].toUpperCase() + suggestedType.slice(1) : 'Meal'
-                                }
-                                targetCalories={Math.round(goals.calories / 4)}
-                                onLogMeal={() => router.push('/(modals)/add-meal')}
-                                onDismiss={() => setIsSuggestionDismissed(true)}
-                            />
-                        </Animated.View>
+                                <Animated.View entering={FadeInDown.delay(120).duration(320)}>
+                                    <MealSuggestionBanner
+                                        visible={Boolean(suggestedType) && !isSuggestionDismissed}
+                                        mealName={
+                                            suggestedType
+                                                ? suggestedType[0].toUpperCase() + suggestedType.slice(1)
+                                                : 'Meal'
+                                        }
+                                        targetCalories={Math.round(goals.calories / 4)}
+                                        onLogMeal={() => router.push('/(modals)/add-meal')}
+                                        onDismiss={() => setIsSuggestionDismissed(true)}
+                                    />
+                                </Animated.View>
 
-                        {meals.length > 0 ? (
-                            <Animated.View entering={FadeInDown.delay(140).duration(340)}>
-                                <AdherenceStrip percentage={adherence} />
-                            </Animated.View>
-                        ) : null}
+                                {meals.length > 0 ? (
+                                    <Animated.View entering={FadeInDown.delay(140).duration(340)}>
+                                        <AdherenceStrip percentage={adherence} />
+                                    </Animated.View>
+                                ) : null}
 
-                        <Animated.View entering={FadeInDown.delay(180).duration(360)}>
-                            <MealTimeline
-                                meals={meals as any}
-                                onEditMeal={() => Alert.alert('Coming soon', 'Meal editing is coming in phase 4.')}
-                                onDeleteMeal={() =>
-                                    Alert.alert('Coming soon', 'Meal delete flow is coming in phase 4.')
-                                }
-                            />
-                        </Animated.View>
+                                <Animated.View entering={FadeInDown.delay(180).duration(360)}>
+                                    <MealTimeline
+                                        meals={meals as any}
+                                        onEditMeal={() =>
+                                            Alert.alert('Coming soon', 'Meal editing is coming in phase 4.')
+                                        }
+                                        onDeleteMeal={() =>
+                                            Alert.alert('Coming soon', 'Meal delete flow is coming in phase 4.')
+                                        }
+                                    />
+                                </Animated.View>
+                            </>
+                        )}
                     </View>
                 </CollapsibleHeaderScrollView>
             </SafeAreaView>
