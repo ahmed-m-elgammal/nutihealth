@@ -88,7 +88,7 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
             goalWeight != null ? pTop + ((maxValue - goalWeight) / Math.max(1, maxValue - minValue)) * h : null;
 
         return { points: plotted, linePath: path, fillPath: area, goalY: computedGoalY };
-    }, [chartWidth, data, goalWeight, height]);
+    }, [chartWidth, data, goalWeight, height, isSkiaPathAvailable]);
 
     const selected = selectedIndex != null ? points[selectedIndex] : null;
 
