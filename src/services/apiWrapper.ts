@@ -1,5 +1,6 @@
 import { useUIStore } from '../store/uiStore';
 import { API_BASE_URL } from '../constants/api';
+import { API_KEY_HEADER, APP_API_KEY } from '../constants/security';
 
 /**
  * API Call Options
@@ -56,6 +57,10 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
         'Content-Type': 'application/json',
         ...((options?.headers as Record<string, string>) || {}),
     };
+
+    if (APP_API_KEY) {
+        headers[API_KEY_HEADER] = APP_API_KEY;
+    }
 
     // Get auth token from SecureStore (if available)
     // Note: SecureStore is async, but we'll load token in interceptor pattern later

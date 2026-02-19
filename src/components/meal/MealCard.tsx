@@ -1,15 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Trash2 } from 'lucide-react-native';
+import { View, Text } from 'react-native';
 import type Meal from '@database/models/Meal';
 
 interface MealCardProps {
     meal: Meal;
-    onEdit: () => void;
-    onDelete: () => void;
 }
 
-function MealCard({ meal, onEdit, onDelete }: MealCardProps) {
+function MealCard({ meal }: MealCardProps) {
     const time = new Date(meal.consumedAt).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
@@ -17,15 +14,12 @@ function MealCard({ meal, onEdit, onDelete }: MealCardProps) {
     });
 
     return (
-        <TouchableOpacity onPress={onEdit} className="mb-2 rounded-xl border border-gray-100 bg-white p-4">
+        <View className="mb-2 rounded-xl border border-gray-100 bg-white p-4">
             <View className="mb-2 flex-row items-start justify-between">
                 <View className="flex-1">
                     <Text className="text-base font-semibold text-gray-900">{meal.name}</Text>
                     <Text className="mt-1 text-xs text-gray-500">{time}</Text>
                 </View>
-                <TouchableOpacity onPress={onDelete} className="p-1">
-                    <Trash2 size={18} color="#EF4444" />
-                </TouchableOpacity>
             </View>
 
             {meal.notes && (
@@ -52,7 +46,7 @@ function MealCard({ meal, onEdit, onDelete }: MealCardProps) {
                     <Text className="text-xs text-gray-500">Fats</Text>
                 </View>
             </View>
-        </TouchableOpacity>
+        </View>
     );
 }
 

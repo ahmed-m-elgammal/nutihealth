@@ -1,7 +1,7 @@
-export * from './bmr';
-export * from './tdee';
+export * from '../calculations/bmr';
+export * from '../calculations/tdee';
 export * from './goals';
-export * from './macros';
+export * from '../calculations/macros';
 export * from './water';
 export {
     analyzeWeeklyProgress,
