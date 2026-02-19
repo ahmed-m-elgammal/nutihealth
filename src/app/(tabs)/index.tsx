@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -59,6 +59,14 @@ export default function HomeScreen() {
 
     const loggedMealTypes = new Set(meals.map((meal) => meal.mealType as MealType));
     const suggestedType = MEAL_ORDER.find((type) => !loggedMealTypes.has(type));
+
+    const handleEditMeal = useCallback(() => {
+        Alert.alert('Coming soon', 'Meal editing is coming in phase 4.');
+    }, []);
+
+    const handleDeleteMeal = useCallback(() => {
+        Alert.alert('Coming soon', 'Meal delete flow is coming in phase 4.');
+    }, []);
 
     return (
         <ScreenErrorBoundary screenName="home">
@@ -143,12 +151,8 @@ export default function HomeScreen() {
                                 <Animated.View entering={FadeInDown.delay(180).duration(360)}>
                                     <MealTimeline
                                         meals={meals as any}
-                                        onEditMeal={() =>
-                                            Alert.alert('Coming soon', 'Meal editing is coming in phase 4.')
-                                        }
-                                        onDeleteMeal={() =>
-                                            Alert.alert('Coming soon', 'Meal delete flow is coming in phase 4.')
-                                        }
+                                        onEditMeal={handleEditMeal}
+                                        onDeleteMeal={handleDeleteMeal}
                                     />
                                 </Animated.View>
                             </>
