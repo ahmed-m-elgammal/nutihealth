@@ -17,6 +17,11 @@ const DEFAULT_AI_RATE_LIMIT_MAX = 20;
 const DEFAULT_RECIPE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const DEFAULT_RECIPE_RATE_LIMIT_MAX = 30;
 const REQUEST_JSON_LIMIT = process.env.REQUEST_JSON_LIMIT || '6mb';
+const APP_API_KEY = process.env.APP_API_KEY;
+
+if (NODE_ENV === 'production' && !APP_API_KEY) {
+    throw new Error('APP_API_KEY is required in production.');
+}
 
 const parsePositiveInt = (value, fallback) => {
     const parsed = Number.parseInt(String(value || ''), 10);
@@ -92,6 +97,20 @@ app.use(
 );
 app.use(express.json({ limit: REQUEST_JSON_LIMIT }));
 
+const apiKeyAuthEnabled = NODE_ENV === 'production' || Boolean(APP_API_KEY);
+const requireAppApiKey = (req, res, next) => {
+    if (!apiKeyAuthEnabled || req.path === '/api/healthz' || req.method === 'OPTIONS') {
+        return next();
+    }
+
+    const providedApiKey = req.header('x-api-key');
+    if (!providedApiKey || providedApiKey !== APP_API_KEY) {
+        return sendError(res, 401, 'Missing or invalid API key.', 'UNAUTHORIZED');
+    }
+
+    return next();
+};
+
 app.get('/api/healthz', (_req, res) => {
     res.json({
         status: 'ok',
@@ -100,6 +119,7 @@ app.get('/api/healthz', (_req, res) => {
         security: {
             cors: allowedOrigins.size > 0 || NODE_ENV !== 'production',
             rateLimit: true,
+            apiKeyAuth: apiKeyAuthEnabled,
         },
     });
 });
@@ -122,6 +142,7 @@ const recipeLimiter = createLimiter(
 );
 
 app.use(limiter);
+app.use('/api', requireAppApiKey);
 app.use('/api/recipes', recipeLimiter, recipeImportRoutes);
 
 // --- Groq API Proxy ---

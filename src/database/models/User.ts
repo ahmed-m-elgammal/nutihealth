@@ -1,6 +1,6 @@
 import { Model } from '@nozbe/watermelondb';
-import { field, readonly, date, json, writer } from '@nozbe/watermelondb/decorators';
-import { ActivityLevel } from '../../utils/nutrition/tdee';
+import { field, readonly, date, json as jsonField, writer } from '@nozbe/watermelondb/decorators';
+import { ActivityLevel } from '../../utils/calculations/tdee';
 import { Goal } from '../../utils/nutrition/goals';
 import { calculateNutritionTargets } from '../../utils/nutrition/clinical';
 
@@ -46,9 +46,9 @@ export default class User extends Model {
     @field('protein_target') proteinTarget: number;
     @field('carbs_target') carbsTarget: number;
     @field('fats_target') fatsTarget: number;
-    @json('stats', (json) => json) stats: UserStats;
-    @json('preferences', (json) => json) preferences: UserPreferences;
-    @json('workout_preferences', (json) => json) workoutPreferences: any; // key-value store for now
+    @jsonField('stats', (value) => value) stats: UserStats;
+    @jsonField('preferences', (value) => value) preferences: UserPreferences;
+    @jsonField('workout_preferences', (value) => value) workoutPreferences: any; // key-value store for now
     @field('onboarding_completed') onboardingCompleted: boolean;
     @readonly @date('created_at') createdAt: Date;
     @readonly @date('updated_at') updatedAt: Date;
@@ -57,7 +57,7 @@ export default class User extends Model {
      * Updates user profile and automatically recalculates nutritional targets
      */
     @writer async updateProfile(updates: Partial<User>) {
-        await this.update(record => {
+        await this.update((record) => {
             if (updates.name !== undefined) record.name = updates.name;
             if (updates.email !== undefined) record.email = updates.email;
             if (updates.age !== undefined) record.age = updates.age;

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { handleError } from '../../utils/errors';
 import { API_BASE_URL } from '../../constants/api';
-
+import { API_KEY_HEADER, APP_API_KEY } from '../../constants/security';
 
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
@@ -22,9 +22,14 @@ export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
         }
 
         // Call via backend proxy
-        const response = await axios.post(`${API_BASE_URL}/chat`, { messages: sanitizedMessages }, {
-            timeout: 30000,
-        });
+        const response = await axios.post(
+            `${API_BASE_URL}/chat`,
+            { messages: sanitizedMessages },
+            {
+                timeout: 30000,
+                headers: APP_API_KEY ? { [API_KEY_HEADER]: APP_API_KEY } : undefined,
+            },
+        );
 
         const content = response?.data?.choices?.[0]?.message?.content;
         if (typeof content !== 'string' || content.trim().length === 0) {
