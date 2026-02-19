@@ -4,7 +4,7 @@ This file tracks implementation closure status against the refactor plan and is 
 
 ## Overall answer
 
-All eight targeted phases are now implemented on this branch.
+All nine targeted phases are now implemented on this branch.
 
 ## Phase-by-phase status
 
@@ -102,3 +102,14 @@ Implemented:
 - Added `PrepTab` with ingredient checklist, prep progress, and prep-time estimate.
 - Added `TemplateLibrary` with horizontal template cards, preview, and long-press quick activation flow.
 - Rebuilt `src/app/(tabs)/plans.tsx` to orchestrate active plan hero, feature tabs, and template activation UX.
+
+### Phase 9: Profile & Settings Redesign
+
+**Status:** Done
+
+Implemented:
+
+- Added `ProfileHeader` hero with gradient, avatar, member-since metadata, key body stats, and streak row.
+- Added `SettingsList` grouped sections with Android-style rows (navigation/toggle/badge variants and dividers).
+- Rebuilt `src/app/(tabs)/profile.tsx` to use the new header + grouped settings architecture.
+- Added dedicated `src/app/profile/edit.tsx` edit-profile screen with Android-style selectable height/weight pickers, goal selector, validation, and save/recalculate flow.
