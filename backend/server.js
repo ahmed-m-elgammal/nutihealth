@@ -63,6 +63,49 @@ const sendError = (res, statusCode, message, code = 'REQUEST_ERROR') => {
     });
 };
 
+const ALLOWED_IMAGE_PREFIXES = [
+    'data:image/jpeg;base64,',
+    'data:image/jpg;base64,',
+    'data:image/png;base64,',
+    'data:image/webp;base64,',
+];
+const hasValidImagePrefix = (image) => ALLOWED_IMAGE_PREFIXES.some((prefix) => image.toLowerCase().startsWith(prefix));
+
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ACCESS_TOKEN;
+
+const syncableTables = new Set([
+    'meals',
+    'foods',
+    'custom_foods',
+    'water_logs',
+    'water_targets',
+    'workouts',
+    'workout_exercises',
+    'exercise_sets',
+    'recipes',
+    'meal_plans',
+    'habits',
+    'habit_logs',
+    'weight_logs',
+    'users',
+]);
+
+const supabaseRestClient =
+    SUPABASE_URL && SUPABASE_SERVICE_KEY
+        ? axios.create({
+              baseURL: `${SUPABASE_URL.replace(/\/+$/, '')}/rest/v1`,
+              headers: {
+                  apikey: SUPABASE_SERVICE_KEY,
+                  Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+                  'Content-Type': 'application/json',
+                  Prefer: 'return=minimal',
+              },
+              timeout: 30000,
+          })
+        : null;
+
 const createLimiter = (windowMs, max, message) =>
     rateLimit({
         windowMs,
@@ -210,11 +253,11 @@ app.post('/api/analyze-food', aiLimiter, async (req, res) => {
         const { image } = req.body; // Expecting base64 image
         const isValidImage = typeof image === 'string' && image.trim().length > 0 && image.length <= 5_000_000;
 
-        if (!isValidImage) {
+        if (!isValidImage || !hasValidImagePrefix(image)) {
             return sendError(
                 res,
                 400,
-                'Invalid image payload. Provide a base64 image string.',
+                'Invalid image payload. Expected a data URL image prefix (for example data:image/jpeg;base64,).',
                 'INVALID_IMAGE_PAYLOAD',
             );
         }
@@ -271,6 +314,94 @@ app.post('/api/analyze-food', aiLimiter, async (req, res) => {
         const message = error.response?.data?.error || 'Failed to analyze food image';
         sendError(res, status, message, 'HF_ERROR');
     }
+});
+
+// --- Supabase Sync Proxy ---
+app.post('/api/sync/:table', async (req, res) => {
+    const { table } = req.params;
+    const { recordId, operation, data, timestamp } = req.body || {};
+
+    if (!syncableTables.has(table)) {
+        return sendError(res, 400, `Table ${table} is not syncable.`, 'SYNC_TABLE_NOT_ALLOWED');
+    }
+
+    if (!supabaseRestClient) {
+        return sendError(res, 500, 'Supabase sync is not configured on the backend.', 'SYNC_NOT_CONFIGURED');
+    }
+
+    if (!recordId || !['create', 'update'].includes(operation)) {
+        return sendError(
+            res,
+            400,
+            'Sync payload must include recordId and operation=create|update.',
+            'INVALID_SYNC_PAYLOAD',
+        );
+    }
+
+    const payload = {
+        id: recordId,
+        ...(data && typeof data === 'object' ? data : {}),
+        updated_at: typeof timestamp === 'number' ? new Date(timestamp).toISOString() : new Date().toISOString(),
+    };
+
+    try {
+        await supabaseRestClient.post(`/${table}?on_conflict=id`, payload, {
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        });
+    } catch (error) {
+        return sendError(res, 502, error.response?.data?.message || error.message, 'SUPABASE_SYNC_ERROR');
+    }
+
+    return res.json({ success: true, table, recordId });
+});
+
+app.delete('/api/sync/:table/:recordId', async (req, res) => {
+    const { table, recordId } = req.params;
+
+    if (!syncableTables.has(table)) {
+        return sendError(res, 400, `Table ${table} is not syncable.`, 'SYNC_TABLE_NOT_ALLOWED');
+    }
+
+    if (!supabaseRestClient) {
+        return sendError(res, 500, 'Supabase sync is not configured on the backend.', 'SYNC_NOT_CONFIGURED');
+    }
+
+    try {
+        await supabaseRestClient.delete(`/${table}?id=eq.${encodeURIComponent(recordId)}`);
+    } catch (error) {
+        return sendError(res, 502, error.response?.data?.message || error.message, 'SUPABASE_SYNC_ERROR');
+    }
+
+    return res.json({ success: true, table, recordId });
+});
+
+app.get('/api/sync/changes', async (req, res) => {
+    const sinceRaw = req.query.since;
+    const since = Number.parseInt(String(sinceRaw || '0'), 10) || 0;
+
+    if (!supabaseRestClient) {
+        return sendError(res, 500, 'Supabase sync is not configured on the backend.', 'SYNC_NOT_CONFIGURED');
+    }
+
+    const sinceIso = new Date(since).toISOString();
+    const changes = {};
+    for (const table of syncableTables) {
+        try {
+            const response = await supabaseRestClient.get(
+                `/${table}?select=*&updated_at=gte.${encodeURIComponent(sinceIso)}&limit=500`,
+            );
+            changes[table] = Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            return sendError(
+                res,
+                502,
+                `Failed to read ${table}: ${error.response?.data?.message || error.message}`,
+                'SUPABASE_SYNC_ERROR',
+            );
+        }
+    }
+
+    return res.json({ success: true, changes, since });
 });
 
 // --- Weather API Proxy ---

@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
-import { useDietMutations, useDietTemplates, useActiveDiet } from '../../query/queries/useDiets';
+import { useDietTemplates, useActiveDiet } from '../../query/queries/useDiets';
+import { useDietMutations } from '../../query/mutations/useDietMutations';
 import { useUserStore } from '../../store/userStore';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
 import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
@@ -18,6 +19,7 @@ import TemplateLibrary from '../../components/plans/TemplateLibrary';
 import { useUIStore } from '../../store/uiStore';
 import { ProgressSkeleton } from '../../components/skeletons/ScreenSkeletons';
 import { NoPlanIllustration } from '../../components/illustrations/EmptyStateIllustrations';
+import { useColors } from '../../hooks/useColors';
 
 type TabType = 'Meals' | 'Carb Cycle' | 'Prep';
 
@@ -25,6 +27,7 @@ export default function PlansScreen() {
     const router = useRouter();
     const user = useUserStore((state) => state.user);
     const showToast = useUIStore((state) => state.showToast);
+    const colors = useColors();
 
     const [activeTab, setActiveTab] = useState<TabType>('Meals');
     const [ingredients, setIngredients] = useState([
@@ -146,9 +149,20 @@ export default function PlansScreen() {
                 name: template.name,
                 type: template.type,
                 calories: `${template.calorieTarget} kcal target`,
-                color: ['#22c55e', '#0ea5e9', '#f59e0b', '#8b5cf6'][template.name.length % 4],
+                color: [
+                    colors.brand.semantic.success,
+                    colors.brand.primary[500],
+                    colors.brand.semantic.warning,
+                    colors.brand.accent[500],
+                ][template.name.length % 4],
             })),
-        [templates],
+        [
+            colors.brand.primary,
+            colors.brand.accent[500],
+            colors.brand.semantic.success,
+            colors.brand.semantic.warning,
+            templates,
+        ],
     );
 
     const today = format(new Date(), 'EEEE');
@@ -162,13 +176,13 @@ export default function PlansScreen() {
                             <View>
                                 <Animated.Text
                                     entering={FadeIn.duration(220)}
-                                    style={{ fontSize: 28, fontWeight: '800', color: '#0f172a' }}
+                                    style={{ fontSize: 28, fontWeight: '800', color: colors.text.primary }}
                                 >
                                     Plans
                                 </Animated.Text>
                                 <Animated.Text
                                     entering={FadeIn.delay(80).duration(240)}
-                                    style={{ marginTop: 4, color: '#64748b' }}
+                                    style={{ marginTop: 4, color: colors.text.secondary }}
                                 >
                                     Active diet, carb cycle, prep and templates
                                 </Animated.Text>
@@ -254,7 +268,7 @@ export default function PlansScreen() {
                                             text: 'Activate',
                                             onPress: () => {
                                                 if (!user?.id) return;
-                                                activateDiet.mutate({ userId: user.id, dietId: template.id });
+                                                activateDiet(user.id, template.id);
                                                 showToast('success', `${template.name} activated`);
                                             },
                                         },
@@ -263,7 +277,7 @@ export default function PlansScreen() {
                                 }}
                                 onTemplateLongPress={(template) => {
                                     if (!user?.id) return;
-                                    activateDiet.mutate({ userId: user.id, dietId: template.id });
+                                    activateDiet(user.id, template.id);
                                     showToast('success', `${template.name} activated`);
                                 }}
                             />
