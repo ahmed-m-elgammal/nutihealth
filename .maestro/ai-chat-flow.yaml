@@ -1,0 +1,8 @@
+appId: com.nutrihealth.app
+---
+- launchApp
+- tapOn: "Main"
+- tapOn: "AI Chat"
+- inputText: "How many calories should I eat?"
+- tapOn: "Send"
+- assertVisible: "calories"

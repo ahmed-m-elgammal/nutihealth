@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Activity, Flame, Target, Zap } from 'lucide-react-native';
+import { CalendarDays, Droplets, Flame, UtensilsCrossed, Zap } from 'lucide-react-native';
 import { useUserStore } from '../../store/userStore';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
-import { useCalorieHistory, useProgressInsights, useWeightHistory } from '../../query/queries/useProgress';
+import { useCalorieHistory, useWeightHistory } from '../../query/queries/useProgress';
+import { useProgressAggregates } from '../../query/queries/useProgressAggregates';
 import PeriodSelector from '../../components/progress/PeriodSelector';
 import WeightChart from '../../components/progress/WeightChart';
 import CalorieHistoryChart from '../../components/progress/CalorieHistoryChart';
@@ -38,7 +39,7 @@ export default function ProgressScreen() {
 
     const { data: weightHistory = [], isLoading: isLoadingWeight } = useWeightHistory(user?.id);
     const { data: calorieHistory = [], isLoading: isLoadingCalories } = useCalorieHistory(user?.id);
-    const { data: insights, isLoading: isLoadingInsights } = useProgressInsights(user?.id);
+    const { data: aggregates, isLoading: isLoadingAggregates } = useProgressAggregates(user?.id);
 
     const size = takeByPeriod(period);
 
@@ -79,37 +80,48 @@ export default function ProgressScreen() {
 
     const macroTotals = useMemo(
         () => ({
-            protein: Math.round((insights?.averageProtein || 0) * (size / 7)),
-            carbs: Math.round((insights?.averageCarbs || 0) * (size / 7)),
-            fats: Math.round((insights?.averageFats || 0) * (size / 7)),
+            protein: Math.round((aggregates.averageMacrosLast7Days.protein || 0) * (size / 7)),
+            carbs: Math.round((aggregates.averageMacrosLast7Days.carbs || 0) * (size / 7)),
+            fats: Math.round((aggregates.averageMacrosLast7Days.fats || 0) * (size / 7)),
         }),
-        [insights?.averageCarbs, insights?.averageFats, insights?.averageProtein, size],
+        [
+            aggregates.averageMacrosLast7Days.carbs,
+            aggregates.averageMacrosLast7Days.fats,
+            aggregates.averageMacrosLast7Days.protein,
+            size,
+        ],
     );
 
     const stats = [
         {
-            label: 'Current streak',
-            value: insights?.currentMealStreakDays ?? 0,
-            icon: <Flame size={14} color={colors.text.inverse} />,
+            label: 'Total meals',
+            value: aggregates.totalMealsLogged,
+            icon: <UtensilsCrossed size={14} color={colors.text.inverse} />,
             color: colors.brand.accent[500],
         },
         {
-            label: 'Adherence',
-            value: `${Math.round(insights?.adherenceScore || 0)}%`,
-            icon: <Target size={14} color={colors.text.inverse} />,
+            label: 'Meals this week',
+            value: aggregates.mealsThisWeek,
+            icon: <CalendarDays size={14} color={colors.text.inverse} />,
             color: colors.brand.semantic.success,
         },
         {
-            label: 'Hydration hit rate',
-            value: `${Math.round(insights?.hydrationGoalRate || 0)}%`,
+            label: 'Current streak',
+            value: `${aggregates.currentStreak} day${aggregates.currentStreak === 1 ? '' : 's'}`,
+            icon: <Flame size={14} color={colors.text.inverse} />,
+            color: colors.brand.primary[700],
+        },
+        {
+            label: 'Avg calories (7d)',
+            value: `${aggregates.averageCaloriesLast7Days} kcal`,
             icon: <Zap size={14} color={colors.text.inverse} />,
             color: colors.brand.semantic.info,
         },
         {
-            label: 'Workouts this week',
-            value: insights?.workoutsThisWeek || 0,
-            icon: <Activity size={14} color={colors.text.inverse} />,
-            color: colors.brand.primary[700],
+            label: 'Avg water (7d)',
+            value: `${aggregates.averageWaterLast7Days} ml`,
+            icon: <Droplets size={14} color={colors.text.inverse} />,
+            color: colors.brand.primary[500],
         },
     ];
 
@@ -149,26 +161,41 @@ export default function ProgressScreen() {
                     headerHeight={160}
                     contentContainerStyle={{ paddingHorizontal: 16 }}
                 >
-                    {isLoadingWeight || isLoadingCalories || isLoadingInsights ? (
+                    {isLoadingWeight || isLoadingCalories || isLoadingAggregates ? (
                         <ProgressSkeleton />
-                    ) : weightData.length < 2 || calorieData.length < 2 ? (
-                        <EmptyState
-                            illustration={<SeedlingChartIllustration />}
-                            title="Not enough progress data yet"
-                            message="Log meals and weigh-ins for a few days to unlock charts and trend insights."
-                        />
                     ) : (
                         <>
-                            <WeightChart data={weightData} goalWeight={user?.targetWeight} period={period} />
-                            <CalorieHistoryChart data={calorieData} period={period} />
+                            {aggregates.totalMealsLogged === 0 ? (
+                                <EmptyState
+                                    illustration={<SeedlingChartIllustration />}
+                                    title="Start your progress journey"
+                                    message="Log your first meal to unlock streaks, averages, and personalized progress insights."
+                                />
+                            ) : null}
+
+                            <View style={{ marginTop: 12 }}>
+                                <StatsStrip stats={stats} />
+                            </View>
+
                             <MacroRingChart
                                 macros={macroTotals}
                                 totalCalories={Math.round(calorieData.reduce((sum, d) => sum + d.consumed, 0))}
                             />
 
-                            <View style={{ marginTop: 12 }}>
-                                <StatsStrip stats={stats} />
-                            </View>
+                            {weightData.length >= 2 ? (
+                                <WeightChart data={weightData} goalWeight={user?.targetWeight} period={period} />
+                            ) : null}
+                            {calorieData.length >= 2 ? (
+                                <CalorieHistoryChart data={calorieData} period={period} />
+                            ) : null}
+
+                            {weightData.length < 2 || calorieData.length < 2 ? (
+                                <EmptyState
+                                    illustration={<SeedlingChartIllustration />}
+                                    title="Not enough chart data yet"
+                                    message="Keep logging for a few days to reveal chart trends."
+                                />
+                            ) : null}
 
                             <BodyMeasurements
                                 entries={measurementEntries}

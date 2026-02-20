@@ -1,0 +1,10 @@
+appId: com.nutrihealth.app
+---
+- launchApp
+- tapOn: "Meals"
+- tapOn: "Add Meal"
+- tapOn: "Search Food"
+- inputText: "banana"
+- tapOn: "banana"
+- tapOn: "Add"
+- assertVisible: "banana"

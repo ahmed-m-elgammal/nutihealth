@@ -1,0 +1,6 @@
+appId: com.nutrihealth.app
+---
+- launchApp
+- tapOn: "Water"
+- tapOn: "250 ml"
+- assertVisible: "250"

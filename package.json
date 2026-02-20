@@ -10,7 +10,8 @@
         "test": "jest",
         "lint": "eslint .",
         "lint:ci": "eslint . --max-warnings=0",
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "test:e2e:maestro": "maestro test .maestro"
     },
     "dependencies": {
         "@expo-google-fonts/inter": "^0.4.2",

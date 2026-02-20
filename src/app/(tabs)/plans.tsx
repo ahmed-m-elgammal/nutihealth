@@ -20,6 +20,7 @@ import { useUIStore } from '../../store/uiStore';
 import { ProgressSkeleton } from '../../components/skeletons/ScreenSkeletons';
 import { NoPlanIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 import { useColors } from '../../hooks/useColors';
+import { useTranslation } from 'react-i18next';
 
 type TabType = 'Meals' | 'Carb Cycle' | 'Prep';
 
@@ -28,6 +29,7 @@ export default function PlansScreen() {
     const user = useUserStore((state) => state.user);
     const showToast = useUIStore((state) => state.showToast);
     const colors = useColors();
+    const { t } = useTranslation();
 
     const [activeTab, setActiveTab] = useState<TabType>('Meals');
     const [ingredients, setIngredients] = useState([
@@ -178,13 +180,13 @@ export default function PlansScreen() {
                                     entering={FadeIn.duration(220)}
                                     style={{ fontSize: 28, fontWeight: '800', color: colors.text.primary }}
                                 >
-                                    Plans
+                                    {t('plans.title')}
                                 </Animated.Text>
                                 <Animated.Text
                                     entering={FadeIn.delay(80).duration(240)}
                                     style={{ marginTop: 4, color: colors.text.secondary }}
                                 >
-                                    Active diet, carb cycle, prep and templates
+                                    {t('plans.subtitle')}
                                 </Animated.Text>
                             </View>
                         </View>

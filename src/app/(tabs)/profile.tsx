@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { ProfileSkeleton } from '../../components/skeletons/ScreenSkeletons';
 import { triggerHaptic } from '../../utils/haptics';
 import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 import { useColors } from '../../hooks/useColors';
+import i18n, { changeAppLanguage } from '../../i18n';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -24,6 +25,7 @@ export default function ProfileScreen() {
     const { isDark, setThemeMode } = useTheme();
     const showToast = useUIStore((state) => state.showToast);
     const colors = useColors();
+    const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
 
     const profileUser = {
         name: user?.name || 'Guest User',
@@ -108,8 +110,82 @@ export default function ProfileScreen() {
                         key: 'language',
                         icon: <Globe size={17} color={colors.text.secondary} />,
                         label: 'Language',
-                        badge: (user?.preferences?.language || 'en').toUpperCase(),
-                        onPress: () => showToast('info', 'Language picker is temporarily locked in this build.'),
+                        badge: i18n.language.toUpperCase(),
+                        onPress: () => {
+                            if (isSwitchingLanguage) return;
+                            Alert.alert('Select language', 'Choose app language', [
+                                {
+                                    text: 'English',
+                                    onPress: () => {
+                                        setIsSwitchingLanguage(true);
+                                        changeAppLanguage('en')
+                                            .then(() => {
+                                                showToast('success', 'Language changed to English');
+                                                updateUser({
+                                                    preferences: {
+                                                        ...(user?.preferences || {
+                                                            allergies: [],
+                                                            dietary_restrictions: [],
+                                                            theme: 'auto',
+                                                            notifications_enabled: true,
+                                                            language: 'en',
+                                                        }),
+                                                        language: 'en',
+                                                    },
+                                                }).catch(() => undefined);
+                                            })
+                                            .finally(() => setIsSwitchingLanguage(false));
+                                    },
+                                },
+                                {
+                                    text: 'العربية',
+                                    onPress: () => {
+                                        setIsSwitchingLanguage(true);
+                                        changeAppLanguage('ar')
+                                            .then(() => {
+                                                showToast('success', 'تم تغيير اللغة إلى العربية');
+                                                updateUser({
+                                                    preferences: {
+                                                        ...(user?.preferences || {
+                                                            allergies: [],
+                                                            dietary_restrictions: [],
+                                                            theme: 'auto',
+                                                            notifications_enabled: true,
+                                                            language: 'en',
+                                                        }),
+                                                        language: 'ar',
+                                                    },
+                                                }).catch(() => undefined);
+                                            })
+                                            .finally(() => setIsSwitchingLanguage(false));
+                                    },
+                                },
+                                {
+                                    text: 'Español',
+                                    onPress: () => {
+                                        setIsSwitchingLanguage(true);
+                                        changeAppLanguage('es')
+                                            .then(() => {
+                                                showToast('success', 'Idioma cambiado a español');
+                                                updateUser({
+                                                    preferences: {
+                                                        ...(user?.preferences || {
+                                                            allergies: [],
+                                                            dietary_restrictions: [],
+                                                            theme: 'auto',
+                                                            notifications_enabled: true,
+                                                            language: 'en',
+                                                        }),
+                                                        language: 'es',
+                                                    },
+                                                }).catch(() => undefined);
+                                            })
+                                            .finally(() => setIsSwitchingLanguage(false));
+                                    },
+                                },
+                                { text: 'Cancel', style: 'cancel' },
+                            ]);
+                        },
                     },
                 ],
             },
