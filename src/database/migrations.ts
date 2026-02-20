@@ -1,4 +1,4 @@
-import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations';
+import { addColumns, createTable, schemaMigrations, unsafeExecuteSql } from '@nozbe/watermelondb/Schema/migrations';
 
 export const migrations = schemaMigrations({
     migrations: [
@@ -166,6 +166,14 @@ export const migrations = schemaMigrations({
         {
             toVersion: 6,
             steps: [],
+        },
+        {
+            toVersion: 7,
+            steps: [
+                unsafeExecuteSql('CREATE INDEX IF NOT EXISTS meals_consumed_at_idx ON meals (consumed_at);'),
+                unsafeExecuteSql('CREATE INDEX IF NOT EXISTS water_logs_logged_at_idx ON water_logs (logged_at);'),
+                unsafeExecuteSql('CREATE INDEX IF NOT EXISTS foods_created_at_idx ON foods (created_at);'),
+            ],
         },
     ],
 });

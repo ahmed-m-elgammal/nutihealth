@@ -90,26 +90,26 @@ export default function ProgressScreen() {
         {
             label: 'Current streak',
             value: insights?.currentMealStreakDays ?? 0,
-            icon: <Flame size={14} color="#fff" />,
-            color: '#f97316',
+            icon: <Flame size={14} color={colors.text.inverse} />,
+            color: colors.brand.accent[500],
         },
         {
             label: 'Adherence',
             value: `${Math.round(insights?.adherenceScore || 0)}%`,
-            icon: <Target size={14} color="#fff" />,
-            color: '#16a34a',
+            icon: <Target size={14} color={colors.text.inverse} />,
+            color: colors.brand.semantic.success,
         },
         {
             label: 'Hydration hit rate',
             value: `${Math.round(insights?.hydrationGoalRate || 0)}%`,
-            icon: <Zap size={14} color="#fff" />,
-            color: '#3b82f6',
+            icon: <Zap size={14} color={colors.text.inverse} />,
+            color: colors.brand.semantic.info,
         },
         {
             label: 'Workouts this week',
             value: insights?.workoutsThisWeek || 0,
-            icon: <Activity size={14} color="#fff" />,
-            color: '#7c3aed',
+            icon: <Activity size={14} color={colors.text.inverse} />,
+            color: colors.brand.primary[700],
         },
     ];
 

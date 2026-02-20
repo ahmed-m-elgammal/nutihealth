@@ -16,12 +16,14 @@ import { useTheme } from '../../hooks/useTheme';
 import { ProfileSkeleton } from '../../components/skeletons/ScreenSkeletons';
 import { triggerHaptic } from '../../utils/haptics';
 import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
+import { useColors } from '../../hooks/useColors';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const { user, logout, updateUser } = useUserStore();
     const { isDark, setThemeMode } = useTheme();
     const showToast = useUIStore((state) => state.showToast);
+    const colors = useColors();
 
     const profileUser = {
         name: user?.name || 'Guest User',
@@ -48,7 +50,7 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'edit-profile',
-                        icon: <UserIcon size={17} color="#334155" />,
+                        icon: <UserIcon size={17} color={colors.text.secondary} />,
                         label: 'Edit Profile',
                         subtitle: 'Name, email, body metrics and goals',
                         onPress: () => router.push('/profile/edit'),
@@ -56,7 +58,7 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'privacy',
-                        icon: <ShieldCheck size={17} color="#334155" />,
+                        icon: <ShieldCheck size={17} color={colors.text.secondary} />,
                         label: 'Privacy & Security',
                         subtitle: 'Control account and data preferences',
                         onPress: () => showToast('info', 'Privacy controls are available in the next update.'),
@@ -69,7 +71,7 @@ export default function ProfileScreen() {
                     {
                         type: 'toggle' as const,
                         key: 'theme-dark',
-                        icon: <Moon size={17} color="#334155" />,
+                        icon: <Moon size={17} color={colors.text.secondary} />,
                         label: 'Dark Mode',
                         value: isDark,
                         onToggle: (enabled: boolean) => setThemeMode(enabled ? 'dark' : 'light'),
@@ -77,7 +79,7 @@ export default function ProfileScreen() {
                     {
                         type: 'toggle' as const,
                         key: 'notifications',
-                        icon: <Bell size={17} color="#334155" />,
+                        icon: <Bell size={17} color={colors.text.secondary} />,
                         label: 'Smart Reminders',
                         value: Boolean(user?.preferences?.notifications_enabled),
                         onToggle: (enabled: boolean) => {
@@ -104,7 +106,7 @@ export default function ProfileScreen() {
                     {
                         type: 'badge' as const,
                         key: 'language',
-                        icon: <Globe size={17} color="#334155" />,
+                        icon: <Globe size={17} color={colors.text.secondary} />,
                         label: 'Language',
                         badge: (user?.preferences?.language || 'en').toUpperCase(),
                         onPress: () => showToast('info', 'Language picker is temporarily locked in this build.'),
@@ -117,7 +119,7 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'backup',
-                        icon: <Download size={17} color="#334155" />,
+                        icon: <Download size={17} color={colors.text.secondary} />,
                         label: 'Export Backup',
                         subtitle: 'Save all records to a file',
                         onPress: () => {
@@ -127,7 +129,7 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'restore',
-                        icon: <Download size={17} color="#334155" />,
+                        icon: <Download size={17} color={colors.text.secondary} />,
                         label: 'Restore Backup',
                         subtitle: 'Load a backup from storage',
                         onPress: () => {
@@ -137,7 +139,7 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'logout',
-                        icon: <LogOut size={17} color="#dc2626" />,
+                        icon: <LogOut size={17} color={colors.brand.semantic.error} />,
                         label: 'Log Out',
                         subtitle: 'Sign out from this device',
                         onPress: () => {
@@ -157,7 +159,18 @@ export default function ProfileScreen() {
                 ],
             },
         ],
-        [isDark, logout, router, setThemeMode, showToast, updateUser, user?.id, user?.preferences],
+        [
+            colors.brand.semantic.error,
+            colors.text.secondary,
+            isDark,
+            logout,
+            router,
+            setThemeMode,
+            showToast,
+            updateUser,
+            user?.id,
+            user?.preferences,
+        ],
     );
 
     return (
