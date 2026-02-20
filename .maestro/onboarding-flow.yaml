@@ -1,0 +1,13 @@
+appId: com.nutrihealth.app
+---
+- launchApp
+- assertVisible: "Welcome"
+- tapOn: "Get Started"
+- assertVisible: "Tell us about yourself"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- assertVisible: "Main"

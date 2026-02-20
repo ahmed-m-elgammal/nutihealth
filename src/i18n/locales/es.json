@@ -164,5 +164,18 @@
     },
     "common": {
         "tryAgain": "Inténtalo de nuevo."
+    },
+    "tabs": {
+        "main": "Inicio",
+        "meals": "Comidas",
+        "workouts": "Entrenos",
+        "goalsPlans": "Metas y Planes",
+        "water": "Agua",
+        "progress": "Progreso",
+        "profile": "Perfil"
+    },
+    "plans": {
+        "title": "Metas y Planes",
+        "subtitle": "Planes dietéticos por objetivos, ciclado de carbohidratos, preparación y plantillas"
     }
 }

@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { FloatingTabBar } from '../../components/navigation/FloatingTabBar';
 
 const renderTabBar = (props: Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0]) => (
@@ -7,6 +8,8 @@ const renderTabBar = (props: Parameters<NonNullable<React.ComponentProps<typeof 
 );
 
 export default function TabLayout() {
+    const { t } = useTranslation();
+
     return (
         <Tabs
             screenOptions={{
@@ -14,13 +17,13 @@ export default function TabLayout() {
             }}
             tabBar={renderTabBar}
         >
-            <Tabs.Screen name="index" options={{ title: 'Main' }} />
-            <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
-            <Tabs.Screen name="workouts" options={{ title: 'Workouts' }} />
-            <Tabs.Screen name="plans" options={{ title: 'Plans' }} />
-            <Tabs.Screen name="water" options={{ title: 'Water' }} />
-            <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
-            <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+            <Tabs.Screen name="index" options={{ title: t('tabs.main') }} />
+            <Tabs.Screen name="meals" options={{ title: t('tabs.meals') }} />
+            <Tabs.Screen name="workouts" options={{ title: t('tabs.workouts') }} />
+            <Tabs.Screen name="plans" options={{ title: t('tabs.goalsPlans') }} />
+            <Tabs.Screen name="water" options={{ title: t('tabs.water') }} />
+            <Tabs.Screen name="progress" options={{ title: t('tabs.progress') }} />
+            <Tabs.Screen name="profile" options={{ title: t('tabs.profile') }} />
         </Tabs>
     );
 }

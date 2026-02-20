@@ -15,7 +15,7 @@ import { useUserStore } from '../store/userStore';
 import { initializeStorage } from '../utils/storage';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '../database';
-import '../i18n';
+import { initializeI18n } from '../i18n';
 import '../../global.css';
 import { registerForPushNotificationsAsync, scheduleAdaptiveReminders } from '../services/notifications';
 import RootErrorBoundary from '../components/errors/RootErrorBoundary';
@@ -91,6 +91,14 @@ function RootNavigation() {
                     devLog('[App] ✓ Storage initialized');
                 } catch (storageError) {
                     console.error('[App] Storage initialization failed (non-fatal):', storageError);
+                }
+
+                devLog('[App] Initializing i18n...');
+                try {
+                    await initializeI18n();
+                    devLog('[App] ✓ i18n initialized');
+                } catch (i18nError) {
+                    console.warn('[App] ⚠ i18n initialization fallback to English:', i18nError);
                 }
 
                 devLog('[App] Loading user data...');

@@ -164,5 +164,18 @@
     },
     "common": {
         "tryAgain": "Please try again."
+    },
+    "tabs": {
+        "main": "Main",
+        "meals": "Meals",
+        "workouts": "Workouts",
+        "goalsPlans": "Goals & Plans",
+        "water": "Water",
+        "progress": "Progress",
+        "profile": "Profile"
+    },
+    "plans": {
+        "title": "Goals & Plans",
+        "subtitle": "Goal-based diet plans, carb cycling, prep, and templates"
     }
 }
