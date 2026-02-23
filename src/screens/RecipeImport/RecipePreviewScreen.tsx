@@ -6,13 +6,9 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import RecipePreviewCard from '../../components/RecipeImport/RecipePreviewCard';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { useMealStore } from '../../store/mealStore';
+import { useMealMutations } from '../../query/mutations/useMealMutations';
 import { useUIStore } from '../../store/uiStore';
-import {
-    importRecipeFromUrl,
-    mapImportErrorToMessageKey,
-    RecipeImportError,
-} from '../../services/recipeImportService';
+import { importRecipeFromUrl, mapImportErrorToMessageKey, RecipeImportError } from '../../services/recipeImportService';
 import {
     calculateIngredientSelectionRatio,
     calculateNutritionForServings,
@@ -32,7 +28,7 @@ export default function RecipePreviewScreen() {
     const params = useLocalSearchParams<{ url?: string }>();
     const { t } = useTranslation();
     const showToast = useUIStore((state) => state.showToast);
-    const { addMeal } = useMealStore();
+    const { createMeal } = useMealMutations();
 
     const [recipe, setRecipe] = useState<ImportedRecipe | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -124,7 +120,7 @@ export default function RecipePreviewScreen() {
                 .map((ingredient) => ingredient.name)
                 .join(', ');
 
-            await addMeal({
+            await createMeal({
                 name: locale === 'ar' ? recipe.titleAr || recipe.title : recipe.title,
                 mealType,
                 consumedAt: new Date(),
@@ -155,10 +151,10 @@ export default function RecipePreviewScreen() {
     if (isLoading) {
         return (
             <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-                <View className="px-5 py-4 border-b border-neutral-200 bg-white flex-row items-center">
+                <View className="flex-row items-center border-b border-neutral-200 bg-white px-5 py-4">
                     <Pressable
                         onPress={() => router.back()}
-                        className="w-9 h-9 rounded-full bg-neutral-100 items-center justify-center mr-3"
+                        className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-neutral-100"
                     >
                         <ArrowLeft size={18} color="#404040" />
                     </Pressable>
@@ -166,10 +162,10 @@ export default function RecipePreviewScreen() {
                 </View>
 
                 <View className="flex-1 px-5 py-6">
-                    <Skeleton className="h-52 w-full rounded-3xl mb-4" />
-                    <Skeleton className="h-8 w-2/3 rounded-xl mb-2" />
-                    <Skeleton className="h-24 w-full rounded-2xl mb-3" />
-                    <Skeleton className="h-24 w-full rounded-2xl mb-3" />
+                    <Skeleton className="mb-4 h-52 w-full rounded-3xl" />
+                    <Skeleton className="mb-2 h-8 w-2/3 rounded-xl" />
+                    <Skeleton className="mb-3 h-24 w-full rounded-2xl" />
+                    <Skeleton className="mb-3 h-24 w-full rounded-2xl" />
                     <Skeleton className="h-24 w-full rounded-2xl" />
                 </View>
             </SafeAreaView>
@@ -178,18 +174,16 @@ export default function RecipePreviewScreen() {
 
     if (error || !recipe) {
         return (
-            <SafeAreaView className="flex-1 bg-neutral-50 items-center justify-center px-6" edges={['top']}>
-                <View className="bg-white rounded-3xl border border-neutral-200 p-6 w-full max-w-md">
-                    <Text className="text-xl font-bold text-neutral-900 mb-2">
-                        {t('recipeImport.errors.title')}
-                    </Text>
-                    <Text className="text-neutral-600 mb-5">{errorMessage ?? t('recipeImport.errors.unknown')}</Text>
+            <SafeAreaView className="flex-1 items-center justify-center bg-neutral-50 px-6" edges={['top']}>
+                <View className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-6">
+                    <Text className="mb-2 text-xl font-bold text-neutral-900">{t('recipeImport.errors.title')}</Text>
+                    <Text className="mb-5 text-neutral-600">{errorMessage ?? t('recipeImport.errors.unknown')}</Text>
 
                     <Pressable
                         onPress={() => router.replace('/(modals)/recipe-import')}
-                        className="bg-primary-500 rounded-xl py-3 items-center"
+                        className="items-center rounded-xl bg-primary-500 py-3"
                     >
-                        <Text className="text-white font-bold">{t('recipeImport.actions.retry')}</Text>
+                        <Text className="font-bold text-white">{t('recipeImport.actions.retry')}</Text>
                     </Pressable>
                 </View>
             </SafeAreaView>
@@ -198,10 +192,10 @@ export default function RecipePreviewScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-            <View className="px-5 py-4 border-b border-neutral-200 bg-white flex-row items-center">
+            <View className="flex-row items-center border-b border-neutral-200 bg-white px-5 py-4">
                 <Pressable
                     onPress={() => router.back()}
-                    className="w-9 h-9 rounded-full bg-neutral-100 items-center justify-center mr-3"
+                    className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-neutral-100"
                 >
                     <ArrowLeft size={18} color="#404040" />
                 </Pressable>

@@ -1,0 +1,6 @@
+appId: com.nutrihealth.app
+---
+- launchApp
+- tapOn: "Profile"
+- tapOn: "Dark Mode"
+- assertVisible: "Dark Mode"

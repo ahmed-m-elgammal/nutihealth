@@ -1,6 +1,10 @@
 import { API_BASE_URL } from './api';
 
 // App configuration constants
+const isSupabaseConfigured = Boolean(
+    process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() &&
+    (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()),
+);
 
 export const config = {
     // API Configuration
@@ -13,7 +17,7 @@ export const config = {
 
     // Feature Flags
     features: {
-        enableSync: false, // Enable when backend is ready
+        enableSync: isSupabaseConfigured,
         enableAI: false, // Enable when AI service is configured
         enableBarcode: true,
         enableCamera: true,
@@ -39,6 +43,12 @@ export const config = {
         intervalMinutes: 15,
         batchSize: 50,
         maxRetries: 3,
+    },
+
+    // Supabase
+    supabase: {
+        url: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+        configured: isSupabaseConfigured,
     },
 
     // AI Services

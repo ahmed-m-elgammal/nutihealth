@@ -82,8 +82,7 @@ export default function ProgramDetailScreen() {
                 );
             }
 
-            router.dismissAll();
-            router.replace('/(tabs)/workouts');
+            router.dismissTo('/(tabs)/workouts');
         } catch (error) {
             Alert.alert('Unable to start program', (error as Error).message || 'Please try again.');
         }

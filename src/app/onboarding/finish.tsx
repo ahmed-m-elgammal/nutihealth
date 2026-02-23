@@ -7,6 +7,7 @@ import { useUserStore, UserData } from '../../store/userStore';
 import { ActivityLevel, calculateNutritionTargets, Goal } from '../../utils/calculations';
 import { DEFAULT_PROFILE_VALUES } from '../../utils/profileCompletion';
 import { OnboardingStepScreen } from '../../components/onboarding/OnboardingStepScreen';
+import { triggerHaptic } from '../../utils/haptics';
 import { Body, Heading, Subheading } from '../../components/ui/Typography';
 import { Card, CardContent } from '../../components/ui/Card';
 
@@ -41,33 +42,27 @@ export default function FinishScreen() {
     const previewActivityLevel = (data.activityLevel as ActivityLevel) || DEFAULT_PROFILE_VALUES.activityLevel;
     const preferences = { ...DEFAULT_PREFERENCES, ...data.preferences };
 
-    const nutritionPreview = useMemo(() => (
-        calculateNutritionTargets({
-            age: previewAge,
-            sex: previewGender,
-            heightCm: previewHeight,
-            weightKg: previewWeight,
-            goal: normalizedGoal,
-            activityLevel: previewActivityLevel,
-            bodyFatPercentage: preferences.bodyFatPercentage,
-            isAthlete: preferences.isAthlete,
-            hasPCOS: preferences.hasPCOS,
-            hasInsulinResistance: preferences.hasInsulinResistance,
-            onHormonalContraception: preferences.onHormonalContraception,
-            isPostMenopause: preferences.isPostMenopause,
-            week1WeightKg: preferences.week1WeightKg,
-            currentWeightKg: previewWeight,
-            compliancePercentage: preferences.compliancePercentage,
-        })
-    ), [
-        previewAge,
-        previewGender,
-        previewHeight,
-        previewWeight,
-        normalizedGoal,
-        previewActivityLevel,
-        preferences,
-    ]);
+    const nutritionPreview = useMemo(
+        () =>
+            calculateNutritionTargets({
+                age: previewAge,
+                sex: previewGender,
+                heightCm: previewHeight,
+                weightKg: previewWeight,
+                goal: normalizedGoal,
+                activityLevel: previewActivityLevel,
+                bodyFatPercentage: preferences.bodyFatPercentage,
+                isAthlete: preferences.isAthlete,
+                hasPCOS: preferences.hasPCOS,
+                hasInsulinResistance: preferences.hasInsulinResistance,
+                onHormonalContraception: preferences.onHormonalContraception,
+                isPostMenopause: preferences.isPostMenopause,
+                week1WeightKg: preferences.week1WeightKg,
+                currentWeightKg: previewWeight,
+                compliancePercentage: preferences.compliancePercentage,
+            }),
+        [previewAge, previewGender, previewHeight, previewWeight, normalizedGoal, previewActivityLevel, preferences],
+    );
 
     const handleFinish = async () => {
         setIsSubmitting(true);
@@ -95,6 +90,7 @@ export default function FinishScreen() {
                 preferences,
             };
 
+            triggerHaptic('heavy').catch(() => undefined);
             await createUser(finalUserData);
             await completeOnboarding();
             reset();
@@ -137,15 +133,21 @@ export default function FinishScreen() {
 
                     <View className="mt-5 flex-row gap-3 border-t border-border pt-4">
                         <View className="flex-1">
-                            <Subheading className="text-base text-blue-500">{nutritionPreview.macros.protein}g</Subheading>
+                            <Subheading className="text-base text-blue-500">
+                                {nutritionPreview.macros.protein}g
+                            </Subheading>
                             <Body className="text-xs text-muted-foreground">Protein</Body>
                         </View>
                         <View className="flex-1">
-                            <Subheading className="text-base text-orange-500">{nutritionPreview.macros.carbs}g</Subheading>
+                            <Subheading className="text-base text-orange-500">
+                                {nutritionPreview.macros.carbs}g
+                            </Subheading>
                             <Body className="text-xs text-muted-foreground">Carbs</Body>
                         </View>
                         <View className="flex-1">
-                            <Subheading className="text-base text-purple-500">{nutritionPreview.macros.fats}g</Subheading>
+                            <Subheading className="text-base text-purple-500">
+                                {nutritionPreview.macros.fats}g
+                            </Subheading>
                             <Body className="text-xs text-muted-foreground">Fats</Body>
                         </View>
                     </View>
@@ -156,7 +158,9 @@ export default function FinishScreen() {
                 <Card className="flex-1 border-border bg-card">
                     <CardContent className="p-4">
                         <Gauge size={22} className="mb-2 text-indigo-500" />
-                        <Subheading className="text-base">{nutritionPreview.bmr} / {nutritionPreview.tdee}</Subheading>
+                        <Subheading className="text-base">
+                            {nutritionPreview.bmr} / {nutritionPreview.tdee}
+                        </Subheading>
                         <Body className="text-xs text-muted-foreground">BMR / TDEE</Body>
                     </CardContent>
                 </Card>
@@ -182,7 +186,8 @@ export default function FinishScreen() {
                 <CardContent className="p-4">
                     <Subheading className="mb-2 text-base">Inputs Used</Subheading>
                     <Body className="text-sm text-muted-foreground">
-                        Age {previewAge} • Sex {previewGender} • Height {previewHeight} cm • Weight {previewWeight} kg • Goal {normalizedGoal} • Activity {previewActivityLevel}
+                        Age {previewAge} • Sex {previewGender} • Height {previewHeight} cm • Weight {previewWeight} kg •
+                        Goal {normalizedGoal} • Activity {previewActivityLevel}
                     </Body>
                 </CardContent>
             </Card>

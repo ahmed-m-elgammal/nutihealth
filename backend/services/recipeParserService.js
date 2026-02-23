@@ -10,13 +10,9 @@ const {
 let schemaScraper = null;
 try {
     // Optional dependency for schema.org recipe extraction.
-    schemaScraper = require('recipe-schema-scraper');
+    schemaScraper = require('@dimfu/recipe-scraper');
 } catch {
-    try {
-        schemaScraper = require('@dimfu/recipe-scraper');
-    } catch {
-        schemaScraper = null;
-    }
+    schemaScraper = null;
 }
 
 /**

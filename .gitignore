@@ -20,13 +20,18 @@ metro-cache/
 
 # React Native
 ios/
-android/
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
 *.orig.jks
+android/.gradle/
+android/local.properties
+android/app/debug.keystore
+android/**/build/
+android/.idea/
 
 # Environment variables
 .env

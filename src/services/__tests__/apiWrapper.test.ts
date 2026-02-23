@@ -1,4 +1,4 @@
-import { apiCall, api } from '../apiWrapper';
+import { apiCall, api, resetInFlightGetRequests } from '../apiWrapper';
 
 // Mock the UIStore
 const mockShowToast = jest.fn();
@@ -16,6 +16,8 @@ global.fetch = jest.fn() as jest.Mock;
 describe('apiWrapper', () => {
     beforeEach(() => {
         (global.fetch as jest.Mock).mockClear();
+        mockShowToast.mockClear();
+        resetInFlightGetRequests();
     });
 
     describe('apiCall', () => {
@@ -36,7 +38,7 @@ describe('apiWrapper', () => {
                     headers: expect.objectContaining({
                         'Content-Type': 'application/json',
                     }),
-                })
+                }),
             );
         });
 
@@ -68,13 +70,11 @@ describe('apiWrapper', () => {
 
         it('should retry on network failure', async () => {
             // First attempt fails, second succeeds
-            (global.fetch as jest.Mock)
-                .mockRejectedValueOnce(new Error('Network error'))
-                .mockResolvedValueOnce({
-                    ok: true,
-                    headers: new Map([['content-type', 'application/json']]),
-                    text: async () => JSON.stringify({ success: true }),
-                });
+            (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error')).mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([['content-type', 'application/json']]),
+                text: async () => JSON.stringify({ success: true }),
+            });
 
             const result = await apiCall('/test', { retryCount: 1 });
 
@@ -93,10 +93,7 @@ describe('apiWrapper', () => {
                 params: { page: '1', limit: '10' },
             });
 
-            expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('?page=1&limit=10'),
-                expect.any(Object)
-            );
+            expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('?page=1&limit=10'), expect.any(Object));
         });
 
         it('should stringify request body', async () => {
@@ -116,7 +113,7 @@ describe('apiWrapper', () => {
                 expect.any(String),
                 expect.objectContaining({
                     body: JSON.stringify(requestBody),
-                })
+                }),
             );
         });
 
@@ -129,9 +126,7 @@ describe('apiWrapper', () => {
                 statusText: 'Bad Request',
             });
 
-            await expect(
-                apiCall('/test', { suppressErrors: true })
-            ).rejects.toThrow();
+            await expect(apiCall('/test', { suppressErrors: true })).rejects.toThrow();
 
             // Toast should not have been called
             // (This would require more sophisticated mocking to verify)
@@ -154,7 +149,7 @@ describe('apiWrapper', () => {
                 expect.any(String),
                 expect.objectContaining({
                     method: 'GET',
-                })
+                }),
             );
         });
 
@@ -167,7 +162,7 @@ describe('apiWrapper', () => {
                 expect.objectContaining({
                     method: 'POST',
                     body: JSON.stringify(body),
-                })
+                }),
             );
         });
 
@@ -180,7 +175,7 @@ describe('apiWrapper', () => {
                 expect.objectContaining({
                     method: 'PUT',
                     body: JSON.stringify(body),
-                })
+                }),
             );
         });
 
@@ -191,7 +186,7 @@ describe('apiWrapper', () => {
                 expect.any(String),
                 expect.objectContaining({
                     method: 'DELETE',
-                })
+                }),
             );
         });
 
@@ -204,7 +199,7 @@ describe('apiWrapper', () => {
                 expect.objectContaining({
                     method: 'PATCH',
                     body: JSON.stringify(body),
-                })
+                }),
             );
         });
     });
@@ -213,12 +208,10 @@ describe('apiWrapper', () => {
         it('should timeout after specified duration', async () => {
             // Mock a request that never resolves
             (global.fetch as jest.Mock).mockImplementationOnce(
-                () => new Promise(() => { }) // Never resolves
+                () => new Promise(() => {}), // Never resolves
             );
 
-            await expect(
-                apiCall('/test', { timeout: 100 })
-            ).rejects.toThrow();
+            await expect(apiCall('/test', { timeout: 100, retryCount: 0 })).rejects.toThrow();
         }, 10000);
     });
 });

@@ -59,11 +59,27 @@ const GOAL_TO_CATEGORIES: Record<UserRecommendationContext['goal'], ProgramCandi
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
 const toWorkoutProfile = (value: unknown): Partial<UserWorkoutProfile> => {
-    if (!value || typeof value !== 'object') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return {};
     }
 
     return value as Partial<UserWorkoutProfile>;
+};
+
+const isFitnessLevel = (value: unknown): value is ProgramCandidate['level'] =>
+    typeof value === 'string' && LEVEL_ORDER.includes(value as ProgramCandidate['level']);
+
+const normalizeStringList = (value: unknown): string[] => {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.filter((entry): entry is string => typeof entry === 'string');
+};
+
+const normalizeEquipmentList = (value: unknown): string[] => {
+    const entries = normalizeStringList(value).map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    return entries.length > 0 ? entries : ['bodyweight'];
 };
 
 const getHistoryStats = (workouts: WorkoutHistorySample[]) => {
@@ -85,7 +101,7 @@ const inferFitnessLevel = (
     context: UserRecommendationContext,
     recentWorkoutsPerWeek: number
 ): ProgramCandidate['level'] => {
-    if (profile.fitnessLevel) {
+    if (isFitnessLevel(profile.fitnessLevel)) {
         return profile.fitnessLevel;
     }
 
@@ -121,13 +137,16 @@ const deriveTargetCategories = (
     context: UserRecommendationContext,
     profile: Partial<UserWorkoutProfile>
 ): ProgramCandidate['category'][] => {
-    if (!profile.goals || profile.goals.length === 0) {
-        return GOAL_TO_CATEGORIES[context.goal];
+    const goalFallback = GOAL_TO_CATEGORIES[context.goal] ?? GOAL_TO_CATEGORIES.maintain;
+    const profileGoals = normalizeStringList(profile.goals);
+
+    if (profileGoals.length === 0) {
+        return goalFallback;
     }
 
     const categories = new Set<ProgramCandidate['category']>();
 
-    profile.goals.forEach((goal) => {
+    profileGoals.forEach((goal) => {
         if (goal === 'muscle_gain' || goal === 'strength') {
             categories.add('strength');
             categories.add('hypertrophy');
@@ -146,7 +165,7 @@ const deriveTargetCategories = (
     });
 
     if (categories.size === 0) {
-        return GOAL_TO_CATEGORIES[context.goal];
+        return goalFallback;
     }
 
     return Array.from(categories);
@@ -163,7 +182,9 @@ const scoreProgram = (
     const inferredFitnessLevel = inferFitnessLevel(profile, context, history.workoutsPerWeek);
     const desiredDays = inferDesiredDays(profile, context);
     const targetCategories = deriveTargetCategories(context, profile);
-    const availableEquipment = new Set<string>((profile.availableEquipment || ['bodyweight']).concat('bodyweight'));
+    const availableEquipment = new Set<string>(
+        normalizeEquipmentList(profile.availableEquipment).concat('bodyweight')
+    );
 
     const levelDistance = Math.abs(
         LEVEL_ORDER.indexOf(program.level) - LEVEL_ORDER.indexOf(inferredFitnessLevel)

@@ -1,85 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Appearance, ColorSchemeName } from 'react-native';
-import { getTheme, setTheme as saveTheme } from '../utils/storage';
-
-type ThemeMode = 'light' | 'dark' | 'auto';
+import { useThemeContext } from '../theme/ThemeProvider';
 
 /**
- * Hook for managing app theme
- * @returns Theme utilities
+ * Backward compatible theme hook using the new ThemeProvider context.
  */
 export function useTheme() {
-    const [themeMode, setThemeModeState] = useState<ThemeMode>('auto');
-
-    useEffect(() => {
-        const loadTheme = async () => {
-            const savedTheme = await getTheme();
-            if (savedTheme) {
-                setThemeModeState(savedTheme);
-            }
-        };
-        loadTheme();
-    }, []);
-
-    const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
-        Appearance.getColorScheme()
-    );
-
-    // Listen to system theme changes
-    useEffect(() => {
-        const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-            setSystemColorScheme(colorScheme);
-        });
-
-        return () => subscription.remove();
-    }, []);
-
-    /**
-     * Get the effective color scheme (resolves 'auto' to actual scheme)
-     */
-    const colorScheme: 'light' | 'dark' =
-        themeMode === 'auto'
-            ? (systemColorScheme === 'dark' ? 'dark' : 'light')
-            : themeMode;
-
-    /**
-     * Set theme mode and persist to storage
-     */
-    const setThemeMode = (mode: ThemeMode) => {
-        setThemeModeState(mode);
-        saveTheme(mode);
-    };
-
-    /**
-     * Toggle between light and dark modes
-     */
-    const toggleTheme = () => {
-        const newMode = colorScheme === 'light' ? 'dark' : 'light';
-        setThemeMode(newMode);
-    };
-
-    /**
-     * Check if current theme is dark
-     */
-    const isDark = colorScheme === 'dark';
-
-    /**
-     * Check if current theme is light
-     */
-    const isLight = colorScheme === 'light';
-
-    /**
-     * Check if using auto theme
-     */
-    const isAuto = themeMode === 'auto';
+    const { mode, colorScheme, setMode, toggleMode } = useThemeContext();
 
     return {
-        themeMode,
+        themeMode: mode,
         colorScheme,
-        setThemeMode,
-        toggleTheme,
-        isDark,
-        isLight,
-        isAuto,
+        setThemeMode: setMode,
+        toggleTheme: toggleMode,
+        isDark: colorScheme === 'dark',
+        isLight: colorScheme === 'light',
+        isAuto: mode === 'system',
     };
 }

@@ -1,119 +1,92 @@
-import React from 'react';
-import { View, TouchableOpacity, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { X, Search, Scan, Camera, FileText, Link2 } from 'lucide-react-native';
-import { useTranslation } from 'react-i18next';
-import { ScreenLayout } from '../../components/layout/ScreenLayout';
-import { Heading, Body } from '../../components/ui/Typography';
-import { Card, CardTitle, CardDescription } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { needsBodyMetrics, buildCompleteProfileRoute } from '../../utils/profileCompletion';
+import React, { useEffect, useMemo, useState } from 'react';
+import { SafeAreaView } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import AddMealSheet from '../../components/meals/AddMealSheet';
+import { createMeal, type MealData } from '../../services/api/meals';
+import { useAddMealDraftStore, type DraftMealType } from '../../store/addMealDraftStore';
+import { useUIStore } from '../../store/uiStore';
 
-export default function AddMealModal() {
+export default function AddMealModalScreen() {
     const router = useRouter();
-    const { user } = useCurrentUser();
-    const { t } = useTranslation();
+    const params = useLocalSearchParams<{ mealType?: string }>();
+    const showToast = useUIStore((state) => state.showToast);
+    const [isSaving, setIsSaving] = useState(false);
+    const mealType = useAddMealDraftStore((state) => state.mealType);
+    const foods = useAddMealDraftStore((state) => state.foods);
+    const clearDraft = useAddMealDraftStore((state) => state.clearDraft);
+    const setMealType = useAddMealDraftStore((state) => state.setMealType);
 
-    const menuItems = [
-        {
-            title: t('addMeal.options.template.title'),
-            description: t('addMeal.options.template.subtitle'),
-            icon: FileText,
-            route: '/(modals)/load-template',
-            color: "text-amber-500", // We can keep some specific branding colors or map to semantic
-            bgColor: "bg-amber-50",
-            borderColor: "border-amber-200"
-        },
-        {
-            title: t('addMeal.options.search.title'),
-            description: t('addMeal.options.search.subtitle'),
-            icon: Search,
-            route: '/(modals)/food-search',
-            color: "text-primary",
-            bgColor: "bg-background",
-            borderColor: "border-border"
-        },
-        {
-            title: t('addMeal.options.barcode.title'),
-            description: t('addMeal.options.barcode.subtitle'),
-            icon: Scan,
-            route: '/(modals)/barcode-scanner',
-            color: "text-primary",
-            bgColor: "bg-background",
-            borderColor: "border-border"
-        },
-        {
-            title: t('addMeal.options.ai.title'),
-            description: t('addMeal.options.ai.subtitle'),
-            icon: Camera,
-            route: '/(modals)/ai-food-detect',
-            color: "text-primary",
-            bgColor: "bg-background",
-            borderColor: "border-border"
-        },
-        {
-            title: t('addMeal.options.recipeImport.title'),
-            description: t('addMeal.options.recipeImport.subtitle'),
-            icon: Link2,
-            route: '/(modals)/recipe-import',
-            color: "text-primary",
-            bgColor: "bg-background",
-            borderColor: "border-border"
+    const preselectedMealType = useMemo(() => {
+        const raw = params.mealType;
+        if (raw === 'breakfast' || raw === 'lunch' || raw === 'dinner' || raw === 'snack') {
+            return raw as DraftMealType;
         }
-    ];
+        return null;
+    }, [params.mealType]);
 
-    const handleMenuPress = (route: string) => {
-        if (needsBodyMetrics(user)) {
-            Alert.alert(
-                'Complete profile first',
-                'Add your height and weight once to personalize your first logged meals.',
-                [
-                    { text: 'Not now', style: 'cancel' },
-                    {
-                        text: 'Add now',
-                        onPress: () => router.push(buildCompleteProfileRoute(route) as any),
-                    },
-                ]
-            );
+    useEffect(() => {
+        clearDraft();
+        if (preselectedMealType) {
+            setMealType(preselectedMealType);
+        }
+
+        return () => {
+            clearDraft();
+        };
+    }, [clearDraft, preselectedMealType, setMealType]);
+
+    const handleSaveMeal = async () => {
+        if (isSaving) {
             return;
         }
 
-        router.push(route as any);
+        if (foods.length === 0) {
+            showToast('warning', 'Add at least one food before saving.');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const mealData: MealData = {
+                name: `${mealType[0].toUpperCase()}${mealType.slice(1)} meal`,
+                mealType,
+                consumedAt: new Date(),
+                foods: foods.map((food) => ({
+                    name: food.name,
+                    brand: food.brand,
+                    barcode: food.barcode,
+                    servingSize: food.servingSize || 1,
+                    servingUnit: food.servingUnit || 'serving',
+                    quantity: food.quantity,
+                    calories: food.calories,
+                    protein: food.protein,
+                    carbs: food.carbs,
+                    fats: food.fats,
+                    fiber: food.fiber,
+                    sugar: food.sugar,
+                })),
+            };
+
+            await createMeal(mealData);
+            showToast('success', 'Meal saved.');
+            clearDraft();
+            router.back();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to save meal.';
+            showToast('error', message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
-        <ScreenLayout className="bg-background">
-            <View className="flex-row justify-between items-center mb-6">
-                <Heading>{t('addMeal.title')}</Heading>
-                <Button variant="ghost" size="sm" onPress={() => router.back()}>
-                    <X size={24} className="text-foreground" />
-                </Button>
-            </View>
-
-            <Body className="text-muted-foreground mb-8">
-                {t('addMeal.subtitle')}
-            </Body>
-
-            <View className="space-y-4">
-                {menuItems.map((item, index) => (
-                    <TouchableOpacity
-                        key={index}
-                        onPress={() => handleMenuPress(item.route)}
-                        activeOpacity={0.7}
-                    >
-                        <Card className="flex-row items-center p-4">
-                            <View className={`p-3 rounded-full mr-4 bg-muted`}>
-                                <item.icon size={24} className="text-foreground" />
-                            </View>
-                            <View className="flex-1">
-                                <CardTitle className="text-lg">{item.title}</CardTitle>
-                                <CardDescription>{item.description}</CardDescription>
-                            </View>
-                        </Card>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        </ScreenLayout>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+            <AddMealSheet
+                onOpenSearch={() => router.push('/(modals)/food-search')}
+                onOpenScan={() => router.push('/(modals)/barcode-scanner')}
+                onOpenAiDetect={() => router.push('/(modals)/ai-food-detect')}
+                onSaveMeal={handleSaveMeal}
+            />
+        </SafeAreaView>
     );
 }

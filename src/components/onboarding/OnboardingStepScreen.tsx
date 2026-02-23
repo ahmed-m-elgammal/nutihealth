@@ -5,6 +5,7 @@ import { ScreenLayout } from '../layout/ScreenLayout';
 import { Button } from '../ui/Button';
 import { Body, Heading, Subheading } from '../ui/Typography';
 import { cn } from '../../utils/cn';
+import { triggerHaptic } from '../../utils/haptics';
 
 interface OnboardingStepScreenProps {
     stepLabel: string;
@@ -35,6 +36,11 @@ export function OnboardingStepScreen({
     children,
     contentClassName,
 }: OnboardingStepScreenProps) {
+    const handleActionPress = () => {
+        triggerHaptic('light').catch(() => undefined);
+        onActionPress();
+    };
+
     return (
         <ScreenLayout className="bg-background" edges={['top']} noPadding>
             <View className="border-b border-border px-6 py-4">
@@ -63,7 +69,7 @@ export function OnboardingStepScreen({
                                         key={`progress-${index}`}
                                         className={cn(
                                             'h-1 flex-1 rounded-full',
-                                            isComplete ? 'bg-primary' : 'bg-muted'
+                                            isComplete ? 'bg-primary' : 'bg-muted',
                                         )}
                                     />
                                 );
@@ -89,7 +95,7 @@ export function OnboardingStepScreen({
             <View className="border-t border-border bg-background px-6 py-4">
                 <Button
                     size="lg"
-                    onPress={onActionPress}
+                    onPress={handleActionPress}
                     disabled={actionDisabled}
                     loading={actionLoading}
                     className="w-full"

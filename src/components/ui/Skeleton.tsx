@@ -1,53 +1,65 @@
-import React, { useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
+import { View, type ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-    useSharedValue,
+    Easing,
     useAnimatedStyle,
+    useSharedValue,
     withRepeat,
     withTiming,
-    Easing,
+    type SharedValue,
 } from 'react-native-reanimated';
 import { cn } from '../../utils/cn';
 
+const SCREEN_WIDTH = 420;
+
+type SkeletonContextValue = { shimmerX: SharedValue<number> };
+const SkeletonContext = createContext<SkeletonContextValue | null>(null);
+
+export function SkeletonAnimationProvider({ children }: { children: React.ReactNode }) {
+    const shimmerX = useSharedValue(-SCREEN_WIDTH);
+
+    useEffect(() => {
+        shimmerX.value = withRepeat(withTiming(SCREEN_WIDTH, { duration: 1300, easing: Easing.linear }), -1, false);
+    }, [shimmerX]);
+
+    return <SkeletonContext.Provider value={{ shimmerX }}>{children}</SkeletonContext.Provider>;
+}
+
+function useSkeletonAnimation() {
+    return useContext(SkeletonContext);
+}
+
 export interface SkeletonProps {
-    /** Custom className for styling */
+    width?: number | string;
+    height?: number | string;
+    borderRadius?: number;
+    style?: ViewStyle;
     className?: string;
 }
 
-/**
- * Skeleton loading component with pulse animation.
- * Better UX alternative to ActivityIndicator spinners.
- * 
- * Style dimensions using className (e.g., "w-full h-20" or "w-24 h-24")
- * 
- * @example
- * <Skeleton className="w-full h-20 rounded-md" />
- * 
- * @example
- * <Skeleton className="w-24 h-24 rounded-full" /> // Circle
- */
-export function Skeleton({ className }: SkeletonProps) {
-    const opacity = useSharedValue(0.3);
-
-    useEffect(() => {
-        opacity.value = withRepeat(
-            withTiming(1, {
-                duration: 1000,
-                easing: Easing.inOut(Easing.ease),
-            }),
-            -1,
-            true
-        );
-    }, []);
+export function Skeleton({ width, height, borderRadius = 12, style, className }: SkeletonProps) {
+    const context = useSkeletonAnimation();
 
     const animatedStyle = useAnimatedStyle(() => ({
-        opacity: opacity.value,
+        transform: [{ translateX: context?.shimmerX.value ?? 0 }],
     }));
 
     return (
-        <Animated.View
-            className={cn('bg-muted', className)}
-            style={animatedStyle}
-        />
+        <View className={cn('overflow-hidden bg-muted', className)} style={[{ width, height, borderRadius }, style]}>
+            {context ? (
+                <Animated.View
+                    style={[{ position: 'absolute', top: 0, bottom: 0, width: SCREEN_WIDTH }, animatedStyle]}
+                >
+                    <LinearGradient
+                        colors={['transparent', 'rgba(255,255,255,0.35)', 'transparent']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={{ flex: 1 }}
+                    />
+                </Animated.View>
+            ) : null}
+        </View>
     );
 }
 

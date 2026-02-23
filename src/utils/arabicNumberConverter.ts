@@ -130,7 +130,8 @@ export function convertArabicNumeralsToEnglish(value: string): string {
     for (const [arabicDigit, englishDigit] of Object.entries(ARABIC_NUMERAL_MAP)) {
         result = result.replaceAll(arabicDigit, englishDigit);
     }
-    return result;
+
+    return result.replaceAll('٫', '.').replaceAll('٬', '').replaceAll('،', '.');
 }
 
 /**
@@ -241,7 +242,11 @@ export function parseIngredientAmount(rawIngredient: string): ParsedIngredientAm
     for (const alias of ALIAS_KEYS) {
         const aliasLower = alias.toLowerCase();
         const aliasCompact = aliasLower.replace(/\s+/g, '');
-        if (restLower.startsWith(aliasLower + ' ') || restLower === aliasLower || restCompact.startsWith(aliasCompact)) {
+        if (
+            restLower.startsWith(aliasLower + ' ') ||
+            restLower === aliasLower ||
+            restCompact.startsWith(aliasCompact)
+        ) {
             detectedUnit = UNIT_ALIASES[alias];
             const removeLength = restLower.startsWith(aliasLower) ? alias.length : 0;
             name = removeLength > 0 ? rest.slice(removeLength).trim() : rest;
@@ -266,7 +271,7 @@ export function parseIngredientAmount(rawIngredient: string): ParsedIngredientAm
 export function convertAmountBetweenSystems(
     amount: number,
     unit: string,
-    targetSystem: UnitSystem
+    targetSystem: UnitSystem,
 ): { amount: number; unit: string } {
     const canonicalUnit = normalizeUnit(unit);
 
@@ -292,11 +297,7 @@ export function convertAmountBetweenSystems(
 /**
  * Formats parsed amount/unit for the provided locale.
  */
-export function formatLocalizedAmount(
-    amount: number | null,
-    unit: string,
-    locale: 'en' | 'ar'
-): string {
+export function formatLocalizedAmount(amount: number | null, unit: string, locale: 'en' | 'ar'): string {
     if (amount === null) {
         return unit;
     }

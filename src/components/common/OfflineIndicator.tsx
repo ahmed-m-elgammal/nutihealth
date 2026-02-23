@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { WifiOff } from 'lucide-react-native';
-import NetInfo from '@react-native-community/netinfo';
+import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -11,7 +11,7 @@ export default function OfflineIndicator() {
     const progress = useSharedValue(0);
 
     useEffect(() => {
-        const unsubscribe = NetInfo.addEventListener((state) => {
+        const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
             setIsOffline(!(state.isConnected && state.isInternetReachable !== false));
         });
 

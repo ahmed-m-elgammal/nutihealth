@@ -1,18 +1,18 @@
-import { apiClient } from './client';
+import {
+    synchronize,
+    type SyncDatabaseChangeSet,
+    type SyncPullArgs,
+    type SyncTableChangeSet,
+} from '@nozbe/watermelondb/sync';
+import { database } from '../../database';
+import { waitForDatabaseReady } from '../../database/ready';
 import { handleError } from '../../utils/errors';
 import { storage } from '../../utils/storage-adapter';
 import { config } from '../../constants/config';
+import { requireSupabaseClient } from '../supabaseClient';
 
-/**
- * Data Synchronization Service
- *
- * OFFLINE-FIRST ARCHITECTURE:
- * This service implements a sync engine to backup local WatermelonDB data
- * to a remote server when online.
- */
-
-const SYNC_QUEUE_STORAGE_KEY = 'sync_queue_v1';
-const SYNC_LAST_SYNC_STORAGE_KEY = 'sync_last_sync_v1';
+const SYNC_LAST_SYNC_STORAGE_KEY = 'sync_last_sync_v2';
+const SUPABASE_PULL_LIMIT = 1000;
 
 /**
  * Sync status enum
@@ -25,7 +25,7 @@ export enum SyncStatus {
 }
 
 /**
- * Sync queue item
+ * Sync queue item (legacy shape kept for compatibility)
  */
 export interface SyncQueueItem {
     id: string;
@@ -49,7 +49,7 @@ export interface SyncResult {
 }
 
 /**
- * Tables to sync
+ * Tables synced with Supabase.
  */
 const SYNCABLE_TABLES = [
     'meals',
@@ -66,14 +66,103 @@ const SYNCABLE_TABLES = [
     'habit_logs',
     'weight_logs',
     'users',
-];
+] as const;
 
-/**
- * Sync state
- */
+const USER_SCOPED_TABLES = new Set([
+    'meals',
+    'custom_foods',
+    'water_logs',
+    'water_targets',
+    'workouts',
+    'recipes',
+    'meal_plans',
+    'habits',
+    'weight_logs',
+]);
+
+type SyncableTable = (typeof SYNCABLE_TABLES)[number];
+type RecordShape = Record<string, unknown>;
+
+const createSyncErrorItem = (): SyncQueueItem => ({
+    id: `sync-error-${Date.now()}`,
+    table: 'sync',
+    recordId: 'n/a',
+    operation: 'update',
+    timestamp: Date.now(),
+    retryCount: 0,
+    synced: false,
+});
+
+const toTimestamp = (value: unknown): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const asNumber = Number(value);
+        if (Number.isFinite(asNumber)) {
+            return asNumber;
+        }
+
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) {
+            return parsed;
+        }
+    }
+
+    return 0;
+};
+
+const sanitizeRecordForPush = (table: SyncableTable, record: RecordShape, userId: string): RecordShape => {
+    const normalized: RecordShape = {};
+
+    Object.entries(record).forEach(([key, value]) => {
+        if (key === '_status' || key === '_changed') {
+            return;
+        }
+
+        normalized[key] = value;
+    });
+
+    if (normalized.id !== undefined && normalized.id !== null) {
+        normalized.id = String(normalized.id);
+    }
+
+    if (normalized.updated_at === undefined || normalized.updated_at === null) {
+        normalized.updated_at = Date.now();
+    }
+
+    if (normalized.created_at === undefined || normalized.created_at === null) {
+        normalized.created_at = Date.now();
+    }
+
+    if (USER_SCOPED_TABLES.has(table) && (normalized.user_id === undefined || normalized.user_id === null)) {
+        normalized.user_id = userId;
+    }
+
+    return normalized;
+};
+
+const sanitizeRecordForPull = (record: RecordShape): RecordShape => {
+    const normalized: RecordShape = { ...record };
+
+    if (normalized.id !== undefined && normalized.id !== null) {
+        normalized.id = String(normalized.id);
+    }
+
+    if (normalized.created_at !== undefined && normalized.created_at !== null) {
+        normalized.created_at = toTimestamp(normalized.created_at);
+    }
+
+    if (normalized.updated_at !== undefined && normalized.updated_at !== null) {
+        normalized.updated_at = toTimestamp(normalized.updated_at);
+    }
+
+    return normalized;
+};
+
 class SyncService {
     private status: SyncStatus = SyncStatus.IDLE;
-    private syncQueue: SyncQueueItem[] = [];
     private lastSyncTime = 0;
     private syncIntervalMs = config.sync.intervalMinutes * 60 * 1000;
     private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
@@ -89,36 +178,24 @@ class SyncService {
     }
 
     /**
-     * Add item to sync queue
+     * Legacy queue API kept for compatibility. WatermelonDB synchronize() now detects local changes directly.
      */
     async queueSync(
         table: string,
-        recordId: string,
-        operation: SyncQueueItem['operation'],
-        data?: any
+        _recordId: string,
+        _operation: SyncQueueItem['operation'],
+        _data?: any,
     ): Promise<void> {
-        if (!SYNCABLE_TABLES.includes(table)) {
+        if (!SYNCABLE_TABLES.includes(table as SyncableTable)) {
             console.warn(`Table ${table} is not configured for sync`);
             return;
         }
 
-        const queueItem: SyncQueueItem = {
-            id: `${Date.now()}-${Math.random()}`,
-            table,
-            recordId,
-            operation,
-            data,
-            timestamp: Date.now(),
-            retryCount: 0,
-            synced: false,
-        };
-
-        this.syncQueue.push(queueItem);
-        await this.persistQueue();
+        console.warn('[sync] queueSync is deprecated. Local changes are captured by WatermelonDB synchronize().');
     }
 
     /**
-     * Perform full sync
+     * Perform full bi-directional sync directly with Supabase.
      */
     async performSync(): Promise<SyncResult> {
         if (this.status === SyncStatus.SYNCING) {
@@ -149,111 +226,62 @@ class SyncService {
         };
 
         try {
-            const queue = [...this.syncQueue];
+            await waitForDatabaseReady();
 
-            for (const item of queue) {
-                try {
-                    await this.syncItem(item);
-                    result.syncedItems++;
-                    this.syncQueue = this.syncQueue.filter((queuedItem) => queuedItem.id !== item.id);
-                } catch (error) {
-                    result.failedItems++;
-                    result.errors.push({
-                        item,
-                        error: error instanceof Error ? error.message : 'Unknown error',
-                    });
+            const supabase = requireSupabaseClient();
+            const {
+                data: { user },
+                error: userError,
+            } = await supabase.auth.getUser();
 
-                    if (item.retryCount < config.sync.maxRetries) {
-                        item.retryCount++;
-                    } else {
-                        this.syncQueue = this.syncQueue.filter((queuedItem) => queuedItem.id !== item.id);
-                        console.error(`Max retries reached for sync item ${item.id}`);
-                    }
-                }
+            if (userError || !user) {
+                throw new Error(userError?.message || 'Supabase auth session is required to sync.');
             }
 
+            let pushedItems = 0;
+            let pulledItems = 0;
+
+            await synchronize({
+                database,
+                pullChanges: async ({ lastPulledAt }: SyncPullArgs) => {
+                    const since = typeof lastPulledAt === 'number' && Number.isFinite(lastPulledAt) ? lastPulledAt : 0;
+                    const changes = await this.pullChangesFromSupabase(since, user.id);
+                    pulledItems += this.countChanges(changes);
+
+                    return {
+                        changes,
+                        timestamp: Date.now(),
+                    };
+                },
+                pushChanges: async ({ changes }) => {
+                    pushedItems += await this.pushChangesToSupabase(changes, user.id);
+                },
+                migrationsEnabledAtVersion: 1,
+            });
+
             this.lastSyncTime = Date.now();
-            this.status = result.failedItems === 0 ? SyncStatus.SUCCESS : SyncStatus.ERROR;
+            result.syncedItems = pushedItems + pulledItems;
+            this.status = SyncStatus.SUCCESS;
             await this.persistLastSyncTime();
         } catch (error) {
             handleError(error, 'sync.performSync');
             this.status = SyncStatus.ERROR;
             result.success = false;
-        } finally {
-            await this.persistQueue();
+            result.failedItems = 1;
+            result.errors.push({
+                item: createSyncErrorItem(),
+                error: error instanceof Error ? error.message : 'Unknown error',
+            });
         }
 
         return result;
     }
 
     /**
-     * Sync individual item to server
+     * Pull remote changes by running a full sync cycle.
      */
-    private async syncItem(item: SyncQueueItem): Promise<void> {
-        const endpoint = `/sync/${item.table}`;
-        let response;
-
-        switch (item.operation) {
-            case 'create':
-            case 'update':
-                response = await apiClient.post(endpoint, {
-                    recordId: item.recordId,
-                    operation: item.operation,
-                    data: item.data,
-                    timestamp: item.timestamp,
-                });
-                break;
-
-            case 'delete':
-                response = await apiClient.delete(`${endpoint}/${item.recordId}`);
-                break;
-        }
-
-        if (!response || !response.success) {
-            throw new Error(response?.error?.message || 'Remote sync request failed');
-        }
-    }
-
-    /**
-     * Pull changes from server
-     */
-    async pullChanges(since?: number): Promise<void> {
-        if (!config.features.enableSync) {
-            return;
-        }
-
-        try {
-            const timestamp = since || this.lastSyncTime || 0;
-            const response = await apiClient.get<{
-                changes?: unknown;
-            }>(`/sync/changes?since=${timestamp}`);
-
-            if (response.success && response.data?.changes !== undefined) {
-                await this.applyRemoteChanges(response.data.changes);
-            }
-        } catch (error) {
-            handleError(error, 'sync.pullChanges');
-        }
-    }
-
-    /**
-     * Apply remote changes to local database.
-     * Current behavior is a guarded no-op until schema-level merge rules are finalized.
-     */
-    private async applyRemoteChanges(changes: unknown): Promise<void> {
-        if (changes == null) {
-            return;
-        }
-
-        const changeCount = Array.isArray(changes)
-            ? changes.length
-            : typeof changes === 'object'
-                ? Object.keys(changes as Record<string, unknown>).length
-                : 0;
-
-        if (changeCount > 0) {
-            console.log(`[sync] Received ${changeCount} remote change(s); local apply is deferred.`);
-        }
+    async pullChanges(_since?: number): Promise<void> {
+        await this.performSync();
     }
 
     /**
@@ -271,18 +299,17 @@ class SyncService {
     }
 
     /**
-     * Get queued items count
+     * Queue count is always zero with direct synchronize().
      */
     getQueuedItemsCount(): number {
-        return this.syncQueue.length;
+        return 0;
     }
 
     /**
-     * Clear sync queue
+     * Clear queue (no-op)
      */
     clearQueue(): void {
-        this.syncQueue = [];
-        void this.persistQueue();
+        // no-op
     }
 
     /**
@@ -300,7 +327,9 @@ class SyncService {
         }
 
         this.autoSyncTimer = setInterval(() => {
-            void this.performSync();
+            this.performSync().catch((error) => {
+                handleError(error, 'sync.autoSync');
+            });
         }, this.syncIntervalMs);
     }
 
@@ -314,16 +343,141 @@ class SyncService {
         }
     }
 
-    private async restoreState(): Promise<void> {
-        try {
-            const queueJson = await storage.getItem(SYNC_QUEUE_STORAGE_KEY);
-            if (queueJson) {
-                const parsedQueue: unknown = JSON.parse(queueJson);
-                if (Array.isArray(parsedQueue)) {
-                    this.syncQueue = parsedQueue.filter(this.isValidQueueItem);
+    private async pullChangesFromSupabase(lastPulledAt: number, userId: string): Promise<SyncDatabaseChangeSet> {
+        const pulledChanges: SyncDatabaseChangeSet = {};
+        const changesRecord = pulledChanges as Record<string, SyncTableChangeSet>;
+
+        for (const table of SYNCABLE_TABLES) {
+            const records = await this.fetchRemoteRows(table, lastPulledAt, userId);
+
+            const tableChanges: SyncTableChangeSet = {
+                created: [],
+                updated: [],
+                // Remote delete pull requires tombstone/deleted_at support server-side.
+                deleted: [],
+            };
+
+            for (const record of records) {
+                const normalized = sanitizeRecordForPull(record);
+                const createdAt = toTimestamp(normalized.created_at);
+
+                if (lastPulledAt === 0 || (createdAt > 0 && createdAt > lastPulledAt)) {
+                    tableChanges.created.push(normalized as any);
+                } else {
+                    tableChanges.updated.push(normalized as any);
                 }
             }
 
+            changesRecord[table] = tableChanges;
+        }
+
+        return pulledChanges;
+    }
+
+    private async pushChangesToSupabase(changes: SyncDatabaseChangeSet, userId: string): Promise<number> {
+        let pushedCount = 0;
+        const changeMap = changes as Record<string, SyncTableChangeSet>;
+
+        for (const table of SYNCABLE_TABLES) {
+            const tableChanges = changeMap[table];
+            if (!tableChanges) {
+                continue;
+            }
+
+            pushedCount += await this.pushTableChanges(table, tableChanges, userId);
+        }
+
+        return pushedCount;
+    }
+
+    private async pushTableChanges(
+        table: SyncableTable,
+        tableChanges: SyncTableChangeSet,
+        userId: string,
+    ): Promise<number> {
+        const supabase = requireSupabaseClient();
+
+        const upserts = [...tableChanges.created, ...tableChanges.updated].map((record) =>
+            sanitizeRecordForPush(table, (record || {}) as RecordShape, userId),
+        );
+
+        if (upserts.length > 0) {
+            const { error } = await supabase.from(table).upsert(upserts as any[], {
+                onConflict: 'id',
+                ignoreDuplicates: false,
+            });
+
+            if (error) {
+                throw new Error(`Failed to upsert ${table}: ${error.message}`);
+            }
+        }
+
+        const deletedIds = tableChanges.deleted.map((id) => String(id));
+        if (deletedIds.length > 0) {
+            const { error } = await supabase.from(table).delete().in('id', deletedIds);
+
+            if (error) {
+                throw new Error(`Failed to delete ${table}: ${error.message}`);
+            }
+        }
+
+        return upserts.length + deletedIds.length;
+    }
+
+    private async fetchRemoteRows(table: SyncableTable, lastPulledAt: number, userId: string): Promise<RecordShape[]> {
+        const supabase = requireSupabaseClient();
+
+        const runQuery = async (useIsoDateForFilter: boolean) => {
+            let query = supabase
+                .from(table)
+                .select('*')
+                .order('updated_at', { ascending: true })
+                .limit(SUPABASE_PULL_LIMIT);
+
+            if (USER_SCOPED_TABLES.has(table)) {
+                query = query.eq('user_id', userId);
+            }
+
+            if (lastPulledAt > 0) {
+                query = query.gt(
+                    'updated_at',
+                    useIsoDateForFilter ? new Date(lastPulledAt).toISOString() : lastPulledAt,
+                );
+            }
+
+            return await query;
+        };
+
+        const numericFilterResult = await runQuery(false);
+        if (!numericFilterResult.error) {
+            return (numericFilterResult.data || []) as RecordShape[];
+        }
+
+        if (lastPulledAt <= 0) {
+            throw new Error(`Failed to pull ${table}: ${numericFilterResult.error.message}`);
+        }
+
+        const isoFilterResult = await runQuery(true);
+        if (!isoFilterResult.error) {
+            return (isoFilterResult.data || []) as RecordShape[];
+        }
+
+        throw new Error(
+            `Failed to pull ${table}: ${isoFilterResult.error.message} (numeric filter error: ${numericFilterResult.error.message})`,
+        );
+    }
+
+    private countChanges(changes: SyncDatabaseChangeSet): number {
+        const changeMap = changes as Record<string, SyncTableChangeSet>;
+
+        return Object.values(changeMap).reduce((count, tableChanges) => {
+            const tableCount = tableChanges.created.length + tableChanges.updated.length + tableChanges.deleted.length;
+            return count + tableCount;
+        }, 0);
+    }
+
+    private async restoreState(): Promise<void> {
+        try {
             const lastSync = await storage.getItem(SYNC_LAST_SYNC_STORAGE_KEY);
             if (lastSync) {
                 const parsedTimestamp = Number(lastSync);
@@ -336,34 +490,12 @@ class SyncService {
         }
     }
 
-    private async persistQueue(): Promise<void> {
-        try {
-            await storage.setItem(SYNC_QUEUE_STORAGE_KEY, JSON.stringify(this.syncQueue));
-        } catch (error) {
-            handleError(error, 'sync.persistQueue');
-        }
-    }
-
     private async persistLastSyncTime(): Promise<void> {
         try {
             await storage.setItem(SYNC_LAST_SYNC_STORAGE_KEY, String(this.lastSyncTime));
         } catch (error) {
             handleError(error, 'sync.persistLastSyncTime');
         }
-    }
-
-    private isValidQueueItem(item: unknown): item is SyncQueueItem {
-        if (!item || typeof item !== 'object') return false;
-        const candidate = item as Partial<SyncQueueItem>;
-        return Boolean(
-            candidate.id &&
-            candidate.table &&
-            candidate.recordId &&
-            candidate.operation &&
-            typeof candidate.timestamp === 'number' &&
-            typeof candidate.retryCount === 'number' &&
-            typeof candidate.synced === 'boolean'
-        );
     }
 }
 

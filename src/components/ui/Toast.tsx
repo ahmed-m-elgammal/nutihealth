@@ -1,48 +1,39 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import Animated, { FadeIn, SlideOutLeft } from 'react-native-reanimated';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../utils/cn';
-import { useUIStore } from '../../store/uiStore';
+import { type Toast as ToastModel, useUIStore } from '../../store/uiStore';
 
-/**
- * Toast variant definitions using CVA.
- */
-const toastVariants = cva(
-    'rounded-xl p-4 mb-2 flex-row items-center shadow-lg',
-    {
-        variants: {
-            variant: {
-                default: 'bg-card border border-border',
-                success: 'bg-success',
-                error: 'bg-destructive',
-                warning: 'bg-warning',
-                info: 'bg-secondary',
-            },
+const toastVariants = cva('rounded-xl p-4 mb-2 flex-row items-center shadow-lg', {
+    variants: {
+        variant: {
+            default: 'bg-card border border-border',
+            success: 'bg-success',
+            error: 'bg-destructive',
+            warning: 'bg-warning',
+            info: 'bg-secondary',
         },
-        defaultVariants: {
-            variant: 'default',
-        },
-    }
-);
+    },
+    defaultVariants: {
+        variant: 'default',
+    },
+});
 
-const toastTextVariants = cva(
-    'font-body flex-1',
-    {
-        variants: {
-            variant: {
-                default: 'text-card-foreground',
-                success: 'text-success-foreground',
-                error: 'text-destructive-foreground',
-                warning: 'text-warning-foreground',
-                info: 'text-secondary-foreground',
-            },
+const toastTextVariants = cva('font-body flex-1', {
+    variants: {
+        variant: {
+            default: 'text-card-foreground',
+            success: 'text-success-foreground',
+            error: 'text-destructive-foreground',
+            warning: 'text-warning-foreground',
+            info: 'text-secondary-foreground',
         },
-        defaultVariants: {
-            variant: 'default',
-        },
-    }
-);
+    },
+    defaultVariants: {
+        variant: 'default',
+    },
+});
 
 const variantIcons = {
     default: 'ⓘ',
@@ -54,18 +45,19 @@ const variantIcons = {
 
 export interface ToastProps extends VariantProps<typeof toastVariants> {
     id: string;
+    type: ToastModel['type'];
     message: string;
+    action?: {
+        label: string;
+        onPress?: () => void;
+    };
 }
 
-/**
- * Toast container component.
- * Manages display of toast notifications at the top of the screen.
- */
 export function ToastContainer() {
     const toasts = useUIStore((state) => state.toasts);
 
     return (
-        <View className="absolute top-12 left-0 right-0 px-4 z-50" pointerEvents="box-none">
+        <View className="absolute left-0 right-0 top-12 z-50 px-4" pointerEvents="box-none">
             {toasts.map((toast) => (
                 <Toast key={toast.id} {...toast} />
             ))}
@@ -73,11 +65,10 @@ export function ToastContainer() {
     );
 }
 
-/**
- * Individual Toast notification component with semantic variants.
- */
-function Toast({ variant, message }: ToastProps) {
-    const icon = variantIcons[variant || 'default'];
+function Toast({ id, type, message, action }: ToastProps) {
+    const variant = type;
+    const icon = variantIcons[variant];
+    const removeToast = useUIStore((state) => state.removeToast);
 
     return (
         <Animated.View
@@ -85,12 +76,20 @@ function Toast({ variant, message }: ToastProps) {
             exiting={SlideOutLeft.duration(200)}
             className={cn(toastVariants({ variant }))}
         >
-            <Text className={cn(toastTextVariants({ variant }), 'text-xl mr-3')}>
-                {icon}
-            </Text>
-            <Text className={cn(toastTextVariants({ variant }))}>
-                {message}
-            </Text>
+            <Text className={cn(toastTextVariants({ variant }), 'mr-3 text-xl')}>{icon}</Text>
+            <Text className={cn(toastTextVariants({ variant }))}>{message}</Text>
+            {action ? (
+                <Pressable
+                    onPress={() => {
+                        action.onPress?.();
+                        removeToast(id);
+                    }}
+                    android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
+                    className="ml-3 rounded-full border border-white/35 px-3 py-1"
+                >
+                    <Text className="font-semibold text-white">{action.label}</Text>
+                </Pressable>
+            ) : null}
         </Animated.View>
     );
 }

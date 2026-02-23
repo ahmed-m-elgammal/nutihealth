@@ -16,6 +16,7 @@ NutriHealth is a comprehensive React Native application designed for personalize
 The project is divided into a frontend (React Native/Expo) and a backend (Node.js/Express).
 
 ### Frontend
+
 - `src/app/`: Expo Router based navigation and screens.
 - `src/components/`: Reusable UI components.
 - `src/database/`: Local database models and schemas (WatermelonDB).
@@ -24,6 +25,7 @@ The project is divided into a frontend (React Native/Expo) and a backend (Node.j
 - `src/i18n/`: Localization files for internationalization.
 
 ### Backend
+
 - `backend/server.js`: Express server setup.
 - `backend/routes/`: API endpoint definitions.
 - `backend/services/`: Server-side business logic and external integrations.
@@ -66,6 +68,7 @@ cp .env.example .env
 ```
 
 Populate your secrets (API keys for external services) in the `.env` file.
+The backend is used for AI/recipe/weather proxy routes only.
 
 Start the backend server:
 
@@ -81,7 +84,11 @@ Set your frontend API URL in the root `.env` file:
 
 ```env
 EXPO_PUBLIC_API_URL=http://localhost:3000/api
+EXPO_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_or_publishable_key
 ```
+
+Before enabling sync in production, run the SQL policies in `docs/supabase/rls-policies.sql` in your Supabase project.
 
 ## 🧪 Testing
 

@@ -21,6 +21,7 @@ export default class Food extends Model {
     @field('fats') fats: number;
     @field('fiber') fiber?: number;
     @field('sugar') sugar?: number;
+    @field('note') note?: string;
     @readonly @date('created_at') createdAt: Date;
     @readonly @date('updated_at') updatedAt: Date;
 

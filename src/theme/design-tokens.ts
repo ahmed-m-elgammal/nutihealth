@@ -1,0 +1,153 @@
+export const designTokens = {
+    colors: {
+        brand: {
+            primary: {
+                50: '#f0fdf4',
+                100: '#dcfce7',
+                200: '#bbf7d0',
+                300: '#86efac',
+                400: '#4ade80',
+                500: '#22c55e',
+                600: '#16a34a',
+                700: '#15803d',
+                800: '#166534',
+                900: '#14532d',
+            },
+            secondary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+                800: '#1e40af',
+                900: '#1e3a8a',
+            },
+            accent: {
+                50: '#fff7ed',
+                100: '#ffedd5',
+                200: '#fed7aa',
+                300: '#fdba74',
+                400: '#fb923c',
+                500: '#f97316',
+                600: '#ea580c',
+                700: '#c2410c',
+                800: '#9a3412',
+                900: '#7c2d12',
+            },
+            semantic: {
+                success: '#16a34a',
+                warning: '#f59e0b',
+                error: '#dc2626',
+                info: '#3b82f6',
+            },
+        },
+        surface: {
+            background: '#f9fafb',
+            surface: '#ffffff',
+            surfaceVariant: '#f3f4f6',
+            outline: '#e5e7eb',
+            outlineVariant: '#d1d5db',
+        },
+        text: {
+            primary: '#111827',
+            secondary: '#4b5563',
+            inverse: '#f9fafb',
+        },
+    },
+    spacing: {
+        xs: 4,
+        sm: 8,
+        md: 12,
+        lg: 16,
+        xl: 24,
+        '2xl': 32,
+        '3xl': 48,
+    },
+    borderRadius: {
+        none: 0,
+        sm: 6,
+        md: 12,
+        lg: 16,
+        xl: 24,
+        full: 9999,
+    },
+    typography: {
+        fontFamily: {
+            display: 'Manrope-Bold',
+            heading: 'Manrope-SemiBold',
+            body: 'Inter-Regular',
+            caption: 'Inter-Medium',
+        },
+        weight: {
+            regular: '400',
+            medium: '500',
+            semibold: '600',
+            bold: '700',
+        },
+        size: {
+            display: 40,
+            h1: 28,
+            h2: 22,
+            h3: 18,
+            bodyLarge: 16,
+            body: 14,
+            label: 13,
+            caption: 12,
+        },
+        lineHeight: {
+            display: 48,
+            h1: 36,
+            h2: 30,
+            h3: 24,
+            bodyLarge: 24,
+            body: 20,
+            label: 18,
+            caption: 16,
+        },
+    },
+    elevation: {
+        0: 0,
+        1: 1,
+        2: 2,
+        3: 3,
+        4: 4,
+        5: 6,
+    },
+    motion: {
+        duration: {
+            instant: 0,
+            fast: 100,
+            normal: 250,
+            slow: 400,
+            emphasis: 600,
+        },
+        easing: {
+            standard: [0.2, 0, 0, 1],
+            decelerate: [0, 0, 0, 1],
+            accelerate: [0.3, 0, 0.8, 0.15],
+            emphasizedDecelerate: [0.05, 0.7, 0.1, 1],
+        },
+    },
+} as const;
+
+export const darkThemeOverrides = {
+    colors: {
+        surface: {
+            background: '#0b1220',
+            surface: '#111827',
+            surfaceVariant: '#1f2937',
+            outline: '#334155',
+            outlineVariant: '#475569',
+        },
+        text: {
+            primary: '#f9fafb',
+            secondary: '#cbd5e1',
+            inverse: '#111827',
+        },
+    },
+} as const;
+
+export type DesignTokens = typeof designTokens;

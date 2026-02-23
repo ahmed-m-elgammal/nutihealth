@@ -1,39 +1,51 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Coffee, Utensils } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
+import { useColors } from '../../hooks/useColors';
 
 interface EmptyStateProps {
-    icon: string;
+    illustration: React.ReactNode;
     title: string;
-    description: string;
+    message: string;
     actionLabel?: string;
     onAction?: () => void;
+    variant?: 'default' | 'error';
 }
 
 export default function EmptyState({
-    icon,
+    illustration,
     title,
-    description,
+    message,
     actionLabel,
     onAction,
+    variant = 'default',
 }: EmptyStateProps) {
-    const IconComponent = icon === 'utensils' ? Utensils : Coffee;
+    const colors = useColors();
+    const isError = variant === 'error';
 
     return (
-        <View className="flex-1 items-center justify-center p-8">
-            <View className="bg-gray-100 rounded-full p-6 mb-4">
-                <IconComponent size={48} color="#9CA3AF" />
+        <View className="flex-1 items-center justify-center px-8 py-10">
+            <View style={{ width: 120, height: 120 }} className="items-center justify-center">
+                {illustration}
             </View>
-            <Text className="text-xl font-bold text-gray-900 mb-2 text-center">{title}</Text>
-            <Text className="text-sm text-gray-500 text-center mb-6">{description}</Text>
-            {actionLabel && onAction && (
-                <TouchableOpacity
+            <Text
+                className="mt-4 text-center text-2xl font-semibold"
+                style={{ color: isError ? '#dc2626' : colors.text.primary }}
+            >
+                {title}
+            </Text>
+            <Text className="mt-2 text-center text-base" style={{ color: colors.text.secondary }}>
+                {message}
+            </Text>
+            {actionLabel && onAction ? (
+                <Pressable
                     onPress={onAction}
-                    className="bg-primary-500 rounded-lg px-6 py-3"
+                    android_ripple={{ color: 'rgba(255,255,255,0.25)' }}
+                    className="mt-6 rounded-xl px-5 py-3"
+                    style={{ backgroundColor: isError ? '#dc2626' : (colors.brand.primary[500] as string) }}
                 >
-                    <Text className="text-white font-semibold">{actionLabel}</Text>
-                </TouchableOpacity>
-            )}
+                    <Text className="font-semibold text-white">{actionLabel}</Text>
+                </Pressable>
+            ) : null}
         </View>
     );
 }

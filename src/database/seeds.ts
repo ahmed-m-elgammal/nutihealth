@@ -105,7 +105,91 @@ const WORKOUT_DAYS = [
     'Sunday',
 ];
 
-const normalizeExerciseName = (name: string): string => name.trim().toLowerCase();
+const normalizeExerciseName = (name: string): string =>
+    name
+        .trim()
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const PROGRAM_EXERCISE_GIF_TITLE_ALIASES: Record<string, string[]> = {
+    bench_press: ['Bench Press', 'Barbell Bench Press'],
+    pushups: ['Push-Up', 'Kneeling Push-up', 'Wall Push-up'],
+    dumbbell_press: ['Dumbbell Bench Press', 'Dumbbell Shoulder Press'],
+    pullups: ['Pull-Up', 'Assisted Pull-Up'],
+    dumbbell_row: ['Dumbbell Row', 'One-Arm Barbell Row'],
+    deadlift: ['Deadlift', 'Barbell Deadlift'],
+    squat: ['Squat', 'Bodyweight Squat'],
+    lunge: ['Bodyweight Walking Lunge', 'Dumbbell Walking Lunge', 'Walking Lunge'],
+    overhead_press: ['Barbell Military Press (Overhead press)', 'Seated Barbell Shoulder Press'],
+    bicep_curl: ['One Arm Biceps Curl', 'Seated Biceps Curl', 'Biceps Curl Machine'],
+    tricep_dip: ['Bench Dips', 'Triceps Dips'],
+    plank: ['Plank'],
+    goblet_squat: ['Dumbbell Goblet Squat', 'Cable Goblet Squat'],
+    romanian_deadlift: ['Romanian Deadlift', 'Dumbbell Romanian Deadlift'],
+    mountain_climber: ['Mountain Climber', 'Cross Body Mountain Climber'],
+    burpees: ['Burpees', 'Dumbbell Burpees'],
+    jumping_jacks: ['Jumping jack'],
+};
+
+const gifUrlByNormalizedTitle = new Map<string, string>();
+(gifsData as Array<{ title?: string; gif_url?: string }>).forEach((entry) => {
+    if (!entry?.title || !entry?.gif_url) {
+        return;
+    }
+
+    const key = normalizeExerciseName(entry.title);
+    if (!gifUrlByNormalizedTitle.has(key)) {
+        gifUrlByNormalizedTitle.set(key, entry.gif_url);
+    }
+});
+
+const getExerciseTitleHints = (exerciseId: string, exerciseName: string): string[] => {
+    const hints = [exerciseName, ...(PROGRAM_EXERCISE_GIF_TITLE_ALIASES[exerciseId] || [])];
+    return Array.from(new Set(hints.map((hint) => hint.trim()).filter(Boolean)));
+};
+
+const findExerciseByHints = (
+    exerciseByName: Map<string, Exercise>,
+    titleHints: string[],
+): Exercise | undefined => {
+    for (const hint of titleHints) {
+        const found = exerciseByName.get(normalizeExerciseName(hint));
+        if (found) {
+            return found;
+        }
+    }
+
+    return undefined;
+};
+
+const getGifUrlFromHints = (titleHints: string[]): string | undefined => {
+    for (const hint of titleHints) {
+        const gifUrl = gifUrlByNormalizedTitle.get(normalizeExerciseName(hint));
+        if (gifUrl) {
+            return gifUrl;
+        }
+    }
+
+    return undefined;
+};
+
+const indexExerciseWithHints = (
+    exerciseByName: Map<string, Exercise>,
+    exercise: Exercise,
+    titleHints: string[],
+): void => {
+    exerciseByName.set(normalizeExerciseName(exercise.name), exercise);
+
+    for (const hint of titleHints) {
+        const key = normalizeExerciseName(hint);
+        if (!exerciseByName.has(key)) {
+            exerciseByName.set(key, exercise);
+        }
+    }
+};
 
 const mapWorkoutCategoryToExerciseCategory = (category: string): string => {
     if (category === 'strength' || category === 'cardio' || category === 'mobility') return category;
@@ -253,8 +337,9 @@ export async function seedWorkoutPrograms() {
 
                 for (let order = 0; order < day.mainWorkout.length; order += 1) {
                     const exercise = day.mainWorkout[order];
-                    const exerciseNameKey = normalizeExerciseName(exercise.name);
-                    let resolvedExercise = exerciseByName.get(exerciseNameKey);
+                    const titleHints = getExerciseTitleHints(exercise.id, exercise.name);
+                    const resolvedGifUrl = getGifUrlFromHints(titleHints);
+                    let resolvedExercise = findExerciseByHints(exerciseByName, titleHints);
 
                     if (!resolvedExercise) {
                         resolvedExercise = await exercisesCollection.create((record) => {
@@ -263,12 +348,22 @@ export async function seedWorkoutPrograms() {
                             record.muscleGroup = exercise.targetMuscles.primary[0] || 'full_body';
                             record.equipment = mapWorkoutEquipmentToExerciseEquipment(exercise.equipment as string[]);
                             record.description = exercise.instructions[0] || '';
-                            record.videoUrl = exercise.videoUrl || exercise.thumbnailUrl;
-                            record.imageUrl = exercise.thumbnailUrl || exercise.videoUrl;
+                            record.videoUrl = resolvedGifUrl || exercise.videoUrl || exercise.thumbnailUrl;
+                            record.imageUrl = resolvedGifUrl || exercise.thumbnailUrl || exercise.videoUrl;
                             record.isCustom = false;
                             record.userId = 'system';
                         });
-                        exerciseByName.set(exerciseNameKey, resolvedExercise);
+                        indexExerciseWithHints(exerciseByName, resolvedExercise, titleHints);
+                    } else if (resolvedGifUrl && (!resolvedExercise.videoUrl || !resolvedExercise.imageUrl)) {
+                        resolvedExercise = await resolvedExercise.update((record) => {
+                            if (!record.videoUrl) {
+                                record.videoUrl = resolvedGifUrl;
+                            }
+                            if (!record.imageUrl) {
+                                record.imageUrl = resolvedGifUrl;
+                            }
+                        });
+                        indexExerciseWithHints(exerciseByName, resolvedExercise, titleHints);
                     }
 
                     await templateExercisesCollection.create((record) => {

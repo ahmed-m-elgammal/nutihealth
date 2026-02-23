@@ -2,6 +2,7 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '../../database';
 import MealPlan from '../../database/models/MealPlan';
 import User from '../../database/models/User';
+import { CarbCycleDay, generateCarbCyclePlan } from './carbCycling';
 import { SuggestedMealType, safeId } from './helpers';
 
 export interface GeneratedMealPlan {
@@ -73,7 +74,7 @@ function macroAdjustmentByGoal(goal: string, protein: number, carbs: number, fat
 }
 
 function getWorkoutDayPattern(activityLevel?: string): Set<DayPlan['day']> {
-    if (activityLevel === 'very_active' || activityLevel === 'active') {
+    if (activityLevel === 'athlete' || activityLevel === 'very_active') {
         return new Set(['Monday', 'Tuesday', 'Thursday', 'Friday', 'Saturday']);
     }
 
@@ -81,7 +82,11 @@ function getWorkoutDayPattern(activityLevel?: string): Set<DayPlan['day']> {
         return new Set(['Monday', 'Wednesday', 'Friday', 'Saturday']);
     }
 
-    return new Set(['Tuesday', 'Thursday', 'Saturday']);
+    if (activityLevel === 'light') {
+        return new Set(['Tuesday', 'Thursday', 'Saturday']);
+    }
+
+    return new Set(['Wednesday', 'Saturday']);
 }
 
 function getRestrictions(user: User): string[] {
@@ -136,19 +141,61 @@ function mealWindowByType(type: SuggestedMealType): string {
     }
 }
 
+function getMealRatios(mode?: CarbCycleDay): Record<SuggestedMealType, number> {
+    if (mode === 'refeed') {
+        return {
+            breakfast: 0.27,
+            lunch: 0.36,
+            dinner: 0.27,
+            snack: 0.1,
+        };
+    }
+
+    if (mode === 'high') {
+        return {
+            breakfast: 0.25,
+            lunch: 0.36,
+            dinner: 0.29,
+            snack: 0.1,
+        };
+    }
+
+    return {
+        breakfast: 0.27,
+        lunch: 0.33,
+        dinner: 0.3,
+        snack: 0.1,
+    };
+}
+
+function pickRotatedFoods(foods: typeof FOOD_LIBRARY, startIndex: number, count: number) {
+    if (foods.length === 0) {
+        return [];
+    }
+
+    const picked: Array<{ name: string; grams: number; calories: number }> = [];
+    for (let i = 0; i < count; i += 1) {
+        const food = foods[(startIndex + i) % foods.length];
+        picked.push({
+            name: food.name,
+            grams: food.grams,
+            calories: food.calories,
+        });
+    }
+
+    return picked;
+}
+
 function buildPlannedMeals(
     dailyCalories: number,
     proteinTarget: number,
     carbsTarget: number,
     fatsTarget: number,
     foods: typeof FOOD_LIBRARY,
+    dayIndex: number,
+    dayMode?: CarbCycleDay,
 ): PlannedMeal[] {
-    const ratios: Record<SuggestedMealType, number> = {
-        breakfast: 0.25,
-        lunch: 0.35,
-        dinner: 0.3,
-        snack: 0.1,
-    };
+    const ratios = getMealRatios(dayMode);
 
     const order: SuggestedMealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
@@ -160,11 +207,7 @@ function buildPlannedMeals(
         targetCarbs: Math.max(5, Math.round(carbsTarget * ratios[type])),
         targetFats: Math.max(3, Math.round(fatsTarget * ratios[type])),
         timeWindow: mealWindowByType(type),
-        foods: foods.slice(idx, idx + 3).map((food) => ({
-            name: food.name,
-            grams: food.grams,
-            calories: food.calories,
-        })),
+        foods: pickRotatedFoods(foods, dayIndex * 2 + idx, 3),
     }));
 }
 
@@ -180,16 +223,41 @@ export async function generatePlanForUser(userId: string): Promise<GeneratedMeal
     );
     const restrictions = getRestrictions(user);
     const availableFoods = filterFoodsByRestrictions(restrictions);
+    const mealFoods = availableFoods.length > 0 ? availableFoods : FOOD_LIBRARY;
     const workoutDays = getWorkoutDayPattern(user.activityLevel);
 
-    const weekDays: DayPlan[] = DAYS.map((day) => {
+    let cyclePlan: Awaited<ReturnType<typeof generateCarbCyclePlan>> | null = null;
+    try {
+        cyclePlan = await generateCarbCyclePlan(userId);
+    } catch {
+        cyclePlan = null;
+    }
+
+    const weekDays: DayPlan[] = DAYS.map((day, dayIndex) => {
         const isWorkoutDay = workoutDays.has(day);
-        const dayCalories = Math.max(1200, baseCalories + (isWorkoutDay ? 150 : -100));
+        const dayMode = cyclePlan?.weekPattern?.[dayIndex];
+
+        const modeTargets =
+            dayMode === 'high'
+                ? cyclePlan?.highCarbMacros
+                : dayMode === 'refeed'
+                  ? cyclePlan?.refeedMacros
+                  : cyclePlan?.lowCarbMacros;
+
+        const daySpecificTargets = cyclePlan?.dayTargets?.[dayIndex];
+
+        const dayCalories = Math.max(
+            1200,
+            daySpecificTargets?.calories ?? modeTargets?.calories ?? baseCalories + (isWorkoutDay ? 150 : -100),
+        );
+        const dayProtein = daySpecificTargets?.protein ?? modeTargets?.protein ?? adjusted.protein;
+        const dayCarbs = daySpecificTargets?.carbs ?? modeTargets?.carbs ?? adjusted.carbs;
+        const dayFats = daySpecificTargets?.fats ?? modeTargets?.fats ?? adjusted.fats;
 
         return {
             day,
-            isRestDay: !isWorkoutDay,
-            meals: buildPlannedMeals(dayCalories, adjusted.protein, adjusted.carbs, adjusted.fats, availableFoods),
+            isRestDay: dayMode ? dayMode === 'low' : !isWorkoutDay,
+            meals: buildPlannedMeals(dayCalories, dayProtein, dayCarbs, dayFats, mealFoods, dayIndex, dayMode),
         };
     });
 

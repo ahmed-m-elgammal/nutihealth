@@ -1,22 +1,15 @@
-import * as SecureStore from 'expo-secure-store';
 import { ApiResponse } from './client';
 import { handleError } from '../../utils/errors';
+import {
+    clearAuthData,
+    getAuthToken as getStoredAuthToken,
+    setAuthToken,
+    setRefreshToken,
+    setUserId,
+} from '../../utils/storage';
+import { requireSupabaseClient } from '../supabaseClient';
 
-/**
- * Authentication Service
- * 
- * OFFLINE-FIRST MODE:
- * This service is structured and ready for backend integration,
- * but currently inactive. The app operates in offline-first mode
- * without user authentication.
- * 
- * TO ENABLE:
- * 1. Implement backend authentication endpoints
- * 2. Uncomment and configure API calls
- * 3. Add proper error handling and validation
- */
-
-// Secure storage keys
+// Secure storage keys used by existing hooks/services.
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_ID_KEY = 'user_id';
@@ -62,11 +55,41 @@ export interface ResetPasswordRequest {
     newPassword: string;
 }
 
+const toAuthResponse = (
+    user: {
+        id: string;
+        email?: string | null;
+        user_metadata?: Record<string, unknown>;
+    },
+    session: {
+        access_token: string;
+        refresh_token?: string;
+        expires_in?: number;
+    },
+): AuthResponse => {
+    const metadataName = typeof user.user_metadata?.name === 'string' ? user.user_metadata.name : null;
+    const metadataFullName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : null;
+
+    return {
+        user: {
+            id: user.id,
+            name: metadataName || metadataFullName || user.email || 'User',
+            email: user.email || '',
+        },
+        token: session.access_token,
+        refreshToken: session.refresh_token || '',
+        expiresIn: session.expires_in || 0,
+    };
+};
+
+const persistAuthResponse = async (authData: AuthResponse): Promise<void> => {
+    await setAuthToken(authData.token);
+    await setRefreshToken(authData.refreshToken);
+    await setUserId(authData.user.id);
+};
+
 /**
  * Login user with email and password
- * 
- * @param credentials - Email and password
- * @returns Authentication response with user data and tokens
  */
 export async function login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     try {
@@ -81,13 +104,28 @@ export async function login(credentials: LoginRequest): Promise<ApiResponse<Auth
             };
         }
 
-        // OFFLINE-FIRST: backend auth is intentionally disabled.
+        const supabase = requireSupabaseClient();
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password: credentials.password,
+        });
+
+        if (error || !data.session || !data.user) {
+            return {
+                success: false,
+                error: {
+                    code: error?.code || 'LOGIN_FAILED',
+                    message: error?.message || 'Failed to login. Please verify your credentials.',
+                },
+            };
+        }
+
+        const authData = toAuthResponse(data.user, data.session);
+        await persistAuthResponse(authData);
+
         return {
-            success: false,
-            error: {
-                code: 'OFFLINE_MODE',
-                message: 'Authentication is disabled in offline-first mode',
-            },
+            success: true,
+            data: authData,
         };
     } catch (error) {
         handleError(error, 'auth.login');
@@ -103,13 +141,9 @@ export async function login(credentials: LoginRequest): Promise<ApiResponse<Auth
 
 /**
  * Sign up new user
- * 
- * @param data - User registration data
- * @returns Authentication response with user data and tokens
  */
 export async function signup(data: SignupRequest): Promise<ApiResponse<AuthResponse>> {
     try {
-        // Validate password match
         if (data.password !== data.confirmPassword) {
             return {
                 success: false,
@@ -120,13 +154,54 @@ export async function signup(data: SignupRequest): Promise<ApiResponse<AuthRespo
             };
         }
 
-        // OFFLINE-FIRST: backend auth is intentionally disabled.
-        return {
-            success: false,
-            error: {
-                code: 'OFFLINE_MODE',
-                message: 'Authentication is disabled in offline-first mode',
+        const normalizedEmail = data.email.trim().toLowerCase();
+        if (!normalizedEmail || !data.password.trim()) {
+            return {
+                success: false,
+                error: {
+                    code: 'INVALID_SIGNUP_DATA',
+                    message: 'Email and password are required',
+                },
+            };
+        }
+
+        const supabase = requireSupabaseClient();
+        const { data: signupResult, error } = await supabase.auth.signUp({
+            email: normalizedEmail,
+            password: data.password,
+            options: {
+                data: {
+                    name: data.name.trim(),
+                },
             },
+        });
+
+        if (error) {
+            return {
+                success: false,
+                error: {
+                    code: error.code || 'SIGNUP_FAILED',
+                    message: error.message,
+                },
+            };
+        }
+
+        if (!signupResult.user || !signupResult.session) {
+            return {
+                success: false,
+                error: {
+                    code: 'EMAIL_VERIFICATION_REQUIRED',
+                    message: 'Account created. Please verify your email before signing in.',
+                },
+            };
+        }
+
+        const authData = toAuthResponse(signupResult.user, signupResult.session);
+        await persistAuthResponse(authData);
+
+        return {
+            success: true,
+            data: authData,
         };
     } catch (error) {
         handleError(error, 'auth.signup');
@@ -145,25 +220,27 @@ export async function signup(data: SignupRequest): Promise<ApiResponse<AuthRespo
  */
 export async function logout(): Promise<void> {
     try {
-        // Clear tokens from secure storage
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
-        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-        await SecureStore.deleteItemAsync(USER_ID_KEY);
+        const supabase = requireSupabaseClient();
+        await supabase.auth.signOut();
     } catch (error) {
         handleError(error, 'auth.logout');
+    } finally {
+        await clearAuthData();
     }
 }
 
 /**
  * Refresh authentication token
- * 
- * @returns New authentication tokens
  */
 export async function refreshToken(): Promise<ApiResponse<AuthResponse>> {
     try {
-        const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+        const supabase = requireSupabaseClient();
+        const {
+            data: { session: existingSession },
+        } = await supabase.auth.getSession();
 
-        if (!refreshToken) {
+        const existingRefreshToken = existingSession?.refresh_token;
+        if (!existingRefreshToken) {
             return {
                 success: false,
                 error: {
@@ -173,13 +250,26 @@ export async function refreshToken(): Promise<ApiResponse<AuthResponse>> {
             };
         }
 
-        // OFFLINE-FIRST: backend auth is intentionally disabled.
+        const { data, error } = await supabase.auth.refreshSession({
+            refresh_token: existingRefreshToken,
+        });
+
+        if (error || !data.session || !data.user) {
+            return {
+                success: false,
+                error: {
+                    code: error?.code || 'REFRESH_FAILED',
+                    message: error?.message || 'Failed to refresh token',
+                },
+            };
+        }
+
+        const authData = toAuthResponse(data.user, data.session);
+        await persistAuthResponse(authData);
+
         return {
-            success: false,
-            error: {
-                code: 'OFFLINE_MODE',
-                message: 'Token refresh is disabled in offline-first mode',
-            },
+            success: true,
+            data: authData,
         };
     } catch (error) {
         handleError(error, 'auth.refreshToken');
@@ -195,12 +285,11 @@ export async function refreshToken(): Promise<ApiResponse<AuthResponse>> {
 
 /**
  * Request password reset email
- * 
- * @param email - User email
  */
 export async function requestPasswordReset(email: string): Promise<ApiResponse<void>> {
     try {
-        if (!email.trim()) {
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail) {
             return {
                 success: false,
                 error: {
@@ -210,13 +299,20 @@ export async function requestPasswordReset(email: string): Promise<ApiResponse<v
             };
         }
 
-        return {
-            success: false,
-            error: {
-                code: 'OFFLINE_MODE',
-                message: 'Password reset is disabled in offline-first mode',
-            },
-        };
+        const supabase = requireSupabaseClient();
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+
+        if (error) {
+            return {
+                success: false,
+                error: {
+                    code: error.code || 'REQUEST_FAILED',
+                    message: error.message,
+                },
+            };
+        }
+
+        return { success: true };
     } catch (error) {
         handleError(error, 'auth.requestPasswordReset');
         return {
@@ -231,28 +327,52 @@ export async function requestPasswordReset(email: string): Promise<ApiResponse<v
 
 /**
  * Reset password with code from email
- * 
- * @param data - Reset password data
  */
 export async function resetPassword(data: ResetPasswordRequest): Promise<ApiResponse<void>> {
     try {
-        if (!data.code.trim() || !data.newPassword.trim()) {
+        const normalizedEmail = data.email.trim().toLowerCase();
+        const code = data.code.trim();
+        const newPassword = data.newPassword.trim();
+
+        if (!normalizedEmail || !code || !newPassword) {
             return {
                 success: false,
                 error: {
                     code: 'INVALID_RESET_DATA',
-                    message: 'Reset code and new password are required',
+                    message: 'Email, reset code, and new password are required',
                 },
             };
         }
 
-        return {
-            success: false,
-            error: {
-                code: 'OFFLINE_MODE',
-                message: 'Password reset is disabled in offline-first mode',
-            },
-        };
+        const supabase = requireSupabaseClient();
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+            email: normalizedEmail,
+            token: code,
+            type: 'recovery',
+        });
+
+        if (verifyError) {
+            return {
+                success: false,
+                error: {
+                    code: verifyError.code || 'RESET_FAILED',
+                    message: verifyError.message,
+                },
+            };
+        }
+
+        const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+        if (updateError) {
+            return {
+                success: false,
+                error: {
+                    code: updateError.code || 'RESET_FAILED',
+                    message: updateError.message,
+                },
+            };
+        }
+
+        return { success: true };
     } catch (error) {
         handleError(error, 'auth.resetPassword');
         return {
@@ -267,12 +387,16 @@ export async function resetPassword(data: ResetPasswordRequest): Promise<ApiResp
 
 /**
  * Get current auth token
- * 
- * @returns Auth token or null
  */
 export async function getAuthToken(): Promise<string | null> {
     try {
-        return await SecureStore.getItemAsync(TOKEN_KEY);
+        const supabase = requireSupabaseClient();
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+
+        const token = session?.access_token || (await getStoredAuthToken());
+        return token ?? null;
     } catch (error) {
         handleError(error, 'auth.getAuthToken');
         return null;
@@ -281,30 +405,37 @@ export async function getAuthToken(): Promise<string | null> {
 
 /**
  * Check if user is authenticated
- * 
- * @returns True if user has valid token
  */
 export async function isAuthenticated(): Promise<boolean> {
     try {
-        const token = await getAuthToken();
-        return token !== null;
-    } catch (error) {
+        const supabase = requireSupabaseClient();
+        const {
+            data: { user },
+            error,
+        } = await supabase.auth.getUser();
+
+        return !error && Boolean(user);
+    } catch {
         return false;
     }
 }
 
 /**
- * Store authentication tokens securely
- * 
- * @param authData - Authentication response data
+ * Store authentication tokens and user id for compatibility with existing storage lookups.
  */
 export async function storeAuthTokens(authData: AuthResponse): Promise<void> {
     try {
-        await SecureStore.setItemAsync(TOKEN_KEY, authData.token);
-        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authData.refreshToken);
-        await SecureStore.setItemAsync(USER_ID_KEY, authData.user.id);
+        await setAuthToken(authData.token);
+        await setRefreshToken(authData.refreshToken);
+        await setUserId(authData.user.id);
     } catch (error) {
         handleError(error, 'auth.storeAuthTokens');
         throw new Error('Failed to store authentication tokens');
     }
 }
+
+export const AUTH_STORAGE_KEYS = {
+    TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    USER_ID_KEY,
+} as const;

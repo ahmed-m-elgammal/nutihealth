@@ -1,8 +1,16 @@
 /** @type {import('tailwindcss').Config} */
+const {
+    colors: tokenColors,
+    spacing: tokenSpacing,
+    borderRadius: tokenRadius,
+    fontFamily: tokenFontFamily,
+    fontSize: tokenFontSize,
+} = require('./src/theme/tailwind-tokens');
+
 module.exports = {
     // NOTE: Update this to include the paths to all of your component files.
-    content: ["./src/**/*.{js,jsx,ts,tsx}"],
-    presets: [require("nativewind/preset")],
+    content: ['./src/**/*.{js,jsx,ts,tsx}'],
+    presets: [require('nativewind/preset')],
     theme: {
         extend: {
             colors: {
@@ -12,6 +20,7 @@ module.exports = {
                 ring: 'hsl(var(--ring))',
                 background: 'hsl(var(--background))',
                 foreground: 'hsl(var(--foreground))',
+                ...tokenColors,
                 primary: {
                     DEFAULT: 'hsl(var(--primary))',
                     foreground: 'hsl(var(--primary-foreground))',
@@ -139,20 +148,22 @@ module.exports = {
                 info: '#3b82f6',
             },
             borderRadius: {
+                ...tokenRadius,
                 lg: 'var(--radius)',
                 md: 'calc(var(--radius) - 2px)',
                 sm: 'calc(var(--radius) - 4px)',
             },
             fontFamily: {
-                display: ['Manrope-Bold'],
-                heading: ['Manrope-SemiBold'],
-                body: ['Inter-Regular'],
-                caption: ['Inter-Medium'],
+                ...tokenFontFamily,
             },
             spacing: {
+                ...tokenSpacing,
                 18: '4.5rem',
-            }
+            },
+            fontSize: {
+                ...tokenFontSize,
+            },
         },
     },
     plugins: [],
-}
+};

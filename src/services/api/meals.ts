@@ -2,8 +2,10 @@ import { database } from '../../database';
 import Meal from '../../database/models/Meal';
 import Food from '../../database/models/Food';
 import CustomFood from '../../database/models/CustomFood';
+import User from '../../database/models/User';
 import { Q } from '@nozbe/watermelondb';
 import { handleError } from '../../utils/errors';
+import { getUserId } from '../../utils/storage';
 
 export interface MealData {
     name: string;
@@ -27,6 +29,7 @@ export interface FoodData {
     fats: number;
     fiber?: number;
     sugar?: number;
+    note?: string;
 }
 
 export interface NutritionSummary {
@@ -39,25 +42,38 @@ export interface NutritionSummary {
     mealCount: number;
 }
 
+const resolveActiveUserId = async (): Promise<string> => {
+    const usersCollection = database.get<User>('users');
+    const users = await usersCollection.query().fetch();
+    if (users.length === 0) {
+        throw new Error('No user found. Please complete onboarding first.');
+    }
+
+    const storedUserId = await getUserId();
+    if (storedUserId) {
+        const matchedUser = users.find((user) => user.id === storedUserId);
+        if (matchedUser) {
+            return matchedUser.id;
+        }
+    }
+
+    if (users.length === 1) {
+        return users[0].id;
+    }
+
+    throw new Error('No active user selected. Please sign in again.');
+};
+
 /**
  * Create a new meal with foods
- * 
+ *
  * NOTE: This service operates in offline-first mode using WatermelonDB.
  * When backend is enabled, this will sync via the sync service.
  */
 export async function createMeal(mealData: MealData): Promise<Meal> {
     try {
-        const meal = await database.write(async () => {
-            // Get users collection to find user
-            const usersCollection = database.get<any>('users');
-            const users = await usersCollection.query().fetch();
-
-            if (users.length === 0) {
-                throw new Error('No user found. Please complete onboarding first.');
-            }
-
-            const userId = users[0].id;
-
+        const userId = await resolveActiveUserId();
+        const createdMeal = await database.write(async () => {
             // Create meal
             const mealsCollection = database.get<Meal>('meals');
             const newMeal = await mealsCollection.create((meal) => {
@@ -74,7 +90,7 @@ export async function createMeal(mealData: MealData): Promise<Meal> {
                 let totalCarbs = 0;
                 let totalFats = 0;
 
-                mealData.foods.forEach(food => {
+                mealData.foods.forEach((food) => {
                     totalCalories += food.calories * food.quantity;
                     totalProtein += food.protein * food.quantity;
                     totalCarbs += food.carbs * food.quantity;
@@ -104,13 +120,14 @@ export async function createMeal(mealData: MealData): Promise<Meal> {
                     food.fats = foodData.fats;
                     food.fiber = foodData.fiber;
                     food.sugar = foodData.sugar;
+                    food.note = foodData.note;
                 });
             }
 
             return newMeal;
         });
 
-        return meal;
+        return createdMeal;
     } catch (error) {
         handleError(error, 'meals.createMeal');
         throw error;
@@ -162,6 +179,7 @@ export async function updateMeal(mealId: string, updates: Partial<MealData>): Pr
                         food.fats = foodData.fats;
                         food.fiber = foodData.fiber;
                         food.sugar = foodData.sugar;
+                        food.note = foodData.note;
                     });
 
                     totalCalories += foodData.calories * foodData.quantity;
@@ -212,8 +230,9 @@ export async function deleteMeal(mealId: string): Promise<void> {
 /**
  * Get meals for a specific date
  */
-export async function getMealsForDate(date: Date): Promise<Meal[]> {
+export async function getMealsForDate(date: Date, userId?: string): Promise<Meal[]> {
     try {
+        const activeUserId = userId || (await resolveActiveUserId());
         const startOfDay = new Date(date);
         startOfDay.setHours(0, 0, 0, 0);
 
@@ -223,8 +242,9 @@ export async function getMealsForDate(date: Date): Promise<Meal[]> {
         const mealsCollection = database.get<Meal>('meals');
         const meals = await mealsCollection
             .query(
+                Q.where('user_id', Q.eq(activeUserId)),
                 Q.where('consumed_at', Q.gte(startOfDay.getTime())),
-                Q.where('consumed_at', Q.lte(endOfDay.getTime()))
+                Q.where('consumed_at', Q.lte(endOfDay.getTime())),
             )
             .fetch();
 
@@ -278,9 +298,7 @@ export async function getDailyNutritionSummary(date: Date): Promise<NutritionSum
 export async function getRecentFoods(limit: number = 20): Promise<Food[]> {
     try {
         const foodsCollection = database.get<Food>('foods');
-        const foods = await foodsCollection
-            .query(Q.sortBy('created_at', Q.desc), Q.take(limit))
-            .fetch();
+        const foods = await foodsCollection.query(Q.sortBy('created_at', Q.desc), Q.take(limit)).fetch();
 
         return foods;
     } catch (error) {
@@ -295,9 +313,7 @@ export async function getRecentFoods(limit: number = 20): Promise<Food[]> {
 export async function getFavoriteCustomFoods(): Promise<CustomFood[]> {
     try {
         const customFoodsCollection = database.get<CustomFood>('custom_foods');
-        const foods = await customFoodsCollection
-            .query(Q.where('is_favorite', true))
-            .fetch();
+        const foods = await customFoodsCollection.query(Q.where('is_favorite', true)).fetch();
 
         return foods;
     } catch (error) {
@@ -311,16 +327,8 @@ export async function getFavoriteCustomFoods(): Promise<CustomFood[]> {
  */
 export async function createCustomFood(foodData: Omit<FoodData, 'quantity'>): Promise<CustomFood> {
     try {
+        const userId = await resolveActiveUserId();
         const customFood = await database.write(async () => {
-            const usersCollection = database.get<any>('users');
-            const users = await usersCollection.query().fetch();
-
-            if (users.length === 0) {
-                throw new Error('No user found');
-            }
-
-            const userId = users[0].id;
-
             const customFoodsCollection = database.get<CustomFood>('custom_foods');
             return await customFoodsCollection.create((food) => {
                 food.userId = userId;

@@ -17,6 +17,11 @@ const DEFAULT_AI_RATE_LIMIT_MAX = 20;
 const DEFAULT_RECIPE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const DEFAULT_RECIPE_RATE_LIMIT_MAX = 30;
 const REQUEST_JSON_LIMIT = process.env.REQUEST_JSON_LIMIT || '6mb';
+const APP_API_KEY = process.env.APP_API_KEY;
+
+if (NODE_ENV === 'production' && !APP_API_KEY) {
+    throw new Error('APP_API_KEY is required in production.');
+}
 
 const parsePositiveInt = (value, fallback) => {
     const parsed = Number.parseInt(String(value || ''), 10);
@@ -58,6 +63,14 @@ const sendError = (res, statusCode, message, code = 'REQUEST_ERROR') => {
     });
 };
 
+const ALLOWED_IMAGE_PREFIXES = [
+    'data:image/jpeg;base64,',
+    'data:image/jpg;base64,',
+    'data:image/png;base64,',
+    'data:image/webp;base64,',
+];
+const hasValidImagePrefix = (image) => ALLOWED_IMAGE_PREFIXES.some((prefix) => image.toLowerCase().startsWith(prefix));
+
 const createLimiter = (windowMs, max, message) =>
     rateLimit({
         windowMs,
@@ -92,6 +105,33 @@ app.use(
 );
 app.use(express.json({ limit: REQUEST_JSON_LIMIT }));
 
+const apiKeyAuthEnabled = NODE_ENV === 'production' || Boolean(APP_API_KEY);
+const requireAppApiKey = (req, res, next) => {
+    if (!apiKeyAuthEnabled || req.path === '/api/healthz' || req.method === 'OPTIONS') {
+        return next();
+    }
+
+    const providedApiKey = req.header('x-api-key');
+    if (!providedApiKey || providedApiKey !== APP_API_KEY) {
+        return sendError(res, 401, 'Missing or invalid API key.', 'UNAUTHORIZED');
+    }
+
+    return next();
+};
+
+app.get('/api/healthz', (_req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'nutrihealth-backend',
+        timestamp: new Date().toISOString(),
+        security: {
+            cors: allowedOrigins.size > 0 || NODE_ENV !== 'production',
+            rateLimit: true,
+            apiKeyAuth: apiKeyAuthEnabled,
+        },
+    });
+});
+
 // Rate Limiting
 const limiter = createLimiter(
     GLOBAL_RATE_LIMIT_WINDOW_MS,
@@ -110,6 +150,7 @@ const recipeLimiter = createLimiter(
 );
 
 app.use(limiter);
+app.use('/api', requireAppApiKey);
 app.use('/api/recipes', recipeLimiter, recipeImportRoutes);
 
 // --- Groq API Proxy ---
@@ -177,11 +218,11 @@ app.post('/api/analyze-food', aiLimiter, async (req, res) => {
         const { image } = req.body; // Expecting base64 image
         const isValidImage = typeof image === 'string' && image.trim().length > 0 && image.length <= 5_000_000;
 
-        if (!isValidImage) {
+        if (!isValidImage || !hasValidImagePrefix(image)) {
             return sendError(
                 res,
                 400,
-                'Invalid image payload. Provide a base64 image string.',
+                'Invalid image payload. Expected a data URL image prefix (for example data:image/jpeg;base64,).',
                 'INVALID_IMAGE_PAYLOAD',
             );
         }

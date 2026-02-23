@@ -1,4 +1,4 @@
-import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations';
+import { addColumns, createTable, schemaMigrations, unsafeExecuteSql } from '@nozbe/watermelondb/Schema/migrations';
 
 export const migrations = schemaMigrations({
     migrations: [
@@ -38,9 +38,7 @@ export const migrations = schemaMigrations({
                 }),
                 addColumns({
                     table: 'exercise_sets',
-                    columns: [
-                        { name: 'is_completed', type: 'boolean' },
-                    ],
+                    columns: [{ name: 'is_completed', type: 'boolean' }],
                 }),
             ],
         },
@@ -53,7 +51,7 @@ export const migrations = schemaMigrations({
                         { name: 'user_id', type: 'string', isIndexed: true },
                         { name: 'name', type: 'string' },
                         { name: 'description', type: 'string', isOptional: true },
-                        { name: 'meal_type', type: 'string' },
+                        { name: 'meal_type', type: 'string', isIndexed: true },
                         { name: 'foods_data', type: 'string' },
                         { name: 'total_calories', type: 'number' },
                         { name: 'total_protein', type: 'number' },
@@ -130,9 +128,7 @@ export const migrations = schemaMigrations({
                 }),
                 addColumns({
                     table: 'workout_templates',
-                    columns: [
-                        { name: 'program_id', type: 'string', isOptional: true, isIndexed: true },
-                    ],
+                    columns: [{ name: 'program_id', type: 'string', isOptional: true, isIndexed: true }],
                 }),
                 createTable({
                     name: 'template_exercises',
@@ -163,9 +159,28 @@ export const migrations = schemaMigrations({
             steps: [
                 addColumns({
                     table: 'users',
-                    columns: [
-                        { name: 'workout_preferences', type: 'string', isOptional: true },
-                    ],
+                    columns: [{ name: 'workout_preferences', type: 'string', isOptional: true }],
+                }),
+            ],
+        },
+        {
+            toVersion: 6,
+            steps: [],
+        },
+        {
+            toVersion: 7,
+            steps: [
+                unsafeExecuteSql('CREATE INDEX IF NOT EXISTS meals_consumed_at_idx ON meals (consumed_at);'),
+                unsafeExecuteSql('CREATE INDEX IF NOT EXISTS water_logs_logged_at_idx ON water_logs (logged_at);'),
+                unsafeExecuteSql('CREATE INDEX IF NOT EXISTS foods_created_at_idx ON foods (created_at);'),
+            ],
+        },
+        {
+            toVersion: 8,
+            steps: [
+                addColumns({
+                    table: 'foods',
+                    columns: [{ name: 'note', type: 'string', isOptional: true }],
                 }),
             ],
         },

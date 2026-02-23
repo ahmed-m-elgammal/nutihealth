@@ -4,17 +4,9 @@ import type User from '../../database/models/User';
 import WorkoutSchedule from '../../database/models/WorkoutSchedule';
 import type WorkoutTemplate from '../../database/models/WorkoutTemplate';
 
-export const WEEK_DAYS = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-] as const;
+export const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
-export type WeekDayName = typeof WEEK_DAYS[number];
+export type WeekDayName = (typeof WEEK_DAYS)[number];
 
 export interface WorkoutSchedulePreferences {
     startDay: WeekDayName;
@@ -66,7 +58,7 @@ const toWeekDayNames = (values: unknown): WeekDayName[] => {
 };
 
 export const getOrderedWeekDays = (
-    startDay: WeekDayName = DEFAULT_WORKOUT_SCHEDULE_PREFERENCES.startDay
+    startDay: WeekDayName = DEFAULT_WORKOUT_SCHEDULE_PREFERENCES.startDay,
 ): WeekDayName[] => {
     const startIndex = WEEK_DAYS.indexOf(startDay);
 
@@ -78,10 +70,9 @@ export const getOrderedWeekDays = (
 };
 
 export const sanitizeSchedulePreferences = (
-    preferences?: Partial<WorkoutSchedulePreferences> | null
+    preferences?: Partial<WorkoutSchedulePreferences> | null,
 ): WorkoutSchedulePreferences => {
-    const startDay = toWeekDayName(preferences?.startDay || null)
-        || DEFAULT_WORKOUT_SCHEDULE_PREFERENCES.startDay;
+    const startDay = toWeekDayName(preferences?.startDay || null) || DEFAULT_WORKOUT_SCHEDULE_PREFERENCES.startDay;
 
     const uniqueRestDays = Array.from(new Set(toWeekDayNames(preferences?.restDays || [])));
     const maxRestDays = WEEK_DAYS.length - 1;
@@ -106,14 +97,14 @@ export const getSchedulePreferencesFromUser = (workoutPreferences: unknown): Wor
     }
 
     return sanitizeSchedulePreferences({
-        startDay: typeof record.startDay === 'string' ? record.startDay as WeekDayName : undefined,
+        startDay: typeof record.startDay === 'string' ? (record.startDay as WeekDayName) : undefined,
         restDays: record.restDays as WeekDayName[] | undefined,
     });
 };
 
 export const mapTemplatesToSchedule = (
     templateIds: string[],
-    preferences?: Partial<WorkoutSchedulePreferences> | null
+    preferences?: Partial<WorkoutSchedulePreferences> | null,
 ): MappedTemplateSchedule => {
     const uniqueTemplateIds = Array.from(new Set(templateIds.filter(Boolean)));
     const effectivePreferences = sanitizeSchedulePreferences(preferences);
@@ -121,9 +112,7 @@ export const mapTemplatesToSchedule = (
     const orderedDays = getOrderedWeekDays(effectivePreferences.startDay);
     const orderedTrainingDays = orderedDays.filter((day) => !effectivePreferences.restDays.includes(day));
 
-    const usableTrainingDays = orderedTrainingDays.length > 0
-        ? orderedTrainingDays
-        : orderedDays;
+    const usableTrainingDays = orderedTrainingDays.length > 0 ? orderedTrainingDays : orderedDays;
 
     const assignments: ScheduleAssignment[] = uniqueTemplateIds
         .slice(0, usableTrainingDays.length)
@@ -153,13 +142,7 @@ export async function applyTemplateScheduleForUser({
     templates,
     preferences,
 }: ApplyTemplateScheduleParams): Promise<ApplyTemplateScheduleResult> {
-    const orderedUniqueTemplateIds = Array.from(
-        new Set(
-            templates
-                .map((template) => template.id)
-                .filter(Boolean)
-        )
-    );
+    const orderedUniqueTemplateIds = Array.from(new Set(templates.map((template) => template.id).filter(Boolean)));
 
     const storedPreferences = getSchedulePreferencesFromUser(user.workoutPreferences);
     const mergedPreferences = sanitizeSchedulePreferences({
@@ -172,30 +155,30 @@ export async function applyTemplateScheduleForUser({
     const schedulesCollection = database.get<WorkoutSchedule>('workout_schedules');
 
     await database.write(async () => {
-        const existingSchedules = await schedulesCollection
-            .query(Q.where('user_id', user.id))
-            .fetch();
+        const existingSchedules = await schedulesCollection.query(Q.where('user_id', user.id)).fetch();
 
-        await Promise.all(existingSchedules.map((schedule) => schedule.destroyPermanently()));
-
-        for (const assignment of mapped.assignments) {
-            await schedulesCollection.create((record) => {
+        const deleteOperations = existingSchedules.map((schedule) => schedule.prepareDestroyPermanently());
+        const createOperations = mapped.assignments.map((assignment) =>
+            schedulesCollection.prepareCreate((record) => {
                 record.userId = user.id;
                 record.templateId = assignment.templateId;
                 record.dayOfWeek = assignment.dayOfWeek;
-            });
-        }
+            }),
+        );
 
-        await user.update((record) => {
-            const existingPreferences = (record.workoutPreferences && typeof record.workoutPreferences === 'object')
-                ? record.workoutPreferences as Record<string, unknown>
-                : {};
+        const updateUserPreferencesOperation = user.prepareUpdate((record) => {
+            const existingPreferences =
+                record.workoutPreferences && typeof record.workoutPreferences === 'object'
+                    ? (record.workoutPreferences as Record<string, unknown>)
+                    : {};
 
             record.workoutPreferences = {
                 ...existingPreferences,
                 schedulePreferences: mapped.effectivePreferences,
             };
         });
+
+        await database.batch(...deleteOperations, ...createOperations, updateUserPreferencesOperation);
     });
 
     return {

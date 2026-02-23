@@ -8,6 +8,7 @@ interface ObservableQueryResult<T> {
     data: T | undefined;
     isLoading: boolean;
     error: Error | null;
+    refetch?: () => Promise<void>;
 }
 
 const EMPTY_SUMMARY: NutritionSummary = {
@@ -30,20 +31,33 @@ const toDayWindow = (date: Date) => {
     return { startMs: start.getTime(), endMs: end.getTime() };
 };
 
-export function useMeals(date: Date = new Date()) {
-    const dateKey = date.toISOString().split('T')[0];
+export function useMeals(date: Date = new Date(), userId?: string) {
+    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const dayWindow = useMemo(() => {
+        const [year, month, day] = dateKey.split('-').map((value) => Number(value));
+        return toDayWindow(new Date(year, month, day));
+    }, [dateKey]);
     const [data, setData] = useState<Meal[] | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const [reloadNonce, setReloadNonce] = useState(0);
 
     useEffect(() => {
-        const { startMs, endMs } = toDayWindow(date);
+        if (!userId) {
+            setData([]);
+            setIsLoading(false);
+            setError(null);
+            return () => undefined;
+        }
+
+        const { startMs, endMs } = dayWindow;
         const mealsQuery = database
             .get<Meal>('meals')
             .query(
+                Q.where('user_id', Q.eq(userId)),
                 Q.where('consumed_at', Q.gte(startMs)),
                 Q.where('consumed_at', Q.lte(endMs)),
-                Q.sortBy('consumed_at', Q.desc)
+                Q.sortBy('consumed_at', Q.desc),
             );
 
         setIsLoading(true);
@@ -63,13 +77,17 @@ export function useMeals(date: Date = new Date()) {
         return () => {
             subscription.unsubscribe();
         };
-    }, [dateKey]);
+    }, [dayWindow, reloadNonce, userId]);
 
-    return { data, isLoading, error } as ObservableQueryResult<Meal[]>;
+    const refetch = async () => {
+        setReloadNonce((prev) => prev + 1);
+    };
+
+    return { data, isLoading, error, refetch } as ObservableQueryResult<Meal[]>;
 }
 
-export function useDailyNutrition(date: Date = new Date()) {
-    const { data: meals, isLoading, error } = useMeals(date);
+export function useDailyNutrition(date: Date = new Date(), userId?: string) {
+    const { data: meals, isLoading, error } = useMeals(date, userId);
 
     const summary = useMemo(() => {
         if (!meals || meals.length === 0) {
@@ -88,7 +106,7 @@ export function useDailyNutrition(date: Date = new Date()) {
             {
                 ...EMPTY_SUMMARY,
                 mealCount: 0,
-            }
+            },
         );
     }, [meals]);
 

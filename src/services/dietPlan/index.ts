@@ -5,3 +5,4 @@ export * from './workoutCalorieAdjuster';
 export * from './carbCycling';
 export * from './mealPrepOptimizer';
 export * from './workoutMealOptimizer';
+export * from './templateIntelligence';
