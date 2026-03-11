@@ -132,6 +132,7 @@ const resetWebApplicationData = async () => {
 
 function RootNavigation() {
     const { user, isLoading, loadUser, error } = useUserStore();
+    const [sessionUserId, setSessionUserId] = React.useState<string | null>(null);
     const segments = useSegments();
     const router = useRouter();
     const pathname = usePathname();
@@ -193,10 +194,22 @@ function RootNavigation() {
                     console.warn('[App] ⚠ i18n initialization fallback to English:', i18nError);
                 }
 
-                devLog('[App] Loading user data...');
+                devLog('[App] Loading auth session + user data...');
                 try {
-                    await loadUser();
-                    devLog('[App] ✓ User loaded');
+                    if (supabase) {
+                        const {
+                            data: { session },
+                        } = await supabase.auth.getSession();
+
+                        const currentSessionUserId = session?.user?.id ?? null;
+                        setSessionUserId(currentSessionUserId);
+
+                        if (currentSessionUserId) {
+                            await setUserId(currentSessionUserId);
+                            await loadUser();
+                        }
+                    }
+                    devLog('[App] ✓ Session and user loaded');
                 } catch (userError) {
                     console.error('[App] User loading failed:', userError);
                 }
@@ -222,7 +235,6 @@ function RootNavigation() {
                 } catch (syncInitError) {
                     console.warn('[App] ⚠ Sync service init failed:', syncInitError);
                 }
-
             } catch (err) {
                 const initError = err as Error;
                 console.error('[App] ✗ Critical Initialization error:', initError);
@@ -292,6 +304,7 @@ function RootNavigation() {
                 isHandlingSignOutRef.current = true;
                 const syncSignedOutState = async () => {
                     try {
+                        setSessionUserId(null);
                         await clearAuthData();
                         useUserStore.setState({ user: null, error: null, isLoading: false });
                     } finally {
@@ -320,6 +333,7 @@ function RootNavigation() {
                 isSyncingAuthStateRef.current = true;
                 const syncSignedInState = async () => {
                     try {
+                        setSessionUserId(session.user.id);
                         await setUserId(session.user.id);
                         await loadUser();
                     } catch (authStateError) {
@@ -364,19 +378,19 @@ function RootNavigation() {
         const inWorkoutGroup = segments[0] === 'workout';
         const inProfileGroup = segments[0] === 'profile';
 
-        // No user - redirect to onboarding
-        if (!user && !inOnboarding) {
-            // Check if we are already in auth flow to avoid loops
+        // No authenticated Supabase session - redirect to onboarding
+        if (!sessionUserId && !inOnboarding) {
             if (!inAuthGroup) {
                 router.replace('/onboarding/welcome');
             }
         }
-        // User exists but onboarding not complete - stay on onboarding
-        else if (user && !user.onboardingCompleted && !inOnboarding) {
+        // Authenticated user but onboarding not complete - stay on onboarding
+        else if (sessionUserId && user && !user.onboardingCompleted && !inOnboarding) {
             router.replace('/onboarding/welcome');
         }
         // User complete - go to main app
         else if (
+            sessionUserId &&
             user &&
             user.onboardingCompleted &&
             !inTabsGroup &&
@@ -387,7 +401,7 @@ function RootNavigation() {
         ) {
             router.replace('/(tabs)');
         }
-    }, [user, segments, isInitialized, isLoading, router]);
+    }, [sessionUserId, user, segments, isInitialized, isLoading, router]);
 
     if (!isInitialized || isLoading) {
         return (

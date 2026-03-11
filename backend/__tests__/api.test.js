@@ -416,6 +416,38 @@ describe('POST /api/recipes/import', () => {
             }),
         );
     });
+
+    test('rejects private network targets to prevent SSRF', async () => {
+        dnsPromises.lookup.mockResolvedValueOnce([{ address: '169.254.169.254', family: 4 }]);
+
+        const response = await request(app)
+            .post('/api/recipes/import')
+            .set(AUTH_HEADER)
+            .send({ url: 'https://example.com/recipe' });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual(
+            expect.objectContaining({
+                code: 'SSRF_BLOCKED',
+            }),
+        );
+        expect(parseRecipeFromUrl).not.toHaveBeenCalled();
+    });
+
+    test('rejects localhost recipe URLs to prevent SSRF', async () => {
+        const response = await request(app)
+            .post('/api/recipes/import')
+            .set(AUTH_HEADER)
+            .send({ url: 'https://localhost:3000/private' });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual(
+            expect.objectContaining({
+                code: 'SSRF_BLOCKED',
+            }),
+        );
+        expect(parseRecipeFromUrl).not.toHaveBeenCalled();
+    });
 });
 
 describe('GET /api/smart-cooker/recipe/:id', () => {
@@ -453,7 +485,9 @@ describe('GET /api/smart-cooker/recipe/:id', () => {
 
 describe('Smart Cooker replacement endpoints', () => {
     test('GET /api/smart-cooker/catalog returns local catalog matches', async () => {
-        const response = await request(app).get('/api/smart-cooker/catalog?query=كشري&lang=ar&limit=5').set(AUTH_HEADER);
+        const response = await request(app)
+            .get('/api/smart-cooker/catalog?query=كشري&lang=ar&limit=5')
+            .set(AUTH_HEADER);
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual(
@@ -467,7 +501,9 @@ describe('Smart Cooker replacement endpoints', () => {
     });
 
     test('GET /api/smart-cooker/catalog includes recipes loaded from food.csv', async () => {
-        const response = await request(app).get('/api/smart-cooker/catalog?query=لوبستر&lang=ar&limit=10').set(AUTH_HEADER);
+        const response = await request(app)
+            .get('/api/smart-cooker/catalog?query=لوبستر&lang=ar&limit=10')
+            .set(AUTH_HEADER);
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual(
