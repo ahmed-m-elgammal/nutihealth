@@ -70,8 +70,8 @@ export default function PlansScreen() {
                                 onApply={() => {
                                     if (!data.user?.id || !data.topAdaptation) return;
                                     data.applyAdaptation(data.topAdaptation)
-                                        .then(() => showToast('success', 'Adaptive optimization applied'))
-                                        .catch(() => showToast('error', 'Failed to apply adaptive optimization'));
+                                        .then(() => showToast('success', t('plans.smartInsight.appliedSuccess')))
+                                        .catch(() => showToast('error', t('plans.smartInsight.appliedError')));
                                 }}
                             />
 
@@ -85,9 +85,7 @@ export default function PlansScreen() {
                                 todayCycleTarget={data.todayCycleTarget}
                                 ingredients={data.ingredients}
                                 prepTimeEstimate={data.prepTimeEstimate}
-                                onFoodPress={(foodName) =>
-                                    showToast('info', `${foodName} is ready to prefill add-meal`)
-                                }
+                                onFoodPress={(foodName) => showToast('info', t('plans.foodPrefillReady', { foodName }))}
                                 onToggleIngredient={data.toggleIngredient}
                             />
 

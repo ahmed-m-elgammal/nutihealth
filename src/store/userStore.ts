@@ -12,13 +12,11 @@ import { withOnboardingPreferenceDefaults } from '../constants/onboarding';
 import { clearAuthData } from '../utils/storage';
 
 interface UserState {
-    user: User | null;
     isLoading: boolean;
     error: string | null;
     loadUser: () => Promise<void>;
     createUser: (userData: UserData) => Promise<void>;
     updateUser: (updates: Partial<UserData>) => Promise<void>;
-    updateUserTargets: () => Promise<void>;
     completeOnboarding: () => Promise<void>;
     logout: () => Promise<void>;
     deleteAccount: () => Promise<void>;
@@ -63,8 +61,21 @@ const findUserById = async (userId: string): Promise<User | null> => {
     }
 };
 
-export const useUserStore = create<UserState>((set, get) => ({
-    user: null,
+const requireActiveUser = async (): Promise<User> => {
+    const activeUserId = await getUserId();
+    if (!activeUserId) {
+        throw new Error('No active user profile found.');
+    }
+
+    const activeUser = await findUserById(activeUserId);
+    if (!activeUser) {
+        throw new Error('No active user profile found.');
+    }
+
+    return activeUser;
+};
+
+export const useUserStore = create<UserState>((set) => ({
     isLoading: false,
     error: null,
 
@@ -73,12 +84,12 @@ export const useUserStore = create<UserState>((set, get) => ({
             set({ isLoading: true, error: null });
             const activeUserId = await getUserId();
             if (!activeUserId) {
-                set({ user: null, isLoading: false });
+                set({ isLoading: false });
                 return;
             }
 
-            const user = await findUserById(activeUserId);
-            set({ user, isLoading: false });
+            await findUserById(activeUserId);
+            set({ isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.loadUser');
             set({ error: (error as Error).message, isLoading: false });
@@ -135,7 +146,6 @@ export const useUserStore = create<UserState>((set, get) => ({
             await database.write(async () => {
                 const usersCollection = database.get<User>('users');
                 if (authenticatedUserId) {
-                    // Use an explicit record id without touching internal _raw fields.
                     const preparedUser = usersCollection.prepareCreateFromDirtyRaw({
                         id: authenticatedUserId,
                         name: userData.name,
@@ -173,15 +183,12 @@ export const useUserStore = create<UserState>((set, get) => ({
                     user.goal = userData.goal;
                     user.activityLevel = userData.activityLevel;
                     user.targetWeight = userData.targetWeight;
-
-                    // Initial targets
                     user.bmr = nutrition.bmr;
                     user.tdee = nutrition.tdee;
                     user.calorieTarget = nutrition.calorieTarget;
                     user.proteinTarget = nutrition.macros.protein;
                     user.carbsTarget = nutrition.macros.carbs;
                     user.fatsTarget = nutrition.macros.fats;
-
                     user.stats = initialStats;
                     user.preferences = preferences;
                     user.workoutPreferences = userData.workoutPreferences || null;
@@ -190,35 +197,18 @@ export const useUserStore = create<UserState>((set, get) => ({
             });
 
             await setUserId(newUser!.id);
-            set({ user: newUser!, isLoading: false });
+            set({ isLoading: false, error: null });
         } catch (error) {
             handleError(error, 'userStore.createUser');
             set({ error: (error as Error).message, isLoading: false });
+            throw error;
         }
     },
 
     updateUser: async (updates: Partial<UserData>) => {
         try {
             set({ isLoading: true, error: null });
-
-            let activeUser = get().user;
-            if (!activeUser) {
-                const activeUserId = await getUserId();
-                if (!activeUserId) {
-                    throw new Error('No active user session found.');
-                }
-
-                activeUser = await findUserById(activeUserId);
-                if (activeUser) {
-                    set({ user: activeUser });
-                }
-            }
-
-            if (!activeUser) {
-                throw new Error('No active user profile found.');
-            }
-
-            // User model now handles recalculation internally via updateProfile.
+            const activeUser = await requireActiveUser();
             await activeUser.updateProfile(updates as Partial<User>);
             set({ isLoading: false });
         } catch (error) {
@@ -228,19 +218,10 @@ export const useUserStore = create<UserState>((set, get) => ({
         }
     },
 
-    updateUserTargets: async () => {
-        // @deprecated - logic moved to User.updateProfile
-        const { user } = get();
-        if (!user) return;
-        // Force a profile update with current values to trigger recalculation if needed
-        await user.updateProfile({});
-    },
-
     completeOnboarding: async () => {
-        const { user } = get();
-        if (!user) return;
         try {
-            await user.updateProfile({ onboardingCompleted: true });
+            const activeUser = await requireActiveUser();
+            await activeUser.updateProfile({ onboardingCompleted: true });
         } catch (error) {
             handleError(error, 'userStore.completeOnboarding');
             set({ error: (error as Error).message });
@@ -253,7 +234,7 @@ export const useUserStore = create<UserState>((set, get) => ({
                 await supabase.auth.signOut({ scope: 'global' });
             }
             await clearAuthData();
-            set({ user: null, error: null });
+            set({ error: null });
             await database.unsafeResetDatabase();
         } catch (error) {
             handleError(error, 'userStore.logout');
@@ -266,7 +247,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         try {
             set({ isLoading: true, error: null });
             await deleteAccountAndWipeLocalData();
-            set({ user: null, isLoading: false, error: null });
+            set({ isLoading: false, error: null });
         } catch (error) {
             handleError(error, 'userStore.deleteAccount');
             set({ isLoading: false, error: (error as Error).message });

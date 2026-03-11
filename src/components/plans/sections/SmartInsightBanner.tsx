@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
     adaptation: { title: string; description: string } | null;
@@ -7,6 +8,8 @@ type Props = {
 };
 
 export default function SmartInsightBanner({ adaptation, onApply }: Props) {
+    const { t } = useTranslation();
+
     if (!adaptation) {
         return null;
     }
@@ -22,7 +25,7 @@ export default function SmartInsightBanner({ adaptation, onApply }: Props) {
                 padding: 12,
             }}
         >
-            <Text style={{ color: '#1e3a8a', fontWeight: '800' }}>Smart Plan Insight</Text>
+            <Text style={{ color: '#1e3a8a', fontWeight: '800' }}>{t('plans.smartInsight.title')}</Text>
             <Text style={{ color: '#1e3a8a', fontWeight: '700', marginTop: 4 }}>{adaptation.title}</Text>
             <Text style={{ color: '#1e40af', fontSize: 12, marginTop: 4 }}>{adaptation.description}</Text>
             <Pressable
@@ -36,7 +39,7 @@ export default function SmartInsightBanner({ adaptation, onApply }: Props) {
                     paddingVertical: 8,
                 }}
             >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Apply Insight</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{t('plans.smartInsight.apply')}</Text>
             </Pressable>
         </View>
     );

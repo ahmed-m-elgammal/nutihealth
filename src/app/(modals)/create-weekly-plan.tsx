@@ -12,7 +12,7 @@ import {
     updateWeeklyPlan,
 } from '../../services/api/weeklyGoals';
 import { useUIStore } from '../../store/uiStore';
-import { useUserStore } from '../../store/userStore';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { DEFAULT_TARGETS, DEFAULT_WEEKLY_PLAN_PROTEIN } from '../../constants/nutritionDefaults';
 
 interface DayMacros {
@@ -92,7 +92,7 @@ export default function CreateWeeklyPlanScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const showToast = useUIStore((state) => state.showToast);
-    const user = useUserStore((state) => state.user);
+    const { user } = useCurrentUser();
     const params = useLocalSearchParams<{
         planId?: string;
         prefillName?: string;

@@ -177,6 +177,30 @@
     },
     "plans": {
         "title": "Metas y Planes",
-        "subtitle": "Planes dietéticos por objetivos, ciclado de carbohidratos, preparación y plantillas"
+        "subtitle": "Planes dietéticos por objetivos, ciclado de carbohidratos, preparación y plantillas",
+        "tabs": {
+            "meals": "Comidas",
+            "carbCycle": "Ciclo de carbohidratos",
+            "prep": "Preparación"
+        },
+        "smartInsight": {
+            "title": "Información inteligente del plan",
+            "apply": "Aplicar sugerencia",
+            "appliedSuccess": "Se aplicó la optimización adaptativa",
+            "appliedError": "No se pudo aplicar la optimización adaptativa"
+        },
+        "foodPrefillReady": "{{foodName}} está listo para autocompletar agregar comida",
+        "confirmation": {
+            "deactivateTitle": "Desactivar plan",
+            "deactivateMessage": "¿Deseas desactivar este {{planKind}}?",
+            "deactivateConfirm": "Desactivar"
+        },
+        "labels": {
+            "weeklyPlan": "plan semanal",
+            "template": "plantilla"
+        },
+        "actions": {
+            "cancel": "Cancelar"
+        }
     }
 }

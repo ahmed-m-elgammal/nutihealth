@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { X, Send, Bot, Sparkles } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useUserStore } from '../../store/userStore';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useActiveDiet } from '../../query/queries/useDiets';
 import { useDailyTotals } from '../../hooks/useDailyTotals';
 import { useAIChat, type UIChatMessage } from '../../hooks/useAIChat';
@@ -21,7 +21,7 @@ import { config } from '../../constants/config';
 
 export default function AIChatModal() {
     const router = useRouter();
-    const { user } = useUserStore();
+    const { user } = useCurrentUser();
     const { dailyTotals } = useDailyTotals(new Date(), user?.id);
     const { data: activeUserDiet } = useActiveDiet(user?.id);
     const posthog = usePostHog();
@@ -36,6 +36,7 @@ export default function AIChatModal() {
         createMessage,
         handleSend: originalHandleSend,
         sendQuickAction,
+        chatError,
     } = useAIChat([]);
 
     const handleSend = useCallback(() => {
@@ -157,6 +158,13 @@ export default function AIChatModal() {
                 className="flex-1 bg-neutral-50 px-4 py-4"
                 contentContainerStyle={{ paddingBottom: 20 }}
             >
+                {chatError ? (
+                    <View className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <Text className="text-sm font-semibold text-amber-900">Connection issue</Text>
+                        <Text className="mt-1 text-sm text-amber-800">{chatError}</Text>
+                    </View>
+                ) : null}
+
                 {messages.map((msg) => (
                     <View
                         key={msg.id}

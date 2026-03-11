@@ -310,6 +310,30 @@
     },
     "plans": {
         "title": "الأهداف والخطط",
-        "subtitle": "خطط غذائية قائمة على الأهداف مع تدوير الكربوهيدرات والتحضير والقوالب"
+        "subtitle": "خطط غذائية قائمة على الأهداف مع تدوير الكربوهيدرات والتحضير والقوالب",
+        "tabs": {
+            "meals": "الوجبات",
+            "carbCycle": "تدوير الكربوهيدرات",
+            "prep": "التحضير"
+        },
+        "smartInsight": {
+            "title": "رؤية الخطة الذكية",
+            "apply": "تطبيق الرؤية",
+            "appliedSuccess": "تم تطبيق التحسين التكيفي",
+            "appliedError": "فشل تطبيق التحسين التكيفي"
+        },
+        "foodPrefillReady": "{{foodName}} جاهز لتعبئة إضافة الوجبة",
+        "confirmation": {
+            "deactivateTitle": "إلغاء تفعيل الخطة",
+            "deactivateMessage": "هل تريد إلغاء تفعيل {{planKind}}؟",
+            "deactivateConfirm": "إلغاء التفعيل"
+        },
+        "labels": {
+            "weeklyPlan": "الخطة الأسبوعية",
+            "template": "القالب"
+        },
+        "actions": {
+            "cancel": "إلغاء"
+        }
     }
 }
