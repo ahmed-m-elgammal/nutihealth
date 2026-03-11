@@ -1,3 +1,4 @@
+import { env } from '../../constants/env';
 import { handleError } from '../../utils/errors';
 import { api } from '../apiWrapper';
 import { callN8nMealPlannerWebhook, hasN8nMealPlannerWebhook } from '../api/n8n';
@@ -16,6 +17,12 @@ interface ParsedMealPreferences {
 const MAX_HISTORY_PAIRS = 20;
 const MAX_NON_SYSTEM_MESSAGES = MAX_HISTORY_PAIRS * 2;
 const DEFAULT_MEAL_PLAN_CALORIES = 2000;
+
+
+const isAiEnabled = (): boolean => {
+    const flag = (env as { enableAI?: boolean } | undefined)?.enableAI;
+    return typeof flag === 'boolean' ? flag : true;
+};
 
 const DIET_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
     { pattern: /\bvegan\b/i, value: 'vegan' },
@@ -181,7 +188,7 @@ function buildFallbackMealPlan(preferences: string, parsed: ParsedMealPreference
 }
 
 export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
-    if (!config.features.enableAI) {
+    if (!isAiEnabled()) {
         return 'AI coach is currently disabled in this environment.';
     }
 
@@ -221,7 +228,7 @@ export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
 export async function generateMealPlan(preferences: string): Promise<any> {
     const parsedPreferences = parseMealPreferences(preferences);
 
-    if (!config.features.enableAI) {
+    if (!isAiEnabled()) {
         return buildFallbackMealPlan(preferences, parsedPreferences);
     }
 

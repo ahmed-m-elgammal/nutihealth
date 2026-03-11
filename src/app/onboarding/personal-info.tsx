@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, TouchableOpacity, View, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ruler, User, UserRound, Weight, Target } from 'lucide-react-native';
 import { OnboardingStepScreen } from '../../components/onboarding/OnboardingStepScreen';
@@ -9,6 +9,7 @@ import { Label } from '../../components/ui/Label';
 import { Card, CardContent } from '../../components/ui/Card';
 import { cn } from '../../utils/cn';
 import { useOnboarding } from '../../hooks/useOnboarding';
+import { useOnboardingStore } from '../../store/onboardingStore';
 
 type SexOption = 'male' | 'female' | 'other';
 
@@ -20,6 +21,7 @@ const SEX_OPTIONS: { value: SexOption; label: string }[] = [
 
 export default function PersonalInfoScreen() {
     const router = useRouter();
+    const setCurrentStep = useOnboardingStore((state) => state.setCurrentStep);
     const { personalInfoDefaults, savePersonalInfo, validatePersonalInfoDraft } = useOnboarding();
 
     const [name, setName] = useState(personalInfoDefaults.name);
@@ -60,11 +62,15 @@ export default function PersonalInfoScreen() {
         router.push('/onboarding/goals');
     };
 
+    useEffect(() => {
+        setCurrentStep(2);
+    }, [setCurrentStep]);
+
     return (
         <OnboardingStepScreen
-            stepLabel="Step 1 of 5"
-            currentStep={1}
-            totalSteps={5}
+            stepLabel="Step 2 of 6"
+            currentStep={2}
+            totalSteps={6}
             title="Enter your body profile"
             description="These are the exact inputs used for BMR, TDEE, calories, macros, and hydration."
             actionLabel="Continue"
@@ -73,7 +79,7 @@ export default function PersonalInfoScreen() {
             actionDisabled={!isFormValid}
         >
             <View className="flex-1">
-                <Card className="border-border/50 bg-card/80 overflow-hidden shadow-sm shadow-black/5">
+                <Card className="overflow-hidden border-border/50 bg-card/80 shadow-sm shadow-black/5">
                     <CardContent className="gap-5 p-5">
                         <View>
                             <Label className="mb-2 text-muted-foreground">Name</Label>
@@ -101,13 +107,15 @@ export default function PersonalInfoScreen() {
                                                 'flex-1 items-center justify-center rounded-xl border-2 py-4 shadow-sm',
                                                 isSelected
                                                     ? 'border-primary bg-primary/10 shadow-primary/10'
-                                                    : 'border-border/50 bg-background/50 shadow-transparent'
+                                                    : 'border-border/50 bg-background/50 shadow-transparent',
                                             )}
                                         >
                                             <Subheading
                                                 className={cn(
                                                     'text-base',
-                                                    isSelected ? 'text-primary font-bold' : 'text-muted-foreground font-medium'
+                                                    isSelected
+                                                        ? 'font-bold text-primary'
+                                                        : 'font-medium text-muted-foreground',
                                                 )}
                                             >
                                                 {option.label}
@@ -169,15 +177,15 @@ export default function PersonalInfoScreen() {
                     </CardContent>
                 </Card>
 
-                <View className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 flex-row items-start gap-3">
-                    <View className="bg-primary/10 rounded-full p-1.5 mt-0.5">
+                <View className="mt-6 flex-row items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    <View className="mt-0.5 rounded-full bg-primary/10 p-1.5">
                         <Target size={14} className="text-primary" />
                     </View>
                     <View className="flex-1">
                         <Body className="text-sm font-medium text-foreground">
                             These inputs drive your equation-based plan.
                         </Body>
-                        <Body className="text-xs text-muted-foreground mt-1">
+                        <Body className="mt-1 text-xs text-muted-foreground">
                             You can update them anytime in Profile.
                         </Body>
                     </View>
