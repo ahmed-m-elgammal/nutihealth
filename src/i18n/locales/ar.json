@@ -139,6 +139,7 @@
     "mealSuggestion": {
         "title": "اقتراح الوجبة التالية",
         "logThisMeal": "سجل هذه الوجبة",
+        "cookFromPantry": "ابحث عن وصفة بالمكونات",
         "dismiss": "إخفاء",
         "targetCalories": "{{calories}} سعرة حرارية",
         "timeWindow": "{{start}} – {{end}}"
@@ -160,6 +161,9 @@
             "title": "حالة النظام",
             "connected": "الخادم متصل وإعدادات الأمان مفعّلة.",
             "unavailable": "تعذّر الحصول على حالة الخادم. بعض الميزات قد تكون محدودة."
+        },
+        "quickActions": {
+            "smartCooker": "الطباخ الذكي"
         }
     },
     "common": {
@@ -168,11 +172,141 @@
     "tabs": {
         "main": "الرئيسية",
         "meals": "الوجبات",
+        "pantry": "المخزن",
         "workouts": "التمارين",
         "goalsPlans": "الأهداف والخطط",
         "water": "الماء",
         "progress": "التقدم",
         "profile": "الملف"
+    },
+    "pantry": {
+        "title": "المخزن",
+        "loading": "جارٍ تحميل مكونات المخزن...",
+        "header": {
+            "count": "{{count}} مكوّنات متاحة",
+            "smartHint": "استخدم Smart Cooker لاكتشاف وصفات من مكونات مخزنك الحالية.",
+            "addItemsHint": "أضف مكوّناً واحداً على الأقل لبدء اقتراحات Smart Cooker."
+        },
+        "actions": {
+            "findRecipes": "ابحث عن وصفات",
+            "addIngredient": "إضافة مكوّن",
+            "scan": "مسح",
+            "aiDetect": "اكتشاف بالذكاء الاصطناعي",
+            "save": "حفظ",
+            "saving": "جارٍ الحفظ...",
+            "cancel": "إلغاء"
+        },
+        "messages": {
+            "findRecipesComingSoon": "اقتراحات الوصفات من مكونات المخزن ستتوفر في المرحلة القادمة."
+        },
+        "toast": {
+            "added": "تمت إضافة المكوّن",
+            "removed": "تمت إزالة المكوّن",
+            "markedUsed": "تم تعليم المكوّن كمستخدم"
+        },
+        "empty": {
+            "title": "المخزن فارغ",
+            "message": "أضف المكونات المتوفرة لديك ليقترح Smart Cooker وصفات مناسبة."
+        },
+        "card": {
+            "expiry": "تاريخ الانتهاء"
+        },
+        "form": {
+            "title": "إضافة عنصر إلى المخزن",
+            "subtitle": "سجّل مكوّناً متاحاً لديك حالياً.",
+            "nameLabel": "اسم المكوّن",
+            "namePlaceholder": "مثال: طماطم",
+            "quantityLabel": "الكمية",
+            "unitLabel": "الوحدة",
+            "categoryLabel": "الفئة",
+            "expiryLabel": "تاريخ الانتهاء (اختياري)",
+            "expiryPlaceholder": "YYYY-MM-DD",
+            "expiryHint": "استخدم صيغة التاريخ: YYYY-MM-DD",
+            "validation": "يرجى تعبئة الحقول المطلوبة بشكل صحيح.",
+            "scannedIndicator": "تم ملء البيانات من مسح الباركود"
+        },
+        "categories": {
+            "all": "الكل",
+            "vegetables": "خضروات",
+            "fruits": "فواكه",
+            "proteins": "بروتينات",
+            "grains": "حبوب",
+            "dairy": "ألبان",
+            "spices": "توابل",
+            "other": "أخرى"
+        },
+        "units": {
+            "grams": "جرام",
+            "ml": "مل",
+            "pieces": "قطع",
+            "cups": "أكواب",
+            "tbsp": "ملعقة كبيرة",
+            "tsp": "ملعقة صغيرة"
+        }
+    },
+    "smartCooker": {
+        "title": "اقتراحات Smart Cooker",
+        "subtitle": "وصفات مرتبة حسب مكوناتك وأهدافك الغذائية.",
+        "actions": {
+            "refresh": "تحديث",
+            "refreshing": "جارٍ التحديث...",
+            "retry": "إعادة المحاولة",
+            "close": "إغلاق",
+            "openRecipe": "افتح الوصفة",
+            "viewDetails": "عرض التفاصيل",
+            "backToPantry": "تعديل المكونات",
+            "switchToFlexible": "تحويل إلى الوضع المرن"
+        },
+        "sort": {
+            "best": "أفضل تطابق",
+            "quick": "الأسرع",
+            "calories": "أقل سعرات"
+        },
+        "summary": {
+            "ingredients": "{{count}} مكونات",
+            "remaining": "{{calories}} سعرة متبقية",
+            "suggestions": "{{count}} اقتراحات",
+            "backendStats": "تم فحص {{candidates}} مرشحات وجلب {{fetched}} وصفات."
+        },
+        "filters": {
+            "strictness": {
+                "exact": "دقيق",
+                "flexible": "مرن"
+            }
+        },
+        "card": {
+            "coverage": "تغطية المكونات",
+            "matchScore": "نسبة المطابقة",
+            "minutes": "دقيقة",
+            "protein": "بروتين",
+            "carbs": "كربوهيدرات",
+            "fats": "دهون",
+            "missingCount": "{{count}} مكونات ناقصة",
+            "noMissingIngredients": "لا توجد مكونات ناقصة",
+            "confidence": {
+                "high": "ثقة التغذية: عالية",
+                "medium": "ثقة التغذية: متوسطة",
+                "low": "ثقة التغذية: منخفضة",
+                "unknown": "ثقة التغذية: غير معروفة"
+            },
+            "placeholderTitle": "تفاصيل الوصفة قريباً",
+            "placeholderMessage": "ستتوفر تفاصيل \"{{title}}\" في المرحلة الثالثة."
+        },
+        "empty": {
+            "title": "لم يتم العثور على اقتراحات",
+            "message": "جرّب الوضع المرن أو أضف مكونات أكثر.",
+            "setupMissing": "أضف المكونات واضبط أهدافك الغذائية ثم حاول مرة أخرى."
+        },
+        "error": {
+            "title": "تعذر تحميل الاقتراحات",
+            "generic": "تعذر جلب اقتراحات Smart Cooker.",
+            "noRecipeUrl": "لا يوجد رابط مصدر صالح لهذه الوصفة.",
+            "openRecipeFailed": "تعذر فتح هذه الوصفة الآن."
+        },
+        "dietFit": {
+            "fits": "مناسب لهدفك",
+            "over": "يتجاوز الحد"
+        }
     },
     "plans": {
         "title": "الأهداف والخطط",

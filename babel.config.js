@@ -17,8 +17,6 @@ module.exports = function (api) {
                 },
             },
         ],
-        ['@babel/plugin-proposal-decorators', { legacy: true }],
-        ['@babel/plugin-proposal-class-properties', { loose: true }],
     ];
 
     if (process.env.NODE_ENV === 'production') {
@@ -30,5 +28,14 @@ module.exports = function (api) {
     return {
         presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
         plugins,
+        overrides: [
+            {
+                test: (fileName) => typeof fileName === 'string' && !fileName.includes('node_modules'),
+                plugins: [
+                    ['@babel/plugin-proposal-decorators', { legacy: true }],
+                    ['@babel/plugin-proposal-class-properties', { loose: true }],
+                ],
+            },
+        ],
     };
 };

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { LayoutChangeEvent, Pressable, Text, View } from 'react-native';
-import { Canvas, Circle, Line, Path, Skia, vec } from '@shopify/react-native-skia';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { format } from 'date-fns';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -27,14 +27,6 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
     const elevatedBackgroundColor = colors.surface.surfaceVariant;
     const tertiaryTextColor = colors.text.secondary;
 
-    const makeSafePath = () => {
-        try {
-            return Skia.Path.Make();
-        } catch {
-            return null;
-        }
-    };
-
     const { points, linePath, fillPath, goalY } = useMemo(() => {
         const pLeft = 16;
         const pRight = 16;
@@ -46,8 +38,8 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
         if (!data.length) {
             return {
                 points: [] as { x: number; y: number; d: WeightPoint }[],
-                linePath: null as ReturnType<typeof Skia.Path.Make> | null,
-                fillPath: null as ReturnType<typeof Skia.Path.Make> | null,
+                linePath: null as string | null,
+                fillPath: null as string | null,
                 goalY: null as number | null,
             };
         }
@@ -62,36 +54,23 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
             return { x, y, d };
         });
 
-        const path = makeSafePath();
-        const area = makeSafePath();
-        if (!path || !area) {
-            const computedGoalY =
-                goalWeight != null ? pTop + ((maxValue - goalWeight) / Math.max(1, maxValue - minValue)) * h : null;
+        const lineSegments = plotted.map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${point.x} ${point.y}`);
+        const line = lineSegments.join(' ');
 
-            return { points: plotted, linePath: null, fillPath: null, goalY: computedGoalY };
-        }
-
-        plotted.forEach((p, idx) => {
-            if (idx === 0) {
-                path.moveTo(p.x, p.y);
-                area.moveTo(p.x, height - pBottom);
-                area.lineTo(p.x, p.y);
-            } else {
-                path.lineTo(p.x, p.y);
-                area.lineTo(p.x, p.y);
-            }
-        });
-
+        const first = plotted[0];
         const last = plotted[plotted.length - 1];
-        if (last) {
-            area.lineTo(last.x, height - pBottom);
-            area.close();
-        }
+        const baseY = height - pBottom;
+        const area = first && last
+            ? `M ${first.x} ${baseY} L ${first.x} ${first.y} ${plotted
+                  .slice(1)
+                  .map((point) => `L ${point.x} ${point.y}`)
+                  .join(' ')} L ${last.x} ${baseY} Z`
+            : null;
 
         const computedGoalY =
             goalWeight != null ? pTop + ((maxValue - goalWeight) / Math.max(1, maxValue - minValue)) * h : null;
 
-        return { points: plotted, linePath: path, fillPath: area, goalY: computedGoalY };
+        return { points: plotted, linePath: line, fillPath: area, goalY: computedGoalY };
     }, [chartWidth, data, goalWeight, height]);
 
     const selected = selectedIndex != null ? points[selectedIndex] : null;
@@ -143,17 +122,16 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
                 <>
                     <GestureDetector gesture={pinch}>
                         <Animated.View style={chartScale}>
-                            <Canvas style={{ width: chartWidth - 24, height, marginTop: 8 }}>
-                                {fillPath ? <Path path={fillPath} color="rgba(34,197,94,0.18)" /> : null}
-                                {linePath ? (
-                                    <Path path={linePath} color="#16a34a" style="stroke" strokeWidth={3} />
-                                ) : null}
+                            <Svg width={chartWidth - 24} height={height} style={{ marginTop: 8 }}>
+                                <Path d={fillPath} fill="rgba(34,197,94,0.18)" />
+                                <Path d={linePath} stroke="#16a34a" strokeWidth={3} fill="none" />
                                 {goalY != null ? (
                                     <Line
-                                        p1={vec(10, goalY)}
-                                        p2={vec(chartWidth - 24 - 10, goalY)}
-                                        color="#f59e0b"
-                                        style="stroke"
+                                        x1={10}
+                                        y1={goalY}
+                                        x2={chartWidth - 24 - 10}
+                                        y2={goalY}
+                                        stroke="#f59e0b"
                                         strokeWidth={2}
                                     />
                                 ) : null}
@@ -163,11 +141,11 @@ export default function WeightChart({ data, goalWeight, period, width = 340, hei
                                         cx={p.x}
                                         cy={p.y}
                                         r={idx === points.length - 1 ? 5 : 3}
-                                        color="#16a34a"
+                                        fill="#16a34a"
                                     />
                                 ))}
-                                {selected ? <Circle cx={selected.x} cy={selected.y} r={7} color="#22c55e" /> : null}
-                            </Canvas>
+                                {selected ? <Circle cx={selected.x} cy={selected.y} r={7} fill="#22c55e" /> : null}
+                            </Svg>
                         </Animated.View>
                     </GestureDetector>
 

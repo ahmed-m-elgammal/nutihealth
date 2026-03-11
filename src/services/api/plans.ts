@@ -1,7 +1,6 @@
 import { database } from '../../database';
 import Diet from '../../database/models/Diet';
 import UserDiet from '../../database/models/UserDiet';
-import MealPlan from '../../database/models/MealPlan';
 import { Q } from '@nozbe/watermelondb';
 import { handleError } from '../../utils/errors';
 
@@ -125,6 +124,35 @@ export async function activateDiet(
 }
 
 /**
+ * Deactivate any active diet for a user
+ */
+export async function deactivateActiveDiet(userId: string): Promise<number> {
+    try {
+        let deactivatedCount = 0;
+
+        await database.write(async () => {
+            const userDietsCollection = database.get<UserDiet>('user_diets');
+            const currentActive = await userDietsCollection
+                .query(Q.where('user_id', userId), Q.where('is_active', true))
+                .fetch();
+
+            for (const diet of currentActive) {
+                await diet.update((record) => {
+                    record.isActive = false;
+                });
+            }
+
+            deactivatedCount = currentActive.length;
+        });
+
+        return deactivatedCount;
+    } catch (error) {
+        handleError(error, 'plansApi.deactivateActiveDiet');
+        throw error;
+    }
+}
+
+/**
  * Create a custom diet template
  */
 export async function createCustomDiet(dietData: DietData): Promise<Diet> {
@@ -148,22 +176,6 @@ export async function createCustomDiet(dietData: DietData): Promise<Diet> {
         return diet!;
     } catch (error) {
         handleError(error, 'plansApi.createCustomDiet');
-        throw error;
-    }
-}
-
-/**
- * Get active meal plan (weekly schedule)
- */
-export async function getActiveMealPlan(userId: string): Promise<MealPlan | null> {
-    try {
-        const mealPlansCollection = database.get<MealPlan>('meal_plans');
-        const plans = await mealPlansCollection
-            .query(Q.where('user_id', userId), Q.where('is_active', true), Q.take(1))
-            .fetch();
-        return plans.length > 0 ? plans[0] : null;
-    } catch (error) {
-        handleError(error, 'plansApi.getActiveMealPlan');
         throw error;
     }
 }

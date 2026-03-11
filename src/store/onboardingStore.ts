@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { UserData } from './userStore';
+import { DEFAULT_ONBOARDING_PREFERENCES } from '../constants/onboarding';
 
 interface OnboardingState {
     data: Partial<UserData>;
@@ -10,25 +11,23 @@ interface OnboardingState {
 export const useOnboardingStore = create<OnboardingState>((set) => ({
     data: {
         preferences: {
-            allergies: [],
-            dietary_restrictions: [],
-            theme: 'auto',
-            notifications_enabled: true,
-            language: 'en',
-            needsBodyMetrics: false,
-            bodyFatPercentage: undefined,
-            hasPCOS: false,
-            hasInsulinResistance: false,
-            onHormonalContraception: false,
-            isPostMenopause: false,
-            isAthlete: false,
-            week1WeightKg: undefined,
-            compliancePercentage: undefined,
+            ...DEFAULT_ONBOARDING_PREFERENCES,
+            allergies: [...DEFAULT_ONBOARDING_PREFERENCES.allergies],
+            dietary_restrictions: [...DEFAULT_ONBOARDING_PREFERENCES.dietary_restrictions],
         },
     },
     updateData: (updates) =>
         set((state) => ({
             data: { ...state.data, ...updates },
         })),
-    reset: () => set({ data: {} }),
+    reset: () =>
+        set({
+            data: {
+                preferences: {
+                    ...DEFAULT_ONBOARDING_PREFERENCES,
+                    allergies: [...DEFAULT_ONBOARDING_PREFERENCES.allergies],
+                    dietary_restrictions: [...DEFAULT_ONBOARDING_PREFERENCES.dietary_restrictions],
+                },
+            },
+        }),
 }));

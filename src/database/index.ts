@@ -29,6 +29,10 @@ import Diet from './models/Diet';
 import UserDiet from './models/UserDiet';
 import MealTemplate from './models/MealTemplate';
 import WeeklyGoalPlan from './models/WeeklyGoalPlan';
+import WorkoutSession from './models/WorkoutSession';
+import PantryItem from './models/PantryItem';
+import CookpadRecipeCache from './models/CookpadRecipeCache';
+import SmartCookerSuggestion from './models/SmartCookerSuggestion';
 
 // Prefer native SQLite adapter for performance, but gracefully fall back to LokiJS
 // so Expo Go (which lacks the Watermelon native module) and Web don't hard-crash.
@@ -39,7 +43,8 @@ const createSQLiteAdapter = () => {
         return new SQLiteAdapter({
             schema,
             migrations,
-            jsi: true, // Use JSI for better performance
+            // The Android JSI package in this repo is currently incompatible with the Expo native stack.
+            jsi: false,
             onSetUpError: (error) => {
                 console.error('Database setup error:', error);
             },
@@ -49,7 +54,7 @@ const createSQLiteAdapter = () => {
         console.warn('[Database] SQLiteAdapter instantiation failed:', e);
         throw e;
     }
-}
+};
 
 // Loki works on web and in bare JS environments (Expo Go). IndexedDB only exists on web.
 const createLokiAdapter = () =>
@@ -108,5 +113,9 @@ export const database = new Database({
         UserDiet,
         MealTemplate,
         WeeklyGoalPlan,
+        WorkoutSession,
+        PantryItem,
+        CookpadRecipeCache,
+        SmartCookerSuggestion,
     ],
 });

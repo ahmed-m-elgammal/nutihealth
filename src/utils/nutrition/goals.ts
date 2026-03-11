@@ -6,6 +6,7 @@ export const GOAL_MULTIPLIERS = {
     },
     gain: 1.12,
     maintain: 1.0,
+    general_health: 1.0,
 } as const;
 
 export type Goal = keyof typeof GOAL_MULTIPLIERS;

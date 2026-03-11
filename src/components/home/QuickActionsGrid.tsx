@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Plus, Scan, Search, Camera } from 'lucide-react-native';
+import { Plus, Scan, Search, Camera, ChefHat } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { triggerHaptic } from '../../utils/haptics';
 
@@ -17,9 +17,16 @@ type QuickActionsGridProps = {
     onScanFood: () => void;
     onSearchFood: () => void;
     onDetectAi: () => void;
+    onSmartCooker?: () => void;
 };
 
-export default function QuickActionsGrid({ onLogMeal, onScanFood, onSearchFood, onDetectAi }: QuickActionsGridProps) {
+export default function QuickActionsGrid({
+    onLogMeal,
+    onScanFood,
+    onSearchFood,
+    onDetectAi,
+    onSmartCooker,
+}: QuickActionsGridProps) {
     const actions: Action[] = [
         {
             id: 'log',
@@ -51,13 +58,23 @@ export default function QuickActionsGrid({ onLogMeal, onScanFood, onSearchFood, 
         },
     ];
 
+    if (onSmartCooker) {
+        actions.push({
+            id: 'smart-cooker',
+            label: 'Smart Cooker',
+            subtitle: 'By ingredients',
+            icon: <ChefHat size={18} color="#ea580c" />,
+            onPress: onSmartCooker,
+        });
+    }
+
     return (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
             {actions.map((action, index) => (
                 <Animated.View
                     entering={FadeInDown.delay(index * 60).duration(300)}
                     key={action.id}
-                    style={{ width: '48.5%' }}
+                    style={{ width: actions.length % 2 !== 0 && index === actions.length - 1 ? '100%' : '48.5%' }}
                 >
                     <Pressable
                         onPress={() => {

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { handleError } from '../../utils/errors';
+import { logger } from '../../utils/logger';
 
 const API_URL = 'https://world.openfoodfacts.org/api/v2/product';
 const SEARCH_API_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
@@ -47,10 +48,19 @@ export interface FoodProduct {
  */
 export async function getProductByBarcode(barcode: string): Promise<FoodProduct | null> {
     try {
-        const response = await axios.get(`${API_URL}/${barcode}.json`, {
+        const requestUrl = `${API_URL}/${barcode}.json`;
+        logger.apiRequest({ method: 'GET', url: requestUrl });
+        const requestStartedAt = Date.now();
+        const response = await axios.get(requestUrl, {
             headers: {
                 'User-Agent': 'NutriHealthApp/1.0 (contact@nutrihealth.app)',
             },
+        });
+        logger.apiResponse({
+            method: 'GET',
+            url: requestUrl,
+            status: response.status,
+            durationMs: Date.now() - requestStartedAt,
         });
 
         const product = response.data.product;
@@ -64,7 +74,7 @@ export async function getProductByBarcode(barcode: string): Promise<FoodProduct 
         let servingUnit = 'g';
 
         if (product.serving_size) {
-            const match = product.serving_size.match(/([\\d.]+)\\s*([a-zA-Z]+)/);
+            const match = product.serving_size.match(/([\d.]+)\s*([a-zA-Z]+)/);
             if (match) {
                 servingSize = parseFloat(match[1]);
                 servingUnit = match[2];
@@ -87,6 +97,12 @@ export async function getProductByBarcode(barcode: string): Promise<FoodProduct 
         };
     } catch (error) {
         handleError(error, 'openFoodFacts.getProductByBarcode');
+        logger.apiError({
+            method: 'GET',
+            url: `${API_URL}/${barcode}.json`,
+            status: (error as any)?.response?.status,
+            error: (error as Error).message,
+        });
         return null;
     }
 }
@@ -96,6 +112,8 @@ export async function getProductByBarcode(barcode: string): Promise<FoodProduct 
  */
 export async function searchProducts(query: string, limit: number = 10): Promise<FoodProduct[]> {
     try {
+        logger.apiRequest({ method: 'GET', url: SEARCH_API_URL });
+        const requestStartedAt = Date.now();
         const response = await axios.get(SEARCH_API_URL, {
             params: {
                 search_terms: query,
@@ -103,12 +121,18 @@ export async function searchProducts(query: string, limit: number = 10): Promise
                 action: 'process',
                 json: 1,
                 page_size: limit,
-                fields: 'product_name,brands,code,nutriments,serving_size,image_url'
+                fields: 'product_name,brands,code,nutriments,serving_size,image_url',
             },
             headers: {
                 'User-Agent': 'NutriHealthApp/1.0 (contact@nutrihealth.app)',
             },
-            timeout: 5000
+            timeout: 5000,
+        });
+        logger.apiResponse({
+            method: 'GET',
+            url: SEARCH_API_URL,
+            status: response.status,
+            durationMs: Date.now() - requestStartedAt,
         });
 
         if (!response.data || !response.data.products) {
@@ -123,7 +147,7 @@ export async function searchProducts(query: string, limit: number = 10): Promise
                 let servingUnit = 'g';
 
                 if (product.serving_size) {
-                    const match = product.serving_size.match(/([\\d.]+)\\s*([a-zA-Z]+)/);
+                    const match = product.serving_size.match(/([\d.]+)\s*([a-zA-Z]+)/);
                     if (match) {
                         servingSize = parseFloat(match[1]);
                         servingUnit = match[2];
@@ -142,11 +166,17 @@ export async function searchProducts(query: string, limit: number = 10): Promise
                     fats: product.nutriments['fat_100g'] || 0,
                     fiber: product.nutriments['fiber_100g'] || 0,
                     sugar: product.nutriments['sugars_100g'] || 0,
-                    image_url: product.image_url
+                    image_url: product.image_url,
                 };
             });
     } catch (error) {
         handleError(error, 'openFoodFacts.searchProducts');
+        logger.apiError({
+            method: 'GET',
+            url: SEARCH_API_URL,
+            status: (error as any)?.response?.status,
+            error: (error as Error).message,
+        });
         return [];
     }
 }
@@ -175,33 +205,5 @@ export function extractNutrition(product: FoodProduct): FoodItem {
         sugar: product.sugar,
         image_url: product.image_url,
         source: 'openfoodfacts',
-    };
-}
-
-/**
- * Scales the nutrition of a food item to an arbitrary serving size/unit.
- * If units mismatch we skip scaling to avoid bogus values.
- */
-export function calculateNutritionForServing(
-    food: FoodItem,
-    targetServingSize: number,
-    targetServingUnit: string
-): FoodItem {
-    const numericTarget = Number.isFinite(targetServingSize) ? targetServingSize : food.servingSize;
-    const sameUnit = food.servingUnit.toLowerCase() === targetServingUnit.toLowerCase();
-    const ratio = sameUnit && food.servingSize > 0 ? numericTarget / food.servingSize : 1;
-
-    const scale = (value?: number) => Math.round((value || 0) * ratio);
-
-    return {
-        ...food,
-        servingSize: numericTarget,
-        servingUnit: targetServingUnit,
-        calories: scale(food.calories),
-        protein: scale(food.protein),
-        carbs: scale(food.carbs),
-        fats: scale(food.fats),
-        fiber: scale(food.fiber),
-        sugar: scale(food.sugar),
     };
 }

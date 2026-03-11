@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Search, ScanLine, Camera } from 'lucide-react-native';
+import { Search, ScanLine, Camera, ChefHat } from 'lucide-react-native';
 import { triggerHaptic } from '../../utils/haptics';
 import { useAddMealDraftStore } from '../../store/addMealDraftStore';
 
@@ -8,18 +8,28 @@ type AddMealSheetProps = {
     onOpenSearch: () => void;
     onOpenScan: () => void;
     onOpenAiDetect: () => void;
+    onOpenCookpadSearch: () => void;
     onSaveMeal: () => void;
 };
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 
-export default function AddMealSheet({ onOpenSearch, onOpenScan, onOpenAiDetect, onSaveMeal }: AddMealSheetProps) {
+export default function AddMealSheet({
+    onOpenSearch,
+    onOpenScan,
+    onOpenAiDetect,
+    onOpenCookpadSearch,
+    onSaveMeal,
+}: AddMealSheetProps) {
     const mealType = useAddMealDraftStore((state) => state.mealType);
     const setMealType = useAddMealDraftStore((state) => state.setMealType);
     const foods = useAddMealDraftStore((state) => state.foods);
     const removeFood = useAddMealDraftStore((state) => state.removeFood);
 
     const totalCalories = foods.reduce((sum, food) => sum + food.calories * food.quantity, 0);
+    const totalProtein = foods.reduce((sum, food) => sum + food.protein * food.quantity, 0);
+    const totalCarbs = foods.reduce((sum, food) => sum + food.carbs * food.quantity, 0);
+    const totalFats = foods.reduce((sum, food) => sum + food.fats * food.quantity, 0);
 
     return (
         <View style={{ flex: 1, backgroundColor: '#fff', padding: 16 }}>
@@ -94,6 +104,23 @@ export default function AddMealSheet({ onOpenSearch, onOpenScan, onOpenAiDetect,
                     <Text style={{ fontWeight: '700', color: '#0f172a' }}>Scan Barcode</Text>
                 </Pressable>
                 <Pressable
+                    onPress={onOpenCookpadSearch}
+                    android_ripple={{ color: '#ffedd5' }}
+                    style={{
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: '#e2e8f0',
+                        padding: 14,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                        overflow: 'hidden',
+                    }}
+                >
+                    <ChefHat size={18} color="#ea580c" />
+                    <Text style={{ fontWeight: '700', color: '#0f172a' }}>Smart Cooker</Text>
+                </Pressable>
+                <Pressable
                     onPress={onOpenAiDetect}
                     android_ripple={{ color: '#f3e8ff' }}
                     style={{
@@ -165,6 +192,10 @@ export default function AddMealSheet({ onOpenSearch, onOpenScan, onOpenAiDetect,
                         ) : null}
                         <Text style={{ color: '#0f172a', fontWeight: '700', marginTop: 2 }}>
                             Total: {Math.round(totalCalories)} kcal
+                        </Text>
+                        <Text style={{ color: '#334155', fontSize: 12 }}>
+                            Protein {Math.round(totalProtein)}g {'·'} Carbs {Math.round(totalCarbs)}g {'·'} Fat{' '}
+                            {Math.round(totalFats)}g
                         </Text>
                     </>
                 )}

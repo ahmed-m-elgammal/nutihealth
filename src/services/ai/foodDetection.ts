@@ -3,7 +3,6 @@ import { formatImageForAI } from '../../utils/image';
 import { getCachedResult, setCachedResult, hashBase64 } from '../../utils/detectionCache';
 import { findNutritionData } from '../api/nutrition';
 import { DetectedFood, HFClassificationResult } from '../../types/food';
-import { Platform } from 'react-native';
 
 const MAX_AI_ATTEMPTS = 3;
 const AI_TIMEOUT_MS = 20000;
@@ -76,11 +75,11 @@ async function detectFoodWithRetry(formattedImage: string): Promise<HFClassifica
 }
 
 /**
- * Identifies food from a base64-encoded image using Hugging Face Vision API
+ * Identifies food from a base64-encoded image using backend AI detection
  *
  * Flow:
  * 1. Check cache for previously analyzed images
- * 2. Call Hugging Face API for food classification
+ * 2. Call backend `/analyze-food` (HF primary, OpenRouter vision fallback)
  * 3. Query local database for nutrition data
  * 4. Fallback to USDA API if not in database
  * 5. Use generic estimate as last resort
@@ -139,12 +138,6 @@ export async function identifyFoodFromImage(base64Image: string): Promise<Detect
         return result;
     } catch (error) {
         console.error('AI Food Detection Error:', error);
-        // Provide clearer message for common CORS/browser cases
-        if (Platform.OS === 'web') {
-            throw new Error(
-                'Image analysis failed because the AI endpoint blocks browser requests. Configure EXPO_PUBLIC_HF_PROXY_URL to a CORS-enabled proxy.',
-            );
-        }
         throw error;
     }
 }

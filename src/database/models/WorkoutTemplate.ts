@@ -28,18 +28,18 @@ export default class WorkoutTemplate extends Model {
         workout_schedules: { type: 'has_many' as const, foreignKey: 'template_id' },
     };
 
-    @field('user_id') userId: string;
+    @field('user_id') userId!: string;
     @field('program_id') programId?: string;
-    @field('name') name: string;
+    @field('name') name!: string;
     @field('description') description?: string;
-    @field('workout_type') workoutType: string;
-    @json('exercises', (json) => json) exercises: ExerciseConfig[];
-    @field('is_favorite') isFavorite: boolean;
-    @field('use_count') useCount: number;
-    @readonly @date('created_at') createdAt: Date;
-    @readonly @date('updated_at') updatedAt: Date;
+    @field('workout_type') workoutType!: string;
+    @json('exercises', (json) => json) exercises!: ExerciseConfig[];
+    @field('is_favorite') isFavorite!: boolean;
+    @field('use_count') useCount!: number;
+    @readonly @date('created_at') createdAt!: Date;
+    @readonly @date('updated_at') updatedAt!: Date;
 
-    @relation('training_programs', 'program_id') program: Relation<TrainingProgram>;
-    @children('template_exercises') templateExercises: Query<TemplateExercise>;
-    @children('workout_schedules') schedules: Query<WorkoutSchedule>;
+    @relation('training_programs', 'program_id') program!: Relation<TrainingProgram>;
+    @children('template_exercises') templateExercises!: Query<TemplateExercise>;
+    @children('workout_schedules') schedules!: Query<WorkoutSchedule>;
 }

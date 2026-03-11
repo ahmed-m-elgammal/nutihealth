@@ -1,0 +1,14 @@
+﻿[
+    {
+        "Method":  "Method 1 - EAS Cloud Preview",
+        "Status":  "SUCCESS",
+        "Log":  "C:\\Users\\A-Dev\\Documents\\NutriHealth\\build-logs\\20260309-141459\\method1-whoami.log",
+        "Notes":  ""
+    },
+    {
+        "Method":  "Method 1 - EAS Cloud Preview",
+        "Status":  "FAILED",
+        "Log":  "C:\\Users\\A-Dev\\Documents\\NutriHealth\\build-logs\\20260309-141459\\method1-cloud-preview.log",
+        "Notes":  "Exit code: 1"
+    }
+]

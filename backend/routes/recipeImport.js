@@ -2,6 +2,7 @@ const express = require('express');
 const dns = require('node:dns').promises;
 const net = require('node:net');
 const { parseRecipeFromUrl } = require('../services/recipeParserService');
+const { logger } = require('../utils/logger');
 
 const router = express.Router();
 const MAX_URL_LENGTH = 2048;
@@ -98,6 +99,9 @@ async function assertPublicRecipeHost(url) {
         error.code = 'SSRF_BLOCKED';
         throw error;
     }
+
+    const preferredAddress = lookup.find((entry) => entry.family === 4) || lookup[0];
+    return preferredAddress.address;
 }
 
 router.post('/import', async (req, res) => {
@@ -111,12 +115,36 @@ router.post('/import', async (req, res) => {
     }
 
     try {
-        await assertPublicRecipeHost(normalizedUrl);
-        const recipe = await parseRecipeFromUrl(normalizedUrl.toString());
+        const resolvedAddress = await assertPublicRecipeHost(normalizedUrl);
+        const recipe = await parseRecipeFromUrl(normalizedUrl.toString(), {
+            resolvedAddress,
+            resolveAddress: assertPublicRecipeHost,
+        });
         return res.json(recipe);
     } catch (error) {
         const code = error.code || 'UNKNOWN';
         const message = error.message || "Couldn't parse this recipe. Manual entry available";
+        const route = '/api/recipes/import';
+
+        if (code === 'UNKNOWN') {
+            logger.error(
+                {
+                    route,
+                    errorCode: code,
+                    errorMessage: message,
+                },
+                'Unexpected recipe import failure',
+            );
+        } else {
+            logger.warn(
+                {
+                    route,
+                    errorCode: code,
+                    errorMessage: message,
+                },
+                'Recipe import request failed',
+            );
+        }
 
         if (code === 'INVALID_URL') {
             return res.status(400).json({ error: 'Please enter a valid recipe URL', code });
@@ -150,7 +178,6 @@ router.post('/import', async (req, res) => {
             });
         }
 
-        console.error('[recipe-import] parser error:', error);
         return res.status(422).json({
             error: message || "Couldn't parse this recipe. Manual entry available",
             code: 'PARSE_ERROR',

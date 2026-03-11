@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    ScrollView,
-    TextInput,
-    ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { X, Save, Copy } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import WeeklyGoalPlan from '../../database/models/WeeklyGoalPlan';
 import {
+    activatePlan,
     createWeeklyPlan,
     CreateWeeklyPlanData,
+    getWeeklyPlanById,
+    updateWeeklyPlan,
 } from '../../services/api/weeklyGoals';
 import { useUIStore } from '../../store/uiStore';
 import { useUserStore } from '../../store/userStore';
@@ -25,122 +23,275 @@ interface DayMacros {
 }
 
 const DAYS = [
-    { key: 'monday', label: 'Monday', emoji: '📅' },
-    { key: 'tuesday', label: 'Tuesday', emoji: '📅' },
-    { key: 'wednesday', label: 'Wednesday', emoji: '📅' },
-    { key: 'thursday', label: 'Thursday', emoji: '📅' },
-    { key: 'friday', label: 'Friday', emoji: '📅' },
-    { key: 'saturday', label: 'Saturday', emoji: '🎉' },
-    { key: 'sunday', label: 'Sunday', emoji: '🎉' },
+    { key: 'monday', label: 'Monday', emoji: 'M' },
+    { key: 'tuesday', label: 'Tuesday', emoji: 'T' },
+    { key: 'wednesday', label: 'Wednesday', emoji: 'W' },
+    { key: 'thursday', label: 'Thursday', emoji: 'T' },
+    { key: 'friday', label: 'Friday', emoji: 'F' },
+    { key: 'saturday', label: 'Saturday', emoji: 'S' },
+    { key: 'sunday', label: 'Sunday', emoji: 'S' },
 ] as const;
+
+function parseRouteNumber(value: string | string[] | undefined, fallback: number): number {
+    if (typeof value !== 'string') {
+        return fallback;
+    }
+
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sanitizeNumericInput(value: string): string {
+    return value.replace(/[^0-9]/g, '');
+}
+
+function toNumber(value: string): number {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function createDayMacros(calories: number, protein: number, carbs: number, fats: number): DayMacros {
+    return {
+        calories: String(calories),
+        protein: String(protein),
+        carbs: String(carbs),
+        fats: String(fats),
+    };
+}
+
+function createUniformWeek(dayMacros: DayMacros): Record<string, DayMacros> {
+    return {
+        monday: { ...dayMacros },
+        tuesday: { ...dayMacros },
+        wednesday: { ...dayMacros },
+        thursday: { ...dayMacros },
+        friday: { ...dayMacros },
+        saturday: { ...dayMacros },
+        sunday: { ...dayMacros },
+    };
+}
+
+function mapPlanToMacrosByDay(plan: WeeklyGoalPlan): Record<string, DayMacros> {
+    return {
+        monday: createDayMacros(plan.mondayCalories, plan.mondayProtein, plan.mondayCarbs, plan.mondayFats),
+        tuesday: createDayMacros(plan.tuesdayCalories, plan.tuesdayProtein, plan.tuesdayCarbs, plan.tuesdayFats),
+        wednesday: createDayMacros(
+            plan.wednesdayCalories,
+            plan.wednesdayProtein,
+            plan.wednesdayCarbs,
+            plan.wednesdayFats,
+        ),
+        thursday: createDayMacros(plan.thursdayCalories, plan.thursdayProtein, plan.thursdayCarbs, plan.thursdayFats),
+        friday: createDayMacros(plan.fridayCalories, plan.fridayProtein, plan.fridayCarbs, plan.fridayFats),
+        saturday: createDayMacros(plan.saturdayCalories, plan.saturdayProtein, plan.saturdayCarbs, plan.saturdayFats),
+        sunday: createDayMacros(plan.sundayCalories, plan.sundayProtein, plan.sundayCarbs, plan.sundayFats),
+    };
+}
 
 export default function CreateWeeklyPlanScreen() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const showToast = useUIStore((state) => state.showToast);
     const user = useUserStore((state) => state.user);
+    const params = useLocalSearchParams<{
+        planId?: string;
+        prefillName?: string;
+        prefillCalories?: string;
+        prefillProtein?: string;
+        prefillCarbs?: string;
+        prefillFats?: string;
+    }>();
 
-    const [planName, setPlanName] = useState('');
-    const [selectedDay, setSelectedDay] = useState<string>('monday');
-    const [isLoading, setIsLoading] = useState(false);
+    const editingPlanId = typeof params.planId === 'string' && params.planId.trim().length > 0 ? params.planId : null;
+    const isEditing = Boolean(editingPlanId);
 
-    // Initialize with user's current targets
-    const defaultMacros: DayMacros = {
-        calories: user?.calorieTarget?.toString() || String(DEFAULT_TARGETS.calories),
-        protein: user?.proteinTarget?.toString() || String(DEFAULT_WEEKLY_PLAN_PROTEIN),
-        carbs: user?.carbsTarget?.toString() || String(DEFAULT_TARGETS.carbs),
-        fats: user?.fatsTarget?.toString() || String(DEFAULT_TARGETS.fats),
-    };
+    const defaultDayMacros = useMemo(() => {
+        const calories = parseRouteNumber(params.prefillCalories, user?.calorieTarget ?? DEFAULT_TARGETS.calories);
+        const protein = parseRouteNumber(params.prefillProtein, user?.proteinTarget ?? DEFAULT_WEEKLY_PLAN_PROTEIN);
+        const carbs = parseRouteNumber(params.prefillCarbs, user?.carbsTarget ?? DEFAULT_TARGETS.carbs);
+        const fats = parseRouteNumber(params.prefillFats, user?.fatsTarget ?? DEFAULT_TARGETS.fats);
+        return createDayMacros(calories, protein, carbs, fats);
+    }, [
+        params.prefillCalories,
+        params.prefillProtein,
+        params.prefillCarbs,
+        params.prefillFats,
+        user?.calorieTarget,
+        user?.carbsTarget,
+        user?.fatsTarget,
+        user?.proteinTarget,
+    ]);
 
-    const [macrosByDay, setMacrosByDay] = useState<Record<string, DayMacros>>({
-        monday: { ...defaultMacros },
-        tuesday: { ...defaultMacros },
-        wednesday: { ...defaultMacros },
-        thursday: { ...defaultMacros },
-        friday: { ...defaultMacros },
-        saturday: { ...defaultMacros },
-        sunday: { ...defaultMacros },
+    const [planName, setPlanName] = useState(() => {
+        if (typeof params.prefillName === 'string' && params.prefillName.trim().length > 0) {
+            return `${params.prefillName} (Custom)`;
+        }
+
+        return '';
     });
+    const [selectedDay, setSelectedDay] = useState<string>('monday');
+    const [isSaving, setIsSaving] = useState(false);
+    const [isBootstrapping, setIsBootstrapping] = useState(isEditing);
+    const [macrosByDay, setMacrosByDay] = useState<Record<string, DayMacros>>(() =>
+        createUniformWeek(defaultDayMacros),
+    );
+
+    useEffect(() => {
+        if (!editingPlanId) {
+            setIsBootstrapping(false);
+            return;
+        }
+
+        let isMounted = true;
+        setIsBootstrapping(true);
+
+        getWeeklyPlanById(editingPlanId)
+            .then((plan) => {
+                if (!isMounted) {
+                    return;
+                }
+
+                if (!plan) {
+                    showToast('error', 'Plan not found');
+                    router.back();
+                    return;
+                }
+
+                setPlanName(plan.planName);
+                setMacrosByDay(mapPlanToMacrosByDay(plan));
+            })
+            .catch(() => {
+                if (!isMounted) {
+                    return;
+                }
+                showToast('error', 'Failed to load plan');
+                router.back();
+            })
+            .finally(() => {
+                if (isMounted) {
+                    setIsBootstrapping(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [editingPlanId, router, showToast]);
 
     const updateDayMacro = (day: string, field: keyof DayMacros, value: string) => {
+        const sanitized = sanitizeNumericInput(value);
         setMacrosByDay((prev) => ({
             ...prev,
             [day]: {
                 ...prev[day],
-                [field]: value,
+                [field]: sanitized,
             },
         }));
     };
 
     const copyToAllDays = () => {
         const currentDayMacros = macrosByDay[selectedDay];
-        const newMacros = { ...macrosByDay };
-        DAYS.forEach((day) => {
-            newMacros[day.key] = { ...currentDayMacros };
-        });
-        setMacrosByDay(newMacros);
+        setMacrosByDay(createUniformWeek(currentDayMacros));
         showToast('success', 'Macros copied to all days');
     };
 
     const applyPreset = (preset: 'uniform' | 'carbCycling' | 'weekendCheat') => {
-        const baseCalories = parseInt(defaultMacros.calories, 10) || DEFAULT_TARGETS.calories;
-        const baseProtein = parseInt(defaultMacros.protein, 10) || DEFAULT_WEEKLY_PLAN_PROTEIN;
+        const currentDay = macrosByDay[selectedDay];
+        const baseCalories = toNumber(currentDay?.calories || defaultDayMacros.calories) || DEFAULT_TARGETS.calories;
+        const baseProtein = toNumber(currentDay?.protein || defaultDayMacros.protein) || DEFAULT_WEEKLY_PLAN_PROTEIN;
+        const baseCarbs = toNumber(currentDay?.carbs || defaultDayMacros.carbs) || DEFAULT_TARGETS.carbs;
+        const baseFats = toNumber(currentDay?.fats || defaultDayMacros.fats) || DEFAULT_TARGETS.fats;
 
-        let newMacros = { ...macrosByDay };
+        const nextMacros = { ...macrosByDay };
 
         switch (preset) {
             case 'uniform':
                 DAYS.forEach((day) => {
-                    newMacros[day.key] = { ...defaultMacros };
+                    nextMacros[day.key] = {
+                        calories: String(baseCalories),
+                        protein: String(baseProtein),
+                        carbs: String(baseCarbs),
+                        fats: String(baseFats),
+                    };
                 });
                 break;
 
             case 'carbCycling':
-                // High carb Mon-Fri (workout days), low carb Sat-Sun (rest days)
-                const highCarbDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-                const lowCarbDays = ['saturday', 'sunday'];
-
-                highCarbDays.forEach((day) => {
-                    newMacros[day] = {
-                        calories: baseCalories.toString(),
-                        protein: baseProtein.toString(),
-                        carbs: '250',
-                        fats: '70',
+                ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].forEach((day) => {
+                    nextMacros[day] = {
+                        calories: String(baseCalories),
+                        protein: String(baseProtein),
+                        carbs: String(Math.max(80, baseCarbs + 35)),
+                        fats: String(Math.max(30, baseFats - 10)),
                     };
                 });
 
-                lowCarbDays.forEach((day) => {
-                    newMacros[day] = {
-                        calories: (baseCalories - 300).toString(),
-                        protein: baseProtein.toString(),
-                        carbs: '100',
-                        fats: '110',
+                ['saturday', 'sunday'].forEach((day) => {
+                    nextMacros[day] = {
+                        calories: String(Math.max(1200, baseCalories - 250)),
+                        protein: String(baseProtein),
+                        carbs: String(Math.max(60, baseCarbs - 65)),
+                        fats: String(Math.max(35, baseFats + 20)),
                     };
                 });
                 break;
 
             case 'weekendCheat':
-                // Normal Mon-Fri, +500 cal Sat-Sun
-                const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-                const weekend = ['saturday', 'sunday'];
-
-                weekdays.forEach((day) => {
-                    newMacros[day] = { ...defaultMacros };
+                ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].forEach((day) => {
+                    nextMacros[day] = {
+                        calories: String(baseCalories),
+                        protein: String(baseProtein),
+                        carbs: String(baseCarbs),
+                        fats: String(baseFats),
+                    };
                 });
 
-                weekend.forEach((day) => {
-                    newMacros[day] = {
-                        calories: (baseCalories + 500).toString(),
-                        protein: baseProtein.toString(),
-                        carbs: (parseInt(defaultMacros.carbs, 10) + 50).toString(),
-                        fats: (parseInt(defaultMacros.fats, 10) + 20).toString(),
+                ['saturday', 'sunday'].forEach((day) => {
+                    nextMacros[day] = {
+                        calories: String(baseCalories + 400),
+                        protein: String(baseProtein),
+                        carbs: String(baseCarbs + 50),
+                        fats: String(baseFats + 15),
                     };
                 });
                 break;
         }
 
-        setMacrosByDay(newMacros);
+        setMacrosByDay(nextMacros);
         showToast('success', 'Preset applied');
     };
+
+    const buildPlanPayload = (): CreateWeeklyPlanData => ({
+        planName: planName.trim(),
+        mondayCalories: toNumber(macrosByDay.monday.calories),
+        mondayProtein: toNumber(macrosByDay.monday.protein),
+        mondayCarbs: toNumber(macrosByDay.monday.carbs),
+        mondayFats: toNumber(macrosByDay.monday.fats),
+        tuesdayCalories: toNumber(macrosByDay.tuesday.calories),
+        tuesdayProtein: toNumber(macrosByDay.tuesday.protein),
+        tuesdayCarbs: toNumber(macrosByDay.tuesday.carbs),
+        tuesdayFats: toNumber(macrosByDay.tuesday.fats),
+        wednesdayCalories: toNumber(macrosByDay.wednesday.calories),
+        wednesdayProtein: toNumber(macrosByDay.wednesday.protein),
+        wednesdayCarbs: toNumber(macrosByDay.wednesday.carbs),
+        wednesdayFats: toNumber(macrosByDay.wednesday.fats),
+        thursdayCalories: toNumber(macrosByDay.thursday.calories),
+        thursdayProtein: toNumber(macrosByDay.thursday.protein),
+        thursdayCarbs: toNumber(macrosByDay.thursday.carbs),
+        thursdayFats: toNumber(macrosByDay.thursday.fats),
+        fridayCalories: toNumber(macrosByDay.friday.calories),
+        fridayProtein: toNumber(macrosByDay.friday.protein),
+        fridayCarbs: toNumber(macrosByDay.friday.carbs),
+        fridayFats: toNumber(macrosByDay.friday.fats),
+        saturdayCalories: toNumber(macrosByDay.saturday.calories),
+        saturdayProtein: toNumber(macrosByDay.saturday.protein),
+        saturdayCarbs: toNumber(macrosByDay.saturday.carbs),
+        saturdayFats: toNumber(macrosByDay.saturday.fats),
+        sundayCalories: toNumber(macrosByDay.sunday.calories),
+        sundayProtein: toNumber(macrosByDay.sunday.protein),
+        sundayCarbs: toNumber(macrosByDay.sunday.carbs),
+        sundayFats: toNumber(macrosByDay.sunday.fats),
+    });
 
     const handleSavePlan = async () => {
         if (!planName.trim()) {
@@ -149,163 +300,126 @@ export default function CreateWeeklyPlanScreen() {
         }
 
         try {
-            setIsLoading(true);
+            setIsSaving(true);
+            const payload = buildPlanPayload();
 
-            const planData: CreateWeeklyPlanData = {
-                planName: planName.trim(),
-                mondayCalories: parseInt(macrosByDay.monday.calories, 10) || 0,
-                mondayProtein: parseInt(macrosByDay.monday.protein, 10) || 0,
-                mondayCarbs: parseInt(macrosByDay.monday.carbs, 10) || 0,
-                mondayFats: parseInt(macrosByDay.monday.fats, 10) || 0,
+            if (editingPlanId) {
+                await updateWeeklyPlan(editingPlanId, payload);
+                showToast('success', 'Weekly plan updated');
+            } else {
+                const createdPlan = await createWeeklyPlan(payload);
+                await activatePlan(createdPlan.id);
+                showToast('success', 'Weekly plan created and activated');
+            }
 
-                tuesdayCalories: parseInt(macrosByDay.tuesday.calories, 10) || 0,
-                tuesdayProtein: parseInt(macrosByDay.tuesday.protein, 10) || 0,
-                tuesdayCarbs: parseInt(macrosByDay.tuesday.carbs, 10) || 0,
-                tuesdayFats: parseInt(macrosByDay.tuesday.fats, 10) || 0,
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['weekly-goal-plans'] }),
+                queryClient.invalidateQueries({ queryKey: ['diets', 'active'] }),
+                queryClient.invalidateQueries({ queryKey: ['diet-suggestions'] }),
+            ]);
 
-                wednesdayCalories: parseInt(macrosByDay.wednesday.calories, 10) || 0,
-                wednesdayProtein: parseInt(macrosByDay.wednesday.protein, 10) || 0,
-                wednesdayCarbs: parseInt(macrosByDay.wednesday.carbs, 10) || 0,
-                wednesdayFats: parseInt(macrosByDay.wednesday.fats, 10) || 0,
-
-                thursdayCalories: parseInt(macrosByDay.thursday.calories, 10) || 0,
-                thursdayProtein: parseInt(macrosByDay.thursday.protein, 10) || 0,
-                thursdayCarbs: parseInt(macrosByDay.thursday.carbs, 10) || 0,
-                thursdayFats: parseInt(macrosByDay.thursday.fats, 10) || 0,
-
-                fridayCalories: parseInt(macrosByDay.friday.calories, 10) || 0,
-                fridayProtein: parseInt(macrosByDay.friday.protein, 10) || 0,
-                fridayCarbs: parseInt(macrosByDay.friday.carbs, 10) || 0,
-                fridayFats: parseInt(macrosByDay.friday.fats, 10) || 0,
-
-                saturdayCalories: parseInt(macrosByDay.saturday.calories, 10) || 0,
-                saturdayProtein: parseInt(macrosByDay.saturday.protein, 10) || 0,
-                saturdayCarbs: parseInt(macrosByDay.saturday.carbs, 10) || 0,
-                saturdayFats: parseInt(macrosByDay.saturday.fats, 10) || 0,
-
-                sundayCalories: parseInt(macrosByDay.sunday.calories, 10) || 0,
-                sundayProtein: parseInt(macrosByDay.sunday.protein, 10) || 0,
-                sundayCarbs: parseInt(macrosByDay.sunday.carbs, 10) || 0,
-                sundayFats: parseInt(macrosByDay.sunday.fats, 10) || 0,
-            };
-
-            await createWeeklyPlan(planData);
-            showToast('success', 'Weekly plan created');
             router.back();
         } catch (error) {
-            showToast('error', 'Failed to create plan');
+            showToast('error', editingPlanId ? 'Failed to update plan' : 'Failed to create plan');
         } finally {
-            setIsLoading(false);
+            setIsSaving(false);
         }
     };
 
     const currentDayMacros = macrosByDay[selectedDay];
 
+    if (isBootstrapping) {
+        return (
+            <View className="flex-1 items-center justify-center bg-neutral-50">
+                <ActivityIndicator size="large" color="#10b981" />
+                <Text className="mt-3 text-neutral-500">Loading weekly plan...</Text>
+            </View>
+        );
+    }
+
     return (
         <View className="flex-1 bg-neutral-50">
-            {/* Header */}
-            <View className="bg-primary-600 px-6 pt-12 pb-6">
-                <View className="flex-row justify-between items-center mb-4">
+            <View className="bg-primary-600 px-6 pb-6 pt-12">
+                <View className="mb-4 flex-row items-center justify-between">
                     <Text className="text-2xl font-bold text-white">
-                        Create Weekly Plan
+                        {isEditing ? 'Edit Weekly Plan' : 'Create Weekly Plan'}
                     </Text>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        className="bg-white/20 p-2 rounded-full"
-                    >
+                    <TouchableOpacity onPress={() => router.back()} className="rounded-full bg-white/20 p-2">
                         <X size={20} color="white" />
                     </TouchableOpacity>
                 </View>
-                <Text className="text-white/80 text-sm">
-                    Set different macro goals for each day
+                <Text className="text-sm text-white/80">
+                    Set day-by-day macro targets and adjust them with your doctor.
                 </Text>
             </View>
 
             <ScrollView className="flex-1">
-                {/* Plan Name */}
-                <View className="bg-white px-6 py-4 mb-2">
-                    <Text className="text-neutral-700 font-semibold mb-2">Plan Name</Text>
+                <View className="mb-2 bg-white px-6 py-4">
+                    <Text className="mb-2 font-semibold text-neutral-700">Plan Name</Text>
                     <TextInput
-                        placeholder="e.g., Carb Cycling, Weekly Split"
+                        placeholder="e.g., Doctor Adjusted Plan"
                         value={planName}
                         onChangeText={setPlanName}
-                        className="bg-neutral-100 rounded-xl px-4 py-3 text-neutral-900"
+                        className="rounded-xl bg-neutral-100 px-4 py-3 text-neutral-900"
                         placeholderTextColor="#a3a3a3"
                     />
                 </View>
 
-                {/* Presets */}
-                <View className="bg-white px-6 py-4 mb-2">
-                    <Text className="text-neutral-700 font-semibold mb-3">Quick Presets</Text>
+                <View className="mb-2 bg-white px-6 py-4">
+                    <Text className="mb-3 font-semibold text-neutral-700">Quick Presets</Text>
                     <View className="flex-row gap-2">
                         <TouchableOpacity
                             onPress={() => applyPreset('uniform')}
-                            className="flex-1 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3"
+                            className="flex-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"
                         >
-                            <Text className="text-blue-800 font-semibold text-center text-sm">
-                                📊 Uniform
-                            </Text>
+                            <Text className="text-center text-sm font-semibold text-blue-800">Uniform</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => applyPreset('carbCycling')}
-                            className="flex-1 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3"
+                            className="flex-1 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3"
                         >
-                            <Text className="text-purple-800 font-semibold text-center text-sm">
-                                🔄 Carb Cycle
-                            </Text>
+                            <Text className="text-center text-sm font-semibold text-purple-800">Carb Cycle</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => applyPreset('weekendCheat')}
-                            className="flex-1 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3"
+                            className="flex-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
                         >
-                            <Text className="text-amber-800 font-semibold text-center text-sm">
-                                🍕 Weekend+
-                            </Text>
+                            <Text className="text-center text-sm font-semibold text-amber-800">Weekend+</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Day Selector */}
-                <View className="bg-white px-6 py-4 mb-2">
-                    <View className="flex-row justify-between items-center mb-3">
-                        <Text className="text-neutral-700 font-semibold">Select Day</Text>
+                <View className="mb-2 bg-white px-6 py-4">
+                    <View className="mb-3 flex-row items-center justify-between">
+                        <Text className="font-semibold text-neutral-700">Select Day</Text>
                         <TouchableOpacity
                             onPress={copyToAllDays}
-                            className="flex-row items-center bg-neutral-100 px-3 py-2 rounded-lg"
+                            className="flex-row items-center rounded-lg bg-neutral-100 px-3 py-2"
                         >
                             <Copy size={14} color="#525252" />
-                            <Text className="text-neutral-600 text-xs ml-1 font-medium">
-                                Copy to All
-                            </Text>
+                            <Text className="ml-1 text-xs font-medium text-neutral-600">Copy to All</Text>
                         </TouchableOpacity>
                     </View>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        className="flex-row gap-2"
-                    >
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
                         {DAYS.map((day) => (
                             <TouchableOpacity
                                 key={day.key}
                                 onPress={() => setSelectedDay(day.key)}
-                                className={`px-4 py-3 rounded-xl min-w-[90px] ${selectedDay === day.key
-                                        ? 'bg-primary-600'
-                                        : 'bg-neutral-100'
-                                    }`}
+                                className={`min-w-[90px] rounded-xl px-4 py-3 ${
+                                    selectedDay === day.key ? 'bg-primary-600' : 'bg-neutral-100'
+                                }`}
                             >
                                 <Text
-                                    className={`font-semibold text-center ${selectedDay === day.key
-                                            ? 'text-white'
-                                            : 'text-neutral-700'
-                                        }`}
+                                    className={`text-center font-semibold ${
+                                        selectedDay === day.key ? 'text-white' : 'text-neutral-700'
+                                    }`}
                                 >
                                     {day.emoji}
                                 </Text>
                                 <Text
-                                    className={`text-xs text-center mt-1 ${selectedDay === day.key
-                                            ? 'text-white'
-                                            : 'text-neutral-500'
-                                        }`}
+                                    className={`mt-1 text-center text-xs ${
+                                        selectedDay === day.key ? 'text-white' : 'text-neutral-500'
+                                    }`}
                                 >
                                     {day.label.substring(0, 3)}
                                 </Text>
@@ -314,106 +428,82 @@ export default function CreateWeeklyPlanScreen() {
                     </ScrollView>
                 </View>
 
-                {/* Macro Inputs */}
-                <View className="bg-white px-6 py-4 mb-2">
-                    <Text className="text-neutral-700 font-semibold mb-4">
+                <View className="mb-2 bg-white px-6 py-4">
+                    <Text className="mb-4 font-semibold text-neutral-700">
                         {DAYS.find((d) => d.key === selectedDay)?.label} Macros
                     </Text>
 
-                    {/* Calories */}
                     <View className="mb-4">
-                        <Text className="text-neutral-600 font-medium mb-2">
-                            Calories (kcal)
-                        </Text>
+                        <Text className="mb-2 font-medium text-neutral-600">Calories (kcal)</Text>
                         <TextInput
                             keyboardType="numeric"
                             value={currentDayMacros.calories}
-                            onChangeText={(val) =>
-                                updateDayMacro(selectedDay, 'calories', val)
-                            }
-                            className="bg-neutral-100 rounded-xl px-4 py-3 text-neutral-900 font-semibold text-lg"
+                            onChangeText={(value) => updateDayMacro(selectedDay, 'calories', value)}
+                            className="rounded-xl bg-neutral-100 px-4 py-3 text-lg font-semibold text-neutral-900"
                             placeholder={String(DEFAULT_TARGETS.calories)}
                         />
                     </View>
 
-                    {/* Protein */}
                     <View className="mb-4">
-                        <Text className="text-neutral-600 font-medium mb-2">
-                            Protein (g)
-                        </Text>
+                        <Text className="mb-2 font-medium text-neutral-600">Protein (g)</Text>
                         <TextInput
                             keyboardType="numeric"
                             value={currentDayMacros.protein}
-                            onChangeText={(val) =>
-                                updateDayMacro(selectedDay, 'protein', val)
-                            }
-                            className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-900 font-semibold text-lg"
+                            onChangeText={(value) => updateDayMacro(selectedDay, 'protein', value)}
+                            className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-lg font-semibold text-blue-900"
                             placeholder={String(DEFAULT_WEEKLY_PLAN_PROTEIN)}
                         />
                     </View>
 
-                    {/* Carbs */}
                     <View className="mb-4">
-                        <Text className="text-neutral-600 font-medium mb-2">
-                            Carbohydrates (g)
-                        </Text>
+                        <Text className="mb-2 font-medium text-neutral-600">Carbohydrates (g)</Text>
                         <TextInput
                             keyboardType="numeric"
                             value={currentDayMacros.carbs}
-                            onChangeText={(val) =>
-                                updateDayMacro(selectedDay, 'carbs', val)
-                            }
-                            className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-orange-900 font-semibold text-lg"
+                            onChangeText={(value) => updateDayMacro(selectedDay, 'carbs', value)}
+                            className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-lg font-semibold text-orange-900"
                             placeholder={String(DEFAULT_TARGETS.carbs)}
                         />
                     </View>
 
-                    {/* Fats */}
                     <View className="mb-4">
-                        <Text className="text-neutral-600 font-medium mb-2">
-                            Fats (g)
-                        </Text>
+                        <Text className="mb-2 font-medium text-neutral-600">Fats (g)</Text>
                         <TextInput
                             keyboardType="numeric"
                             value={currentDayMacros.fats}
-                            onChangeText={(val) =>
-                                updateDayMacro(selectedDay, 'fats', val)
-                            }
-                            className="bg-purple-50 border border-purple-200 rounded-xl px-4 py-3 text-purple-900 font-semibold text-lg"
+                            onChangeText={(value) => updateDayMacro(selectedDay, 'fats', value)}
+                            className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-lg font-semibold text-purple-900"
                             placeholder={String(DEFAULT_TARGETS.fats)}
                         />
                     </View>
                 </View>
 
-                {/* Summary */}
-                <View className="bg-blue-50 border border-blue-200 mx-6 mb-6 p-4 rounded-2xl">
-                    <Text className="text-blue-900 font-semibold mb-2">
-                        📊 Weekly Overview
-                    </Text>
-                    <Text className="text-blue-700 text-sm">
+                <View className="mx-6 mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                    <Text className="mb-2 font-semibold text-blue-900">Weekly Overview</Text>
+                    <Text className="text-sm text-blue-700">
                         {DAYS.map((day) => {
-                            const cals = parseInt(macrosByDay[day.key].calories, 10) || 0;
-                            return `${day.label.substring(0, 3)}: ${cals} kcal`;
+                            const calories = toNumber(macrosByDay[day.key].calories);
+                            return `${day.label.substring(0, 3)}: ${calories} kcal`;
                         }).join(' • ')}
                     </Text>
                 </View>
             </ScrollView>
 
-            {/* Save Button */}
-            <View className="px-6 py-4 bg-white border-t border-neutral-100">
+            <View className="border-t border-neutral-100 bg-white px-6 py-4">
                 <TouchableOpacity
                     onPress={handleSavePlan}
-                    disabled={isLoading}
-                    className={`bg-primary-600 rounded-2xl py-4 flex-row items-center justify-center ${isLoading ? 'opacity-50' : ''
-                        }`}
+                    disabled={isSaving}
+                    className={`flex-row items-center justify-center rounded-2xl bg-primary-600 py-4 ${
+                        isSaving ? 'opacity-50' : ''
+                    }`}
                 >
-                    {isLoading ? (
+                    {isSaving ? (
                         <ActivityIndicator color="white" />
                     ) : (
                         <>
                             <Save size={20} color="white" />
-                            <Text className="text-white font-bold text-lg ml-2">
-                                Save Plan
+                            <Text className="ml-2 text-lg font-bold text-white">
+                                {isEditing ? 'Update Plan' : 'Save & Activate'}
                             </Text>
                         </>
                     )}

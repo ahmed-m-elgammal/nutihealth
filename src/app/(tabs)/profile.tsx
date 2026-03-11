@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Platform, ScrollView, View } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Bell, Download, Globe, LogOut, Moon, ShieldCheck, User as UserIcon } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Bell, Download, Globe, LogOut, Moon, Trash2, User as UserIcon } from 'lucide-react-native';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
 import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 import ProfileHeader from '../../components/profile/ProfileHeader';
@@ -14,35 +14,322 @@ import { exportBackupAndShare, restoreBackupFromFilePicker } from '../../service
 import { clearScheduledReminders, scheduleAdaptiveReminders } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
 import { ProfileSkeleton } from '../../components/skeletons/ScreenSkeletons';
-import { triggerHaptic } from '../../utils/haptics';
 import { EmptyPlateIllustration } from '../../components/illustrations/EmptyStateIllustrations';
-import { useColors } from '../../hooks/useColors';
-import i18n, { changeAppLanguage } from '../../i18n';
+import i18n, { changeAppLanguage, type SupportedLanguage } from '../../i18n';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+
+const ICON_COLOR = '#94a3b8';
+const ICON_ERROR = '#ef4444';
+
+const LANGUAGES: SupportedLanguage[] = ['en', 'ar', 'es'];
+
+const normalizeLanguage = (value?: string): SupportedLanguage => {
+    const normalized = (value || '').toLowerCase().split('-')[0];
+    if (normalized === 'ar' || normalized === 'es') {
+        return normalized;
+    }
+    return 'en';
+};
+
+const confirmWithAlert = (title: string, message: string, confirmText: string): Promise<boolean> =>
+    new Promise((resolve) => {
+        let settled = false;
+        const settle = (value: boolean) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            resolve(value);
+        };
+
+        Alert.alert(
+            title,
+            message,
+            [
+                { text: 'Cancel', style: 'cancel', onPress: () => settle(false) },
+                { text: confirmText, style: 'destructive', onPress: () => settle(true) },
+            ],
+            {
+                cancelable: true,
+                onDismiss: () => settle(false),
+            },
+        );
+    });
 
 export default function ProfileScreen() {
+    const { section } = useLocalSearchParams<{ section?: string }>();
     const router = useRouter();
-    const { user, logout, updateUser } = useUserStore();
+    const { user } = useCurrentUser();
+    const { logout, updateUser, deleteAccount } = useUserStore();
     const { isDark, setThemeMode } = useTheme();
     const showToast = useUIStore((state) => state.showToast);
-    const colors = useColors();
     const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const [isExportingBackup, setIsExportingBackup] = useState(false);
+    const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const notificationsRef = useRef<View>(null);
+    const scrollRef = useRef<ScrollView>(null);
 
-    const profileUser = {
-        name: user?.name || 'Guest User',
-        email: user?.email || 'Set up your profile',
-        avatar: undefined,
-        memberSince: user?.createdAt ? new Date(user.createdAt) : new Date(),
-    };
+    useEffect(() => {
+        if (section !== 'notifications') {
+            return;
+        }
 
-    const bmi = user?.height ? user.weight / Math.pow(user.height / 100, 2) : 0;
+        const timer = setTimeout(() => {
+            const scrollTarget = (scrollRef.current as any)?.getScrollableNode?.() ?? (scrollRef.current as any);
+            if (!scrollTarget || !notificationsRef.current) {
+                return;
+            }
 
-    const stats = {
-        currentWeight: user?.weight || 70,
-        goalWeight: user?.targetWeight || user?.weight || 65,
-        bmi: Number.isFinite(bmi) ? bmi : 0,
-        streak: user?.stats?.current_streak || 0,
-        bestStreak: Math.max(user?.stats?.current_streak || 0, 30),
-    };
+            notificationsRef.current.measureLayout(
+                scrollTarget,
+                (_x, y) => {
+                    (scrollRef.current as any)?.scrollTo?.({ y, animated: true });
+                },
+                () => undefined,
+            );
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [section]);
+
+    const profileUser = useMemo(
+        () => ({
+            name: user?.name || 'Guest User',
+            email: user?.email || 'Set up your profile',
+            avatar: undefined,
+            memberSince: user?.createdAt ? new Date(user.createdAt) : new Date(),
+        }),
+        [user?.createdAt, user?.email, user?.name],
+    );
+
+    const bmi = useMemo(
+        () => (user?.height ? user.weight / Math.pow(user.height / 100, 2) : 0),
+        [user?.height, user?.weight],
+    );
+
+    const stats = useMemo(
+        () => ({
+            currentWeight: user?.weight || 70,
+            goalWeight: user?.targetWeight || user?.weight || 65,
+            bmi: Number.isFinite(bmi) ? bmi : 0,
+            streak: user?.stats?.current_streak || 0,
+            bestStreak: user?.stats?.current_streak || 0,
+        }),
+        [bmi, user?.stats?.current_streak, user?.targetWeight, user?.weight],
+    );
+
+    const mergedPreferences = useMemo(
+        () => ({
+            allergies: [],
+            dietary_restrictions: [],
+            theme: 'auto' as const,
+            notifications_enabled: true,
+            language: 'en',
+            ...(user?.preferences || {}),
+        }),
+        [user?.preferences],
+    );
+
+    const currentLanguage = useMemo(
+        () => normalizeLanguage(mergedPreferences.language || i18n.language),
+        [mergedPreferences.language],
+    );
+
+    const updatePreferences = useCallback(
+        async (updates: Partial<typeof mergedPreferences>) => {
+            await updateUser({
+                preferences: {
+                    ...mergedPreferences,
+                    ...updates,
+                },
+            });
+        },
+        [mergedPreferences, updateUser],
+    );
+
+    const requestConfirmation = useCallback(async (title: string, message: string, confirmText: string) => {
+        if (Platform.OS === 'web') {
+            if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+                return false;
+            }
+            return window.confirm(`${title}\n\n${message}`);
+        }
+
+        return confirmWithAlert(title, message, confirmText);
+    }, []);
+
+    const handleDeleteAccount = useCallback(async () => {
+        if (isDeletingAccount) {
+            return;
+        }
+
+        const confirmed = await requestConfirmation(
+            'Delete account permanently?',
+            'This will permanently delete your account and all synced data. This cannot be undone.',
+            'Delete My Account',
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        setIsDeletingAccount(true);
+        try {
+            await deleteAccount();
+            showToast('success', 'Your account was permanently deleted.');
+            router.replace('/onboarding/welcome');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to delete account.';
+            showToast('error', message);
+        } finally {
+            setIsDeletingAccount(false);
+        }
+    }, [deleteAccount, isDeletingAccount, requestConfirmation, router, showToast]);
+
+    const handleNotificationToggle = useCallback(
+        async (enabled: boolean) => {
+            try {
+                await updatePreferences({ notifications_enabled: enabled });
+                if (enabled) {
+                    await scheduleAdaptiveReminders(user?.id);
+                } else {
+                    await clearScheduledReminders();
+                }
+                showToast('success', enabled ? 'Smart reminders enabled.' : 'Smart reminders disabled.');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Failed to update reminders.';
+                showToast('error', message);
+            }
+        },
+        [showToast, updatePreferences, user?.id],
+    );
+
+    const handleLanguageChange = useCallback(
+        async (language: SupportedLanguage) => {
+            if (isSwitchingLanguage) {
+                return;
+            }
+
+            setIsSwitchingLanguage(true);
+            try {
+                await updatePreferences({ language });
+                const { directionChanged, reloadTriggered } = await changeAppLanguage(language);
+                const message =
+                    language === 'ar'
+                        ? 'تم تغيير اللغة إلى العربية'
+                        : language === 'es'
+                          ? 'Idioma cambiado a español'
+                          : 'Language changed to English';
+                showToast('success', message);
+
+                if (directionChanged && !reloadTriggered) {
+                    showToast('info', 'Please restart the app to apply RTL layout changes.');
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Failed to change language.';
+                showToast('error', message);
+            } finally {
+                setIsSwitchingLanguage(false);
+            }
+        },
+        [isSwitchingLanguage, showToast, updatePreferences],
+    );
+
+    const openLanguagePicker = useCallback(() => {
+        const buttons = [
+            { text: 'English', onPress: () => handleLanguageChange('en').catch(() => undefined) },
+            { text: 'العربية', onPress: () => handleLanguageChange('ar').catch(() => undefined) },
+            { text: 'Español', onPress: () => handleLanguageChange('es').catch(() => undefined) },
+        ];
+
+        // Android supports only up to 3 Alert buttons.
+        if (Platform.OS === 'android') {
+            Alert.alert('Select language', 'Choose app language', buttons);
+            return;
+        }
+
+        Alert.alert('Select language', 'Choose app language', [...buttons, { text: 'Cancel', style: 'cancel' }]);
+    }, [handleLanguageChange]);
+
+    const cycleLanguage = useCallback(() => {
+        const currentIndex = LANGUAGES.indexOf(currentLanguage);
+        const nextLanguage = LANGUAGES[(currentIndex + 1) % LANGUAGES.length];
+        handleLanguageChange(nextLanguage).catch(() => undefined);
+    }, [currentLanguage, handleLanguageChange]);
+
+    const handleLanguagePress = useCallback(() => {
+        if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.log('[Profile] Language pressed');
+        }
+
+        if (Platform.OS === 'android' || Platform.OS === 'web') {
+            cycleLanguage();
+            return;
+        }
+
+        openLanguagePicker();
+    }, [cycleLanguage, openLanguagePicker]);
+
+    const handleExportBackup = useCallback(async () => {
+        if (isExportingBackup) {
+            return;
+        }
+
+        setIsExportingBackup(true);
+        try {
+            const result = await exportBackupAndShare();
+            showToast('success', `Backup ready: ${result.recordCount} records exported.`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to export backup.';
+            showToast('error', message);
+        } finally {
+            setIsExportingBackup(false);
+        }
+    }, [isExportingBackup, showToast]);
+
+    const handleRestoreBackup = useCallback(async () => {
+        if (isRestoringBackup) {
+            return;
+        }
+
+        setIsRestoringBackup(true);
+        try {
+            const restored = await restoreBackupFromFilePicker();
+            if (restored) {
+                showToast('success', `Backup restored: ${restored.recordCount} records imported.`);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to restore backup.';
+            showToast('error', message);
+        } finally {
+            setIsRestoringBackup(false);
+        }
+    }, [isRestoringBackup, showToast]);
+
+    const handleLogout = useCallback(async () => {
+        if (isLoggingOut) {
+            return;
+        }
+
+        const confirmed = await requestConfirmation('Log out', 'Are you sure?', 'Log Out');
+        if (!confirmed) {
+            return;
+        }
+
+        setIsLoggingOut(true);
+        try {
+            await logout();
+            showToast('success', 'Logged out successfully.');
+            router.replace('/onboarding/welcome');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to log out.';
+            showToast('error', message);
+        } finally {
+            setIsLoggingOut(false);
+        }
+    }, [isLoggingOut, logout, requestConfirmation, router, showToast]);
 
     const sections = useMemo(
         () => [
@@ -52,28 +339,28 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'edit-profile',
-                        icon: <UserIcon size={17} color={colors.text.secondary} />,
+                        icon: <UserIcon size={17} color={ICON_COLOR} />,
                         label: 'Edit Profile',
                         subtitle: 'Name, email, body metrics and goals',
-                        onPress: () => router.push('/profile/edit'),
-                    },
-                    {
-                        type: 'navigation' as const,
-                        key: 'privacy',
-                        icon: <ShieldCheck size={17} color={colors.text.secondary} />,
-                        label: 'Privacy & Security',
-                        subtitle: 'Control account and data preferences',
-                        onPress: () => showToast('info', 'Privacy controls are available in the next update.'),
+                        onPress: () => {
+                            if (__DEV__) {
+                                // eslint-disable-next-line no-console
+                                console.log('[Profile] Edit Profile pressed');
+                            }
+                            router.push('/profile/edit');
+                        },
                     },
                 ],
             },
             {
                 title: 'Preferences',
+                sectionKey: 'preferences',
+                sectionRef: notificationsRef,
                 items: [
                     {
                         type: 'toggle' as const,
                         key: 'theme-dark',
-                        icon: <Moon size={17} color={colors.text.secondary} />,
+                        icon: <Moon size={17} color={ICON_COLOR} />,
                         label: 'Dark Mode',
                         value: isDark,
                         onToggle: (enabled: boolean) => setThemeMode(enabled ? 'dark' : 'light'),
@@ -81,111 +368,25 @@ export default function ProfileScreen() {
                     {
                         type: 'toggle' as const,
                         key: 'notifications',
-                        icon: <Bell size={17} color={colors.text.secondary} />,
+                        icon: <Bell size={17} color={ICON_COLOR} />,
                         label: 'Smart Reminders',
-                        value: Boolean(user?.preferences?.notifications_enabled),
+                        value: Boolean(mergedPreferences.notifications_enabled),
                         onToggle: (enabled: boolean) => {
-                            updateUser({
-                                preferences: {
-                                    ...(user?.preferences || {
-                                        allergies: [],
-                                        dietary_restrictions: [],
-                                        theme: 'auto',
-                                        notifications_enabled: true,
-                                        language: 'en',
-                                    }),
-                                    notifications_enabled: enabled,
-                                },
-                            }).catch(() => undefined);
-
-                            if (enabled) {
-                                scheduleAdaptiveReminders(user?.id).catch(() => undefined);
-                            } else {
-                                clearScheduledReminders().catch(() => undefined);
-                            }
+                            handleNotificationToggle(enabled).catch(() => undefined);
                         },
                     },
                     {
                         type: 'badge' as const,
                         key: 'language',
-                        icon: <Globe size={17} color={colors.text.secondary} />,
+                        icon: <Globe size={17} color={ICON_COLOR} />,
                         label: 'Language',
-                        badge: i18n.language.toUpperCase(),
-                        onPress: () => {
-                            if (isSwitchingLanguage) return;
-                            Alert.alert('Select language', 'Choose app language', [
-                                {
-                                    text: 'English',
-                                    onPress: () => {
-                                        setIsSwitchingLanguage(true);
-                                        changeAppLanguage('en')
-                                            .then(() => {
-                                                showToast('success', 'Language changed to English');
-                                                updateUser({
-                                                    preferences: {
-                                                        ...(user?.preferences || {
-                                                            allergies: [],
-                                                            dietary_restrictions: [],
-                                                            theme: 'auto',
-                                                            notifications_enabled: true,
-                                                            language: 'en',
-                                                        }),
-                                                        language: 'en',
-                                                    },
-                                                }).catch(() => undefined);
-                                            })
-                                            .finally(() => setIsSwitchingLanguage(false));
-                                    },
-                                },
-                                {
-                                    text: 'العربية',
-                                    onPress: () => {
-                                        setIsSwitchingLanguage(true);
-                                        changeAppLanguage('ar')
-                                            .then(() => {
-                                                showToast('success', 'تم تغيير اللغة إلى العربية');
-                                                updateUser({
-                                                    preferences: {
-                                                        ...(user?.preferences || {
-                                                            allergies: [],
-                                                            dietary_restrictions: [],
-                                                            theme: 'auto',
-                                                            notifications_enabled: true,
-                                                            language: 'en',
-                                                        }),
-                                                        language: 'ar',
-                                                    },
-                                                }).catch(() => undefined);
-                                            })
-                                            .finally(() => setIsSwitchingLanguage(false));
-                                    },
-                                },
-                                {
-                                    text: 'Español',
-                                    onPress: () => {
-                                        setIsSwitchingLanguage(true);
-                                        changeAppLanguage('es')
-                                            .then(() => {
-                                                showToast('success', 'Idioma cambiado a español');
-                                                updateUser({
-                                                    preferences: {
-                                                        ...(user?.preferences || {
-                                                            allergies: [],
-                                                            dietary_restrictions: [],
-                                                            theme: 'auto',
-                                                            notifications_enabled: true,
-                                                            language: 'en',
-                                                        }),
-                                                        language: 'es',
-                                                    },
-                                                }).catch(() => undefined);
-                                            })
-                                            .finally(() => setIsSwitchingLanguage(false));
-                                    },
-                                },
-                                { text: 'Cancel', style: 'cancel' },
-                            ]);
-                        },
+                        subtitle: isSwitchingLanguage
+                            ? 'Switching language...'
+                            : Platform.OS === 'android' || Platform.OS === 'web'
+                              ? 'Tap to cycle languages'
+                              : 'Tap to choose language',
+                        badge: currentLanguage.toUpperCase(),
+                        onPress: handleLanguagePress,
                     },
                 ],
             },
@@ -195,76 +396,98 @@ export default function ProfileScreen() {
                     {
                         type: 'navigation' as const,
                         key: 'backup',
-                        icon: <Download size={17} color={colors.text.secondary} />,
+                        icon: <Download size={17} color={ICON_COLOR} />,
                         label: 'Export Backup',
-                        subtitle: 'Save all records to a file',
+                        subtitle: isExportingBackup ? 'Preparing backup...' : 'Save all records to a file',
                         onPress: () => {
-                            exportBackupAndShare().catch(() => undefined);
+                            if (__DEV__) {
+                                // eslint-disable-next-line no-console
+                                console.log('[Profile] Export Backup pressed');
+                            }
+                            handleExportBackup().catch(() => undefined);
                         },
                     },
                     {
                         type: 'navigation' as const,
                         key: 'restore',
-                        icon: <Download size={17} color={colors.text.secondary} />,
-                        label: 'Restore Backup',
-                        subtitle: 'Load a backup from storage',
+                        icon: <Download size={17} color={ICON_COLOR} />,
+                        label: 'Import Backup',
+                        subtitle: isRestoringBackup ? 'Importing backup...' : 'Load a backup from storage',
                         onPress: () => {
-                            restoreBackupFromFilePicker().catch(() => undefined);
+                            if (__DEV__) {
+                                // eslint-disable-next-line no-console
+                                console.log('[Profile] Import Backup pressed');
+                            }
+                            handleRestoreBackup().catch(() => undefined);
                         },
                     },
                     {
                         type: 'navigation' as const,
                         key: 'logout',
-                        icon: <LogOut size={17} color={colors.brand.semantic.error} />,
+                        icon: <LogOut size={17} color={ICON_ERROR} />,
                         label: 'Log Out',
-                        subtitle: 'Sign out from this device',
+                        subtitle: isLoggingOut ? 'Signing out...' : 'Sign out from this device',
                         onPress: () => {
-                            Alert.alert('Log out', 'Are you sure?', [
-                                { text: 'Cancel', style: 'cancel' },
-                                {
-                                    text: 'Log Out',
-                                    style: 'destructive',
-                                    onPress: () => {
-                                        logout?.().catch(() => undefined);
-                                        router.replace('/onboarding/welcome');
-                                    },
-                                },
-                            ]);
+                            if (__DEV__) {
+                                // eslint-disable-next-line no-console
+                                console.log('[Profile] Log Out pressed');
+                            }
+                            handleLogout().catch(() => undefined);
+                        },
+                    },
+                    {
+                        type: 'navigation' as const,
+                        key: 'delete-account',
+                        icon: <Trash2 size={17} color={ICON_ERROR} />,
+                        label: 'Delete My Account',
+                        subtitle: isDeletingAccount
+                            ? 'Deleting account data...'
+                            : 'Permanently delete account and all data',
+                        onPress: () => {
+                            if (__DEV__) {
+                                // eslint-disable-next-line no-console
+                                console.log('[Profile] Delete My Account pressed');
+                            }
+                            handleDeleteAccount().catch(() => undefined);
                         },
                     },
                 ],
             },
         ],
         [
-            colors.brand.semantic.error,
-            colors.text.secondary,
+            handleDeleteAccount,
             isDark,
-            logout,
+            isDeletingAccount,
+            isExportingBackup,
+            isLoggingOut,
+            isRestoringBackup,
+            isSwitchingLanguage,
+            handleExportBackup,
+            handleLogout,
             router,
             setThemeMode,
-            showToast,
-            updateUser,
-            user?.id,
-            user?.preferences,
+            handleRestoreBackup,
+            handleNotificationToggle,
+            mergedPreferences.notifications_enabled,
+            currentLanguage,
+            handleLanguagePress,
         ],
     );
 
     return (
         <ScreenErrorBoundary screenName="profile">
-            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }} edges={['top']}>
                 <CollapsibleHeaderScrollView
+                    scrollRef={scrollRef}
                     header={
                         <ProfileHeader
                             user={profileUser}
                             stats={stats}
-                            onAvatarPress={() => {
-                                triggerHaptic('light').catch(() => undefined);
-                                showToast('info', 'Avatar upload is temporarily unavailable.');
-                            }}
+                            onAvatarPress={() => router.push('/profile/edit')}
                         />
                     }
-                    headerHeight={290}
-                    contentContainerStyle={{ paddingHorizontal: 16 }}
+                    headerHeight={310}
+                    contentContainerStyle={{ paddingHorizontal: 16, backgroundColor: '#0f172a' }}
                 >
                     {!user ? (
                         <>
@@ -278,7 +501,7 @@ export default function ProfileScreen() {
                             />
                         </>
                     ) : (
-                        <View style={{ marginTop: 8 }}>
+                        <View style={{ marginTop: 8, paddingBottom: 32 }}>
                             <SettingsList sections={sections} />
                         </View>
                     )}

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { LayoutChangeEvent, Pressable, Text, View } from 'react-native';
-import { Canvas, Line, Path, Rect, Skia, vec } from '@shopify/react-native-skia';
+import Svg, { Line, Path, Rect } from 'react-native-svg';
 import { format } from 'date-fns';
 import { triggerHaptic } from '../../utils/haptics';
 import { useColors } from '../../hooks/useColors';
@@ -22,14 +22,6 @@ export default function CalorieHistoryChart({ data, period, width = 340, height 
     const cardBackgroundColor = colors.surface.surface;
     const elevatedBackgroundColor = colors.surface.surfaceVariant;
     const tertiaryTextColor = colors.text.secondary;
-
-    const makeSafePath = () => {
-        try {
-            return Skia.Path.Make();
-        } catch {
-            return null;
-        }
-    };
 
     const { bars, avgPath, targetY } = useMemo(() => {
         const p = 16;
@@ -54,20 +46,18 @@ export default function CalorieHistoryChart({ data, period, width = 340, height 
             return slice.reduce((sum, item) => sum + item.consumed, 0) / Math.max(1, slice.length);
         });
 
-        const path = makeSafePath();
-        if (path) {
-            rolling.forEach((v, i) => {
+        const avgPath = rolling
+            .map((v, i) => {
                 const x = nextBars[i] ? nextBars[i].x + nextBars[i].w / 2 : p;
                 const y = p + innerH - (v / maxValue) * innerH;
-                if (i === 0) path.moveTo(x, y);
-                else path.lineTo(x, y);
-            });
-        }
+                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+            })
+            .join(' ');
 
         const avgTarget = data.length ? data.reduce((sum, d) => sum + d.target, 0) / data.length : 0;
         const computedTargetY = p + innerH - (avgTarget / maxValue) * innerH;
 
-        return { bars: nextBars, avgPath: path, targetY: computedTargetY };
+        return { bars: nextBars, avgPath, targetY: computedTargetY };
     }, [chartWidth, data, height]);
 
     const selected = selectedIndex != null ? bars[selectedIndex] : null;
@@ -89,19 +79,20 @@ export default function CalorieHistoryChart({ data, period, width = 340, height 
             onLayout={onLayout}
         >
             <Text style={{ fontWeight: '700', color: colors.text.primary }}>Calories vs target · {period}</Text>
-            <Canvas style={{ width: chartWidth, height, marginTop: 8 }}>
+            <Svg width={chartWidth} height={height} style={{ marginTop: 8 }}>
                 {bars.map((b, idx) => (
-                    <Rect key={idx} x={b.x} y={b.y} width={b.w} height={b.h} color={b.color} />
+                    <Rect key={idx} x={b.x} y={b.y} width={b.w} height={b.h} fill={b.color} />
                 ))}
                 <Line
-                    p1={vec(10, targetY)}
-                    p2={vec(chartWidth - 10, targetY)}
-                    color="#f59e0b"
-                    style="stroke"
+                    x1={10}
+                    y1={targetY}
+                    x2={chartWidth - 10}
+                    y2={targetY}
+                    stroke="#f59e0b"
                     strokeWidth={2}
                 />
-                {avgPath ? <Path path={avgPath} color="#ffffff" style="stroke" strokeWidth={2} /> : null}
-            </Canvas>
+                <Path d={avgPath} stroke="#ffffff" fill="none" strokeWidth={2} />
+            </Svg>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
                 {bars.map((bar, idx) => (

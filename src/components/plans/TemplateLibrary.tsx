@@ -9,6 +9,10 @@ type TemplateItem = {
     type: string;
     calories: string;
     color: string;
+    calorieTarget: number;
+    proteinTarget: number;
+    carbsTarget: number;
+    fatsTarget: number;
     score?: number;
     insight?: string;
 };

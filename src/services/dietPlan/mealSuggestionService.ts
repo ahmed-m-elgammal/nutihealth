@@ -13,13 +13,9 @@ import {
 
 export type { SuggestedMealType, SuggestedMeal, DietPlan };
 
-export function normalizeLoggedMealType(rawType: string): SuggestedMealType {
+function normalizeLoggedMealType(rawType: string): SuggestedMealType {
     const inferred = inferMealTypeFromText(rawType);
     return inferred ?? 'snack';
-}
-
-export function getSuggestionByMealType(plan: DietPlan, mealType: SuggestedMealType): SuggestedMeal | null {
-    return plan.meals.find((meal) => meal.mealType === mealType) ?? null;
 }
 
 function genericSuggestionsFromTarget(targetCalories: number): SuggestedMeal[] {

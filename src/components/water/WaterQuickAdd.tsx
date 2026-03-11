@@ -27,7 +27,9 @@ export default function WaterQuickAdd({ amounts = [150, 250, 330, 500], onAdd }:
 
     return (
         <View>
-            <Text style={{ fontWeight: '700', color: '#0f172a', marginBottom: 10 }}>Quick Add</Text>
+            <Text style={{ fontWeight: '700', color: '#94a3b8', marginBottom: 10, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                Quick Add
+            </Text>
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 {amounts.map((amount) => (
                     <Pressable
@@ -38,16 +40,19 @@ export default function WaterQuickAdd({ amounts = [150, 250, 330, 500], onAdd }:
                             const { locationX, locationY } = event.nativeEvent;
                             spawnDrop(locationX + 20, locationY + 10);
                         }}
-                        android_ripple={{ color: 'rgba(14,116,144,0.15)' }}
-                        style={{
+                        android_ripple={{ color: 'rgba(16,183,72,0.15)' }}
+                        style={({ pressed }) => ({
                             borderRadius: 12,
-                            backgroundColor: '#ecfeff',
-                            paddingHorizontal: 14,
-                            paddingVertical: 10,
+                            backgroundColor: pressed ? 'rgba(16,183,72,0.2)' : '#1e293b',
+                            paddingHorizontal: 16,
+                            paddingVertical: 12,
                             overflow: 'hidden',
-                        }}
+                            borderWidth: 1,
+                            borderColor: '#10b748',
+                            alignItems: 'center',
+                        })}
                     >
-                        <Text style={{ color: '#0f766e', fontWeight: '700' }}>+{amount} ml</Text>
+                        <Text style={{ color: '#10b748', fontWeight: '700', fontSize: 14 }}>+{amount} ml</Text>
                     </Pressable>
                 ))}
             </View>
@@ -56,6 +61,7 @@ export default function WaterQuickAdd({ amounts = [150, 250, 330, 500], onAdd }:
                 <Animated.Text
                     key={drop.id}
                     entering={FadeOutUp.duration(800)}
+                    pointerEvents="none"
                     style={{ position: 'absolute', left: drop.x, top: drop.y, fontSize: 18 }}
                 >
                     💧

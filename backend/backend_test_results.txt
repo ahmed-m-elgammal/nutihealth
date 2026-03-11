@@ -1,0 +1,101 @@
+FAIL __tests__/nutritionEstimatorService.test.js
+  ΓùÅ nutritionEstimatorService ΓÇ║ returns "other" for unknown category
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "other"
+    Received: "vegetable"
+
+      63 |     test('returns "other" for unknown category', () => {
+      64 |         const cat = detectCategory('XxUnknownIngredientXx');
+    > 65 |         expect(cat).toBe('other');
+         |                     ^
+      66 |     });
+      67 |
+      68 |     // ΓöÇΓöÇΓöÇ gram conversion ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+      at Object.toBe (__tests__/nutritionEstimatorService.test.js:65:21)
+
+FAIL __tests__/arabicIngredientNormalizationService.test.js
+  ΓùÅ arabicIngredientNormalizationService ΓÇ║ returns a canonical name for a known ingredient
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  2
+    + Received  + 22
+
+    - ObjectContaining {
+    -   "confidence": StringMatching /^(high|medium)$/,
+    + Object {
+    +   "canonicalName": "Tomato",
+    +   "matchedFood": Object {
+    +     "altNames": Array [
+    +       "Tomatoes",
+    +       "╪╖┘à╪º╪╖┘à",
+    +       "╪¿┘å╪»┘ê╪▒╪⌐",
+    +     ],
+    +     "calories": 18,
+    +     "carbs": 3.9,
+    +     "fats": 0.2,
+    +     "id": "ingredient-tomato",
+    +     "name": "Tomato",
+    +     "normalizedNames": Array [
+    +       "tomato",
+    +       "tomatoes",
+    +       "╪╖┘à╪º╪╖┘à",
+    +       "╪¿┘å╪»┘ê╪▒┘ç",
+    +     ],
+    +     "protein": 0.9,
+    +   },
+    +   "similarity": 1,
+      }
+
+      60 |     test('returns a canonical name for a known ingredient', () => {
+      61 |         const result = canonicalizeIngredientName('╪╖┘à╪º╪╖┘à');
+    > 62 |         expect(result).toEqual(
+         |                        ^
+      63 |             expect.objectContaining({
+      64 |                 confidence: expect.stringMatching(/^(high|medium)$/),
+      65 |             }),
+
+      at Object.toEqual (__tests__/arabicIngredientNormalizationService.test.js:62:24)
+
+  ΓùÅ arabicIngredientNormalizationService ΓÇ║ returns low confidence for completely unknown ingredient
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "low"
+    Received: undefined
+
+      70 |     test('returns low confidence for completely unknown ingredient', () => {
+      71 |         const result = canonicalizeIngredientName('╪╣┘å╪╡╪▒┘à╪¼┘ç┘ê┘ä╪¬┘à╪º┘à╪º');
+    > 72 |         expect(result.confidence).toBe('low');
+         |                                   ^
+      73 |     });
+      74 |
+      75 |     // ΓöÇΓöÇΓöÇ quantity & unit parsing ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+      at Object.toBe (__tests__/arabicIngredientNormalizationService.test.js:72:35)
+
+  ΓùÅ arabicIngredientNormalizationService ΓÇ║ parses Western numeral quantities
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "tsp"
+    Received: "tbsp"
+
+      83 |         const result = parseQuantityAndUnit('3 ┘à┘ä╪╣┘é╪⌐ ╪╡╪║┘è╪▒╪⌐');
+      84 |         expect(result.quantity).toBe(3);
+    > 85 |         expect(result.unit).toBe('tsp');
+         |                             ^
+      86 |     });
+      87 |
+      88 |     test('defaults to 1 piece when no quantity/unit is provided', () => {
+
+      at Object.toBe (__tests__/arabicIngredientNormalizationService.test.js:85:29)
+
+Test Suites: 2 failed, 2 total
+Tests:       4 failed, 28 passed, 32 total
+Snapshots:   0 total
+Time:        0.684 s, estimated 1 s
+Ran all test suites matching backend/__tests__/arabicIngredientNormalizationService.test.js|backend/__tests__/nutritionEstimatorService.test.js.

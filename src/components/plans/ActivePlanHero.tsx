@@ -7,6 +7,8 @@ type Plan = {
     id: string;
     name: string;
     isActive: boolean;
+    source: 'weekly' | 'template';
+    sourceLabel?: string;
     dailyCalories: number;
     macros: { protein: number; carbs: number; fats: number };
     startDate: Date;
@@ -18,9 +20,16 @@ type ActivePlanHeroProps = {
     onEdit: () => void;
     onDeactivate: () => void;
     onCreatePlan: () => void;
+    onManagePlans?: () => void;
 };
 
-export default function ActivePlanHero({ plan, onEdit, onDeactivate, onCreatePlan }: ActivePlanHeroProps) {
+export default function ActivePlanHero({
+    plan,
+    onEdit,
+    onDeactivate,
+    onCreatePlan,
+    onManagePlans,
+}: ActivePlanHeroProps) {
     if (!plan) {
         return (
             <View
@@ -33,25 +42,41 @@ export default function ActivePlanHero({ plan, onEdit, onDeactivate, onCreatePla
                     padding: 16,
                 }}
             >
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a' }}>No active diet plan</Text>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a' }}>No active plan selected</Text>
                 <Text style={{ marginTop: 6, color: '#64748b' }}>
-                    Create your first plan to unlock guided meals and prep.
+                    Choose any template or create weekly targets you can adjust with your doctor.
                 </Text>
-                <Pressable
-                    onPress={onCreatePlan}
-                    android_ripple={{ color: 'rgba(22,163,74,0.2)' }}
-                    style={{
-                        marginTop: 12,
-                        alignSelf: 'flex-start',
-                        borderRadius: 12,
-                        backgroundColor: '#16a34a',
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        overflow: 'hidden',
-                    }}
-                >
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>Create Your Plan</Text>
-                </Pressable>
+                <View style={{ marginTop: 12, flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    <Pressable
+                        onPress={onCreatePlan}
+                        android_ripple={{ color: 'rgba(22,163,74,0.2)' }}
+                        style={{
+                            borderRadius: 12,
+                            backgroundColor: '#16a34a',
+                            paddingHorizontal: 14,
+                            paddingVertical: 10,
+                            overflow: 'hidden',
+                        }}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>Create Weekly Plan</Text>
+                    </Pressable>
+                    {onManagePlans ? (
+                        <Pressable
+                            onPress={onManagePlans}
+                            android_ripple={{ color: 'rgba(15,23,42,0.08)' }}
+                            style={{
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: '#cbd5e1',
+                                paddingHorizontal: 14,
+                                paddingVertical: 10,
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <Text style={{ color: '#334155', fontWeight: '700' }}>Manage Existing</Text>
+                        </Pressable>
+                    ) : null}
+                </View>
             </View>
         );
     }
@@ -60,6 +85,8 @@ export default function ActivePlanHero({ plan, onEdit, onDeactivate, onCreatePla
     const proteinPct = (plan.macros.protein / totalMacros) * 100;
     const carbsPct = (plan.macros.carbs / totalMacros) * 100;
     const fatsPct = (plan.macros.fats / totalMacros) * 100;
+    const editLabel = plan.source === 'weekly' ? 'Edit Weekly Targets' : 'Adjust for Doctor';
+    const targetLabel = plan.source === 'weekly' ? "Today's target" : 'Daily target';
 
     const durationText = plan.endDate
         ? `${Math.max(0, Math.ceil((plan.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 7)))} weeks left`
@@ -78,24 +105,40 @@ export default function ActivePlanHero({ plan, onEdit, onDeactivate, onCreatePla
         >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ color: '#0f172a', fontSize: 20, fontWeight: '800', flex: 1 }}>{plan.name}</Text>
-                {plan.isActive ? (
-                    <View
-                        style={{
-                            borderRadius: 999,
-                            backgroundColor: '#dcfce7',
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                        }}
-                    >
-                        <Text style={{ color: '#166534', fontWeight: '700', fontSize: 11 }}>Active</Text>
-                    </View>
-                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {plan.sourceLabel ? (
+                        <View
+                            style={{
+                                borderRadius: 999,
+                                backgroundColor: '#eff6ff',
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                            }}
+                        >
+                            <Text style={{ color: '#1d4ed8', fontWeight: '700', fontSize: 11 }}>
+                                {plan.sourceLabel}
+                            </Text>
+                        </View>
+                    ) : null}
+                    {plan.isActive ? (
+                        <View
+                            style={{
+                                borderRadius: 999,
+                                backgroundColor: '#dcfce7',
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                            }}
+                        >
+                            <Text style={{ color: '#166534', fontWeight: '700', fontSize: 11 }}>Active</Text>
+                        </View>
+                    ) : null}
+                </View>
             </View>
 
             <Text style={{ marginTop: 10, color: '#0f172a', fontSize: 26, fontWeight: '800' }}>
                 {plan.dailyCalories} kcal
             </Text>
-            <Text style={{ color: '#64748b', marginTop: 2 }}>Daily target</Text>
+            <Text style={{ color: '#64748b', marginTop: 2 }}>{targetLabel}</Text>
 
             <View
                 style={{
@@ -136,7 +179,7 @@ export default function ActivePlanHero({ plan, onEdit, onDeactivate, onCreatePla
                         overflow: 'hidden',
                     }}
                 >
-                    <Text style={{ color: '#1d4ed8', fontWeight: '700' }}>Edit Plan</Text>
+                    <Text style={{ color: '#1d4ed8', fontWeight: '700' }}>{editLabel}</Text>
                 </Pressable>
                 <Pressable
                     onPress={() => {

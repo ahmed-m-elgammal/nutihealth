@@ -6,6 +6,7 @@ export interface RootErrorBoundaryProps {
     children: React.ReactNode;
     onRetry?: () => void;
     onClearCache?: () => void;
+    onReport?: (error: Error | null) => void;
     supportEmail?: string;
 }
 
@@ -33,6 +34,24 @@ export default class RootErrorBoundary extends React.Component<RootErrorBoundary
         this.setState({ hasError: false, error: null });
     };
 
+    private handleReport = () => {
+        if (this.props.onReport) {
+            this.props.onReport(this.state.error);
+            return;
+        }
+
+        if (!this.props.supportEmail) {
+            return;
+        }
+
+        const subject = encodeURIComponent('NutriHealth crash report');
+        const body = encodeURIComponent(
+            `Error: ${this.state.error?.message || 'Unknown error'}\n\nStack:\n${this.state.error?.stack || 'N/A'}`,
+        );
+
+        void Linking.openURL(`mailto:${this.props.supportEmail}?subject=${subject}&body=${body}`);
+    };
+
     render() {
         if (!this.state.hasError) {
             return this.props.children;
@@ -51,6 +70,15 @@ export default class RootErrorBoundary extends React.Component<RootErrorBoundary
                 <Pressable className="mt-6 w-full rounded-xl bg-primary py-3" onPress={this.handleRetry}>
                     <Text className="text-center font-semibold text-primary-foreground">Try Again</Text>
                 </Pressable>
+
+                {(this.props.onReport || this.props.supportEmail) && (
+                    <Pressable
+                        className="mt-3 w-full rounded-xl border border-border bg-card py-3"
+                        onPress={this.handleReport}
+                    >
+                        <Text className="text-center font-semibold text-foreground">Report Issue</Text>
+                    </Pressable>
+                )}
 
                 {this.props.onClearCache && (
                     <Pressable

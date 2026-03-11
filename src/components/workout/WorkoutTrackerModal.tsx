@@ -7,18 +7,32 @@ import ExerciseList, { TrackerExercise, TrackerSet } from './ExerciseList';
 import RestTimer from './RestTimer';
 import WorkoutCompletionCelebration from './WorkoutCompletionCelebration';
 import { triggerHaptic } from '../../utils/haptics';
+import {
+    estimateCaloriesBurned,
+    inferIntensityFromName,
+    type WorkoutIntensity,
+} from '../../utils/nutrition/workoutCalories';
 
 type WorkoutTrackerModalProps = {
     visible: boolean;
     day: WorkoutDay | null;
     onClose: () => void;
     onFinish: (summary: { durationMinutes: number; calories: number; totalVolume: number }) => void;
+    userWeightKg?: number;
+    workoutIntensity?: WorkoutIntensity;
 };
 
 const createInitialSets = (count: number): TrackerSet[] =>
     Array.from({ length: count }).map(() => ({ reps: '', weight: '', completed: false }));
 
-export default function WorkoutTrackerModal({ visible, day, onClose, onFinish }: WorkoutTrackerModalProps) {
+export default function WorkoutTrackerModal({
+    visible,
+    day,
+    onClose,
+    onFinish,
+    userWeightKg,
+    workoutIntensity,
+}: WorkoutTrackerModalProps) {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [showRest, setShowRest] = useState(false);
     const [restSeed, setRestSeed] = useState(0);
@@ -74,7 +88,9 @@ export default function WorkoutTrackerModal({ visible, day, onClose, onFinish }:
     );
 
     const estimatedDuration = day?.estimatedDuration || 45;
-    const estimatedCalories = Math.round((elapsedSeconds / 60) * 8);
+    const effectiveIntensity: WorkoutIntensity = workoutIntensity ?? inferIntensityFromName(day?.title);
+
+    const estimatedCalories = estimateCaloriesBurned(userWeightKg ?? 70, elapsedSeconds / 60, effectiveIntensity);
 
     const moveExercise = (index: number, direction: 'up' | 'down') => {
         setExercises((prev) => {

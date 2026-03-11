@@ -184,5 +184,141 @@ export const migrations = schemaMigrations({
                 }),
             ],
         },
+        {
+            toVersion: 9,
+            steps: [
+                addColumns({
+                    table: 'users',
+                    columns: [{ name: 'pantry_preferences', type: 'string', isOptional: true }],
+                }),
+                addColumns({
+                    table: 'recipes',
+                    columns: [
+                        { name: 'source_platform', type: 'string', isOptional: true, isIndexed: true },
+                        { name: 'external_id', type: 'string', isOptional: true, isIndexed: true },
+                        { name: 'nutrition_confidence', type: 'number', isOptional: true },
+                    ],
+                }),
+                addColumns({
+                    table: 'meals',
+                    columns: [{ name: 'cooked_from_recipe_id', type: 'string', isOptional: true, isIndexed: true }],
+                }),
+                createTable({
+                    name: 'pantry_items',
+                    columns: [
+                        { name: 'user_id', type: 'string', isIndexed: true },
+                        { name: 'name', type: 'string', isIndexed: true },
+                        { name: 'normalized_name', type: 'string', isOptional: true, isIndexed: true },
+                        { name: 'quantity', type: 'number' },
+                        { name: 'unit', type: 'string' },
+                        { name: 'category', type: 'string', isOptional: true, isIndexed: true },
+                        { name: 'expiry_date', type: 'number', isOptional: true, isIndexed: true },
+                        { name: 'is_available', type: 'boolean', isIndexed: true },
+                        { name: 'created_at', type: 'number' },
+                        { name: 'updated_at', type: 'number' },
+                    ],
+                }),
+                createTable({
+                    name: 'cookpad_recipe_cache',
+                    columns: [
+                        { name: 'cookpad_id', type: 'string', isIndexed: true },
+                        { name: 'source_url', type: 'string' },
+                        { name: 'title', type: 'string' },
+                        { name: 'title_ar', type: 'string', isOptional: true },
+                        { name: 'author', type: 'string', isOptional: true },
+                        { name: 'category', type: 'string', isOptional: true },
+                        { name: 'tags', type: 'string', isOptional: true },
+                        { name: 'image_url', type: 'string', isOptional: true },
+                        { name: 'servings', type: 'number' },
+                        { name: 'prep_time', type: 'number', isOptional: true },
+                        { name: 'cook_time', type: 'number', isOptional: true },
+                        { name: 'total_time', type: 'number', isOptional: true },
+                        { name: 'ingredients', type: 'string' },
+                        { name: 'instructions', type: 'string' },
+                        { name: 'nutrition', type: 'string', isOptional: true },
+                        { name: 'raw_payload', type: 'string', isOptional: true },
+                        { name: 'search_terms', type: 'string', isOptional: true },
+                        { name: 'fetched_at', type: 'number', isIndexed: true },
+                        { name: 'expires_at', type: 'number', isIndexed: true },
+                        { name: 'created_at', type: 'number' },
+                        { name: 'updated_at', type: 'number' },
+                    ],
+                }),
+                createTable({
+                    name: 'smart_cooker_suggestions',
+                    columns: [
+                        { name: 'user_id', type: 'string', isIndexed: true },
+                        { name: 'pantry_item_ids', type: 'string' },
+                        { name: 'suggested_recipe_ids', type: 'string' },
+                        { name: 'source_platform', type: 'string' },
+                        { name: 'confidence_score', type: 'number', isOptional: true },
+                        { name: 'status', type: 'string', isOptional: true },
+                        { name: 'metadata', type: 'string', isOptional: true },
+                        { name: 'created_at', type: 'number', isIndexed: true },
+                        { name: 'updated_at', type: 'number' },
+                    ],
+                }),
+                unsafeExecuteSql(
+                    'CREATE UNIQUE INDEX IF NOT EXISTS cookpad_recipe_cache_cookpad_id_uq ON cookpad_recipe_cache (cookpad_id);',
+                ),
+                unsafeExecuteSql(
+                    'CREATE INDEX IF NOT EXISTS pantry_items_user_available_idx ON pantry_items (user_id, is_available);',
+                ),
+                unsafeExecuteSql(
+                    'CREATE INDEX IF NOT EXISTS pantry_items_user_category_idx ON pantry_items (user_id, category);',
+                ),
+                unsafeExecuteSql(
+                    'CREATE INDEX IF NOT EXISTS recipes_external_source_idx ON recipes (source_platform, external_id);',
+                ),
+            ],
+        },
+        {
+            toVersion: 10,
+            steps: [
+                addColumns({
+                    table: 'meals',
+                    columns: [
+                        { name: 'total_fiber', type: 'number' },
+                        { name: 'total_sugar', type: 'number' },
+                    ],
+                }),
+                unsafeExecuteSql(
+                    'UPDATE meals SET total_fiber = COALESCE((SELECT SUM(COALESCE(fiber, 0) * quantity) FROM foods WHERE foods.meal_id = meals.id), 0), total_sugar = COALESCE((SELECT SUM(COALESCE(sugar, 0) * quantity) FROM foods WHERE foods.meal_id = meals.id), 0);',
+                ),
+            ],
+        },
+        {
+            toVersion: 11,
+            steps: [
+                addColumns({
+                    table: 'workout_schedules',
+                    columns: [{ name: 'intensity', type: 'string', isOptional: true }],
+                }),
+            ],
+        },
+        {
+            toVersion: 12,
+            steps: [
+                createTable({
+                    name: 'workout_sessions',
+                    columns: [
+                        { name: 'user_id', type: 'string', isIndexed: true },
+                        { name: 'plan_id', type: 'string', isOptional: true },
+                        { name: 'day_id', type: 'string', isOptional: true },
+                        { name: 'template_id', type: 'string', isOptional: true },
+                        { name: 'started_at', type: 'number', isIndexed: true },
+                        { name: 'ended_at', type: 'number', isOptional: true },
+                        { name: 'duration_minutes', type: 'number' },
+                        { name: 'calories_burned', type: 'number', isOptional: true },
+                        { name: 'total_volume_kg', type: 'number', isOptional: true },
+                        { name: 'intensity', type: 'string', isOptional: true },
+                        { name: 'notes', type: 'string', isOptional: true },
+                        { name: 'exercises', type: 'string' },
+                        { name: 'created_at', type: 'number' },
+                        { name: 'updated_at', type: 'number' },
+                    ],
+                }),
+            ],
+        },
     ],
 });

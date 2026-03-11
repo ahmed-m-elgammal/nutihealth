@@ -45,7 +45,7 @@ export default function WaterUndoButton({ visible, onUndo, timeout = 5000, onExp
                 triggerHaptic('medium').catch(() => undefined);
                 onUndo();
             }}
-            android_ripple={{ color: 'rgba(14,116,144,0.15)' }}
+            android_ripple={{ color: 'rgba(16,183,72,0.15)' }}
             style={{
                 alignSelf: 'flex-start',
                 marginTop: 12,
@@ -61,16 +61,16 @@ export default function WaterUndoButton({ visible, onUndo, timeout = 5000, onExp
                         cx={size / 2}
                         cy={size / 2}
                         r={radius}
-                        stroke="#bae6fd"
+                        stroke="#334155"
                         strokeWidth={strokeWidth}
-                        fill="#ecfeff"
+                        fill="#1e293b"
                     />
                     <AnimatedCircle
                         animatedProps={animatedProps}
                         cx={size / 2}
                         cy={size / 2}
                         r={radius}
-                        stroke="#0e7490"
+                        stroke="#10b748"
                         strokeWidth={strokeWidth}
                         fill="none"
                         strokeDasharray={`${circumference} ${circumference}`}
@@ -80,9 +80,9 @@ export default function WaterUndoButton({ visible, onUndo, timeout = 5000, onExp
                         originY={size / 2}
                     />
                 </Svg>
-                <Text style={{ position: 'absolute', top: 13, left: 10, color: '#0f172a', fontWeight: '700' }}>↶</Text>
+                <Text style={{ position: 'absolute', top: 13, left: 10, color: '#f8fafc', fontWeight: '700' }}>↶</Text>
             </View>
-            <Text style={{ color: '#0e7490', fontWeight: '700' }}>{label}</Text>
+            <Text style={{ color: '#10b748', fontWeight: '700' }}>{label}</Text>
         </Pressable>
     );
 }

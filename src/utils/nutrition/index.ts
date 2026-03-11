@@ -1,15 +1,17 @@
-export * from '../calculations/bmr';
-export * from '../calculations/tdee';
+export * from './bmr';
+export * from './tdee';
 export * from './goals';
-export * from '../calculations/macros';
+export * from './macros';
 export * from './water';
 export {
     analyzeWeeklyProgress,
+    calculateBMI,
     calculateFatMass,
     calculateLeanBodyMass,
     calculateNutritionTargets,
     calculateRefeedProtocol,
     calculateWeeklyWeightChange,
+    getBMICategory,
     recalculateAdaptiveTDEE,
     verifyMacroPercentages,
     type NutritionTargetInput,

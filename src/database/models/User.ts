@@ -28,30 +28,37 @@ export interface UserPreferences {
     compliancePercentage?: number;
 }
 
+export interface PantryPreferences {
+    preferred_categories?: string[];
+    excluded_ingredients?: string[];
+    notify_before_expiry_days?: number;
+}
+
 export default class User extends Model {
     static table = 'users';
 
-    @field('name') name: string;
+    @field('name') name!: string;
     @field('email') email?: string;
-    @field('age') age: number;
-    @field('gender') gender: 'male' | 'female' | 'other';
-    @field('height') height: number;
-    @field('weight') weight: number;
-    @field('goal') goal: Goal;
-    @field('activity_level') activityLevel: ActivityLevel;
+    @field('age') age!: number;
+    @field('gender') gender!: 'male' | 'female' | 'other';
+    @field('height') height!: number;
+    @field('weight') weight!: number;
+    @field('goal') goal!: Goal;
+    @field('activity_level') activityLevel!: ActivityLevel;
     @field('target_weight') targetWeight?: number;
-    @field('bmr') bmr: number;
-    @field('tdee') tdee: number;
-    @field('calorie_target') calorieTarget: number;
-    @field('protein_target') proteinTarget: number;
-    @field('carbs_target') carbsTarget: number;
-    @field('fats_target') fatsTarget: number;
-    @jsonField('stats', (value) => value) stats: UserStats;
-    @jsonField('preferences', (value) => value) preferences: UserPreferences;
+    @field('bmr') bmr!: number;
+    @field('tdee') tdee!: number;
+    @field('calorie_target') calorieTarget!: number;
+    @field('protein_target') proteinTarget!: number;
+    @field('carbs_target') carbsTarget!: number;
+    @field('fats_target') fatsTarget!: number;
+    @jsonField('stats', (value) => value) stats!: UserStats;
+    @jsonField('preferences', (value) => value) preferences!: UserPreferences;
+    @jsonField('pantry_preferences', (value) => value || {}) pantryPreferences!: PantryPreferences;
     @jsonField('workout_preferences', (value) => value) workoutPreferences: any; // key-value store for now
-    @field('onboarding_completed') onboardingCompleted: boolean;
-    @readonly @date('created_at') createdAt: Date;
-    @readonly @date('updated_at') updatedAt: Date;
+    @field('onboarding_completed') onboardingCompleted!: boolean;
+    @readonly @date('created_at') createdAt!: Date;
+    @readonly @date('updated_at') updatedAt!: Date;
 
     /**
      * Updates user profile and automatically recalculates nutritional targets
@@ -68,6 +75,7 @@ export default class User extends Model {
             if (updates.activityLevel !== undefined) record.activityLevel = updates.activityLevel;
             if (updates.targetWeight !== undefined) record.targetWeight = updates.targetWeight;
             if (updates.preferences !== undefined) record.preferences = updates.preferences;
+            if (updates.pantryPreferences !== undefined) record.pantryPreferences = updates.pantryPreferences;
             if (updates.workoutPreferences !== undefined) record.workoutPreferences = updates.workoutPreferences;
             if (updates.onboardingCompleted !== undefined) record.onboardingCompleted = updates.onboardingCompleted;
 

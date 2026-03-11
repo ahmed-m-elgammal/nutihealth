@@ -5,9 +5,12 @@ import {
     DayCalorieAdjustment,
     MealPrepPlan,
     SuggestedMeal,
+    WEEKLY_ADAPTIVE_ANALYSIS_INTERVAL_MS,
     applyAdaptationSuggestion,
     buildMealPrepPlan,
     calculateDailyAdherence,
+    getAdaptiveLastRunTimestamp,
+    getCachedWeeklyAdaptiveAnalysis,
     getSuggestedMealsForToday,
     getAdjustedTargetsForDate,
     runWeeklyAdaptiveAnalysis,
@@ -50,10 +53,20 @@ export function useDietPlanSuggestions(userId: string | undefined): UseDietPlanS
                 };
             }
 
+            const lastRunTimestamp = await getAdaptiveLastRunTimestamp(userId);
+            const shouldRunWeeklyAdaptiveAnalysis =
+                !lastRunTimestamp || Date.now() - lastRunTimestamp >= WEEKLY_ADAPTIVE_ANALYSIS_INTERVAL_MS;
+
+            const adaptiveResultPromise = shouldRunWeeklyAdaptiveAnalysis
+                ? runWeeklyAdaptiveAnalysis(userId)
+                : getCachedWeeklyAdaptiveAnalysis(userId).then(
+                      (cachedResult) => cachedResult ?? runWeeklyAdaptiveAnalysis(userId),
+                  );
+
             const [suggestions, adherenceScore, adaptiveResult, mealPrepPlan, workoutAdjustment] = await Promise.all([
                 getSuggestedMealsForToday(userId),
                 calculateDailyAdherence(userId, new Date()),
-                runWeeklyAdaptiveAnalysis(userId),
+                adaptiveResultPromise,
                 buildMealPrepPlan(userId),
                 getAdjustedTargetsForDate(userId, new Date()),
             ]);

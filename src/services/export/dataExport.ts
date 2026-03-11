@@ -1,13 +1,16 @@
 import type { Model } from '@nozbe/watermelondb';
-import { File } from 'expo-file-system';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
+import { Alert } from 'react-native';
 import { database } from '../../database';
+import { DATABASE_SCHEMA_VERSION } from '../../database/schemaVersion';
 import { config } from '../../constants/config';
 import { storage } from '../../utils/storage-adapter';
 import { handleError } from '../../utils/errors';
 
 const BACKUP_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = DATABASE_SCHEMA_VERSION;
 const RESTORE_BATCH_SIZE = 400;
 const BACKUP_STORAGE_KEYS = [
     config.storageKeys.theme,
@@ -30,6 +33,7 @@ const BACKUP_TABLES = [
     'training_programs',
     'template_exercises',
     'workout_schedules',
+    'workout_sessions',
     'recipes',
     'meal_plans',
     'habits',
@@ -39,6 +43,9 @@ const BACKUP_TABLES = [
     'user_diets',
     'meal_templates',
     'weekly_goal_plans',
+    'pantry_items',
+    'smart_cooker_suggestions',
+    'cookpad_recipe_cache',
 ] as const;
 
 type BackupTableName = (typeof BACKUP_TABLES)[number];
@@ -53,27 +60,36 @@ interface RawRecord {
 
 interface BackupPayload {
     version: number;
+    schemaVersion: number | null;
     createdAt: string;
     app: {
         name: string;
         version: string;
+        schemaVersion?: number;
     };
     tables: Record<BackupTableName, RawRecord[]>;
     storage: Partial<Record<BackupStorageKey, string | null>>;
 }
 
-export interface BackupStats {
+interface BackupStats {
     tableCount: number;
     recordCount: number;
 }
 
-export interface ExportBackupResult extends BackupStats {
+interface ExportBackupResult extends BackupStats {
     fileUri: string;
     fileName: string;
 }
 
-export interface RestoreBackupResult extends BackupStats {
+interface RestoreBackupResult extends BackupStats {
     fileName: string;
+}
+
+class BackupCompatibilityError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'BackupCompatibilityError';
+    }
 }
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
@@ -90,31 +106,175 @@ const toSafeRawRecord = (raw: unknown): RawRecord | null => {
     }
 
     const normalized: RawRecord = {
-        ...raw,
         id,
-        _status: 'synced',
-        _changed: '',
+        ...raw,
     };
 
     if (normalized._status === 'deleted') {
         return null;
     }
 
+    normalized._status = 'synced';
+    normalized._changed = '';
+
     return normalized;
 };
 
 const getFileTimestamp = (): string => new Date().toISOString().replace(/[:.]/g, '-');
 
-const getWritableDirectory = (): string => {
-    const directory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-    if (!directory) {
-        throw new Error('No writable directory available for backup export.');
+const getWritableDirectory = (): Directory => {
+    try {
+        return Paths.document;
+    } catch {
+        // Fallback below.
     }
-    return directory;
+
+    try {
+        return Paths.cache;
+    } catch {
+        // Fallback below.
+    }
+
+    throw new Error('No writable directory available for backup export.');
+};
+
+type PickedBackupFile = {
+    name: string;
+    uri?: string;
+    readText: () => Promise<string>;
+};
+
+const pickBackupFile = async (): Promise<PickedBackupFile | null> => {
+    const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/json', 'public.json'],
+        multiple: false,
+        copyToCacheDirectory: true,
+    });
+
+    if (result.canceled) {
+        return null;
+    }
+
+    const selected = result.assets?.[0];
+    if (!selected) {
+        return null;
+    }
+
+    const selectedFile = selected as typeof selected & { file?: { text?: () => Promise<string> } };
+    const fileName = selected.name || selected.uri?.split('/').pop() || 'backup.json';
+
+    if (selectedFile.file && typeof selectedFile.file.text === 'function') {
+        return {
+            name: fileName,
+            uri: selected.uri,
+            readText: () => selectedFile.file!.text!(),
+        };
+    }
+
+    if (!selected.uri) {
+        throw new Error('Selected file has no readable URI.');
+    }
+
+    return {
+        name: fileName,
+        uri: selected.uri,
+        readText: () => new File(selected.uri).text(),
+    };
 };
 
 const countRecords = (payload: BackupPayload): number =>
     BACKUP_TABLES.reduce((total, tableName) => total + payload.tables[tableName].length, 0);
+
+const hasOwnKey = (record: Record<string, unknown>, key: string): boolean =>
+    Object.prototype.hasOwnProperty.call(record, key);
+
+const formatBackupDate = (value: string): string => {
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return value;
+    }
+
+    return parsedDate.toLocaleString();
+};
+
+function validateBackupPayloadForRestore(payload: BackupPayload): BackupStats {
+    if (payload.schemaVersion == null) {
+        throw new BackupCompatibilityError(
+            `Backup schema metadata is missing. Current app schema is v${CURRENT_SCHEMA_VERSION}. Please migrate this backup before restoring.`,
+        );
+    }
+
+    if (payload.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+        throw new BackupCompatibilityError(
+            `Backup schema v${payload.schemaVersion} is not compatible with current app schema v${CURRENT_SCHEMA_VERSION}. Please update and migrate this backup before restoring.`,
+        );
+    }
+
+    if (!isObjectRecord(payload.tables)) {
+        throw new Error('Backup tables are missing or invalid.');
+    }
+
+    const missingTables = BACKUP_TABLES.filter((tableName) => {
+        const tableValue = payload.tables[tableName];
+        return !hasOwnKey(payload.tables as Record<string, unknown>, tableName) || !Array.isArray(tableValue);
+    });
+
+    if (missingTables.length > 0) {
+        throw new Error(`Backup file is missing required tables: ${missingTables.join(', ')}`);
+    }
+
+    const recordCount = countRecords(payload);
+    if (recordCount <= 0) {
+        throw new Error('Backup file contains no records to restore.');
+    }
+
+    return {
+        tableCount: BACKUP_TABLES.length,
+        recordCount,
+    };
+}
+
+async function confirmRestoreBackup(payload: BackupPayload, stats: BackupStats, fileName: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        let isSettled = false;
+        const settle = (value: boolean) => {
+            if (isSettled) {
+                return;
+            }
+            isSettled = true;
+            resolve(value);
+        };
+
+        Alert.alert(
+            'Restore Backup',
+            [
+                `File: ${fileName}`,
+                `Created: ${formatBackupDate(payload.createdAt)}`,
+                `Schema: backup v${payload.schemaVersion ?? 'unknown'} • app v${CURRENT_SCHEMA_VERSION}`,
+                `Records: ${stats.recordCount}`,
+                `Tables: ${stats.tableCount}`,
+                '',
+                'Restoring will replace current local data on this device.',
+            ].join('\n'),
+            [
+                {
+                    text: 'Cancel',
+                    style: 'cancel',
+                    onPress: () => settle(false),
+                },
+                {
+                    text: 'Restore',
+                    style: 'destructive',
+                    onPress: () => settle(true),
+                },
+            ],
+            {
+                cancelable: true,
+                onDismiss: () => settle(false),
+            },
+        );
+    });
+}
 
 async function collectTableData(tableName: BackupTableName): Promise<RawRecord[]> {
     const collection = database.get<Model>(tableName);
@@ -154,10 +314,12 @@ async function buildBackupPayload(): Promise<BackupPayload> {
 
     return {
         version: BACKUP_VERSION,
+        schemaVersion: CURRENT_SCHEMA_VERSION,
         createdAt: new Date().toISOString(),
         app: {
             name: config.app.name,
             version: config.app.version,
+            schemaVersion: CURRENT_SCHEMA_VERSION,
         },
         tables,
         storage: await collectStorageData(),
@@ -178,7 +340,7 @@ function parseBackupPayload(json: string): BackupPayload {
     }
 
     if (parsed.version !== BACKUP_VERSION) {
-        throw new Error(`Unsupported backup version: ${String(parsed.version)}.`);
+        throw new BackupCompatibilityError(`Unsupported backup version: ${String(parsed.version)}.`);
     }
 
     if (!isObjectRecord(parsed.tables)) {
@@ -189,8 +351,7 @@ function parseBackupPayload(json: string): BackupPayload {
     for (const tableName of BACKUP_TABLES) {
         const rows = parsed.tables[tableName];
         if (rows == null) {
-            tables[tableName] = [];
-            continue;
+            throw new Error(`Backup table "${tableName}" is missing.`);
         }
 
         if (!Array.isArray(rows)) {
@@ -209,13 +370,23 @@ function parseBackupPayload(json: string): BackupPayload {
     }
 
     const parsedApp = isObjectRecord(parsed.app) ? parsed.app : {};
+    const parsedSchemaVersion =
+        typeof parsed.schemaVersion === 'number'
+            ? parsed.schemaVersion
+            : typeof parsedApp.schemaVersion === 'number'
+              ? parsedApp.schemaVersion
+              : null;
+    const normalizedSchemaVersion =
+        typeof parsedSchemaVersion === 'number' && Number.isFinite(parsedSchemaVersion) ? parsedSchemaVersion : null;
 
     return {
         version: BACKUP_VERSION,
+        schemaVersion: normalizedSchemaVersion,
         createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : new Date().toISOString(),
         app: {
             name: typeof parsedApp.name === 'string' ? parsedApp.name : config.app.name,
             version: typeof parsedApp.version === 'string' ? parsedApp.version : config.app.version,
+            schemaVersion: normalizedSchemaVersion ?? undefined,
         },
         tables,
         storage: storageData,
@@ -223,12 +394,14 @@ function parseBackupPayload(json: string): BackupPayload {
 }
 
 async function applyBackupPayload(payload: BackupPayload): Promise<BackupStats> {
+    const validationStats = validateBackupPayloadForRestore(payload);
+
     await database.unsafeResetDatabase();
 
     let recordCount = 0;
 
     await database.write(async () => {
-        const operations: any[] = [];
+        const operations: Model[] = [];
 
         for (const tableName of BACKUP_TABLES) {
             const rows = payload.tables[tableName] || [];
@@ -260,7 +433,7 @@ async function applyBackupPayload(payload: BackupPayload): Promise<BackupStats> 
     }
 
     return {
-        tableCount: BACKUP_TABLES.length,
+        tableCount: validationStats.tableCount,
         recordCount,
     };
 }
@@ -270,11 +443,14 @@ export async function exportBackupToFile(): Promise<ExportBackupResult> {
         const payload = await buildBackupPayload();
         const backupJson = JSON.stringify(payload, null, 2);
         const fileName = `nutrihealth-backup-${getFileTimestamp()}.json`;
-        const fileUri = `${getWritableDirectory()}${fileName}`;
+        const writableDirectory = getWritableDirectory();
+        if (!writableDirectory.exists) {
+            writableDirectory.create({ idempotent: true, intermediates: true });
+        }
 
-        await FileSystem.writeAsStringAsync(fileUri, backupJson, {
-            encoding: FileSystem.EncodingType.UTF8,
-        });
+        const backupFile = new File(writableDirectory, fileName);
+        backupFile.write(backupJson);
+        const fileUri = backupFile.uri;
 
         return {
             fileUri,
@@ -298,6 +474,8 @@ export async function exportBackupAndShare(): Promise<ExportBackupResult> {
             dialogTitle: 'Back up NutriHealth data',
             UTI: 'public.json',
         });
+    } else {
+        Alert.alert('Backup exported', `Sharing is unavailable on this device.\nSaved to:\n${result.fileUri}`);
     }
 
     return result;
@@ -305,25 +483,35 @@ export async function exportBackupAndShare(): Promise<ExportBackupResult> {
 
 export async function restoreBackupFromFilePicker(): Promise<RestoreBackupResult | null> {
     try {
-        const picked = await File.pickFileAsync(undefined, 'application/json');
-        const selectedFile = Array.isArray(picked) ? picked[0] : picked;
+        const selectedFile = await pickBackupFile();
 
         if (!selectedFile) {
             return null;
         }
 
-        const backupJson = await selectedFile.text();
+        const backupJson = await selectedFile.readText();
 
         const payload = parseBackupPayload(backupJson);
+        const validationStats = validateBackupPayloadForRestore(payload);
+        const fileName = selectedFile.name || selectedFile.uri?.split('/').pop() || 'backup.json';
+
+        const confirmed = await confirmRestoreBackup(payload, validationStats, fileName);
+        if (!confirmed) {
+            return null;
+        }
+
         const stats = await applyBackupPayload(payload);
-        const fileNameFromUri = selectedFile.uri.split('/').pop();
 
         return {
             ...stats,
-            fileName: fileNameFromUri || 'backup.json',
+            fileName,
         };
     } catch (error) {
         if (error instanceof Error && /cancel/i.test(error.message)) {
+            return null;
+        }
+        if (error instanceof BackupCompatibilityError) {
+            Alert.alert('Backup Not Compatible', error.message);
             return null;
         }
         handleError(error, 'dataExport.restoreBackupFromFilePicker');

@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { ArrowDown, ArrowUp } from 'lucide-react-native';
 import SetRepInput from './SetRepInput';
@@ -60,7 +61,9 @@ const ExerciseCard = memo(
                     <Image
                         source={{ uri: item.gifUrl }}
                         style={{ width: '100%', height: 140, borderRadius: 10, marginTop: 10 }}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={200}
                     />
                 ) : null}
 

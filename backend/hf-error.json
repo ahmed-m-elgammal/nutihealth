@@ -1,0 +1,16 @@
+{
+  "message": "Failed to fetch inference provider mapping for model google/vit-base-patch16-224-in21k-finetuned-food101: Invalid username or password.",
+  "stack": "HubApiError: Failed to fetch inference provider mapping for model google/vit-base-patch16-224-in21k-finetuned-food101: Invalid username or password.\n    at fetchInferenceProviderMappingForModel (C:\\Users\\A-Dev\\Documents\\NutriHealth\\backend\\node_modules\\@huggingface\\inference\\dist\\commonjs\\lib\\getInferenceProviderMapping.js:54:27)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async resolveProvider (C:\\Users\\A-Dev\\Documents\\NutriHealth\\backend\\node_modules\\@huggingface\\inference\\dist\\commonjs\\lib\\getInferenceProviderMapping.js:125:26)\n    at async imageClassification (C:\\Users\\A-Dev\\Documents\\NutriHealth\\backend\\node_modules\\@huggingface\\inference\\dist\\commonjs\\tasks\\cv\\imageClassification.js:13:22)\n    at async test (C:\\Users\\A-Dev\\Documents\\NutriHealth\\backend\\test-hf.js:12:26)",
+  "name": "HubApiError",
+  "httpRequest": {
+    "url": "https://huggingface.co/api/models/google/vit-base-patch16-224-in21k-finetuned-food101?expand[]=inferenceProviderMapping",
+    "method": "GET"
+  },
+  "httpResponse": {
+    "requestId": "Root=1-69a87963-00a628016e85e61533100487",
+    "status": 401,
+    "body": {
+      "error": "Invalid username or password."
+    }
+  }
+}

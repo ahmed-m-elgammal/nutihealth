@@ -153,3 +153,14 @@ export async function getWorkoutHistory(userId: string): Promise<Workout[]> {
         return [];
     }
 }
+
+export async function getWorkoutById(workoutId: string): Promise<Workout | null> {
+    if (!workoutId) return null;
+
+    try {
+        return await database.collections.get<Workout>('workouts').find(workoutId);
+    } catch (error) {
+        handleError(error, 'workoutsApi.getWorkoutById');
+        return null;
+    }
+}

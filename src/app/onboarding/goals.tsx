@@ -1,16 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Activity, Heart, Trophy, TrendingDown, TrendingUp } from 'lucide-react-native';
-import { useOnboardingStore } from '../../store/onboardingStore';
-import { ActivityLevel, calculateNutritionTargets, Goal } from '../../utils/calculations';
+import { Goal } from '../../utils/calculations';
 import { OnboardingStepScreen } from '../../components/onboarding/OnboardingStepScreen';
 import { Body, Subheading } from '../../components/ui/Typography';
 import { Card, CardContent } from '../../components/ui/Card';
 import { cn } from '../../utils/cn';
-import { DEFAULT_PROFILE_VALUES } from '../../utils/profileCompletion';
+import { useOnboardingNutritionPreview } from '../../hooks/useOnboardingNutritionPreview';
+import { useOnboarding } from '../../hooks/useOnboarding';
 
-const GOALS: { id: string; value: Goal; label: string; description: string; icon: any; colorClass: string; bgClass: string }[] = [
+const GOALS: { id: string; value: Goal; label: string; description: string; icon: any; colorClass: string; bgClass: string; activeStroke: string }[] = [
     {
         id: 'lose_weight',
         value: 'lose',
@@ -18,7 +18,8 @@ const GOALS: { id: string; value: Goal; label: string; description: string; icon
         description: 'Burn fat and improve body composition.',
         icon: TrendingDown,
         colorClass: 'text-red-500',
-        bgClass: 'bg-red-100 dark:bg-red-900/30',
+        bgClass: 'bg-red-500/10',
+        activeStroke: 'text-red-500',
     },
     {
         id: 'maintain',
@@ -27,7 +28,8 @@ const GOALS: { id: string; value: Goal; label: string; description: string; icon
         description: 'Keep your current weight with better consistency.',
         icon: Activity,
         colorClass: 'text-blue-500',
-        bgClass: 'bg-blue-100 dark:bg-blue-900/30',
+        bgClass: 'bg-blue-500/10',
+        activeStroke: 'text-blue-500',
     },
     {
         id: 'gain_muscle',
@@ -36,62 +38,39 @@ const GOALS: { id: string; value: Goal; label: string; description: string; icon
         description: 'Prioritize strength and lean mass gain.',
         icon: TrendingUp,
         colorClass: 'text-orange-500',
-        bgClass: 'bg-orange-100 dark:bg-orange-900/30',
+        bgClass: 'bg-orange-500/10',
+        activeStroke: 'text-orange-500',
     },
     {
         id: 'general_health',
-        value: 'maintain',
+        value: 'general_health',
         label: 'General Health',
-        description: 'Improve daily energy and eating habits.',
+        description: 'Support long-term wellness and healthier daily nutrition habits.',
         icon: Heart,
         colorClass: 'text-emerald-500',
-        bgClass: 'bg-emerald-100 dark:bg-emerald-900/30',
+        bgClass: 'bg-emerald-500/10',
+        activeStroke: 'text-emerald-500',
     },
 ];
 
 export default function GoalsScreen() {
     const router = useRouter();
-    const { updateData, data } = useOnboardingStore();
+    const { data, saveGoal } = useOnboarding();
 
-    const initialGoal = GOALS.find(goal => goal.value === data.goal)?.value || 'maintain';
+    const initialGoal = GOALS.some(goal => goal.value === data.goal)
+        ? (data.goal as Goal)
+        : 'maintain';
     const [selectedGoal, setSelectedGoal] = useState<Goal>(initialGoal);
     const [selectedId, setSelectedId] = useState<string>(
-        GOALS.find(goal => goal.value === data.goal)?.id || 'maintain'
+        GOALS.find(goal => goal.value === initialGoal)?.id || 'maintain'
     );
 
-    const previewAge = data.age || DEFAULT_PROFILE_VALUES.age;
-    const previewSex = data.gender || DEFAULT_PROFILE_VALUES.gender;
-    const previewHeight = data.height || DEFAULT_PROFILE_VALUES.height;
-    const previewWeight = data.weight || DEFAULT_PROFILE_VALUES.weight;
-    const previewActivity = (data.activityLevel as ActivityLevel) || DEFAULT_PROFILE_VALUES.activityLevel;
-
-    const nutritionPreview = useMemo(() => (
-        calculateNutritionTargets({
-            age: previewAge,
-            sex: previewSex,
-            heightCm: previewHeight,
-            weightKg: previewWeight,
-            goal: selectedGoal,
-            activityLevel: previewActivity,
-            bodyFatPercentage: data.preferences?.bodyFatPercentage,
-            isAthlete: data.preferences?.isAthlete,
-            hasPCOS: data.preferences?.hasPCOS,
-            hasInsulinResistance: data.preferences?.hasInsulinResistance,
-            onHormonalContraception: data.preferences?.onHormonalContraception,
-            isPostMenopause: data.preferences?.isPostMenopause,
-        })
-    ), [
-        previewAge,
-        previewSex,
-        previewHeight,
-        previewWeight,
-        previewActivity,
-        selectedGoal,
-        data.preferences,
-    ]);
+    const { preview: nutritionPreview } = useOnboardingNutritionPreview(data, {
+        goal: selectedGoal,
+    });
 
     const handleNext = () => {
-        updateData({ goal: selectedGoal });
+        saveGoal(selectedGoal);
         router.push('/onboarding/activity-level');
     };
 
@@ -106,65 +85,88 @@ export default function GoalsScreen() {
             onActionPress={handleNext}
             onBackPress={() => router.back()}
         >
-            {GOALS.map((goal) => {
-                const isSelected = selectedId === goal.id;
-                const Icon = goal.icon;
+            <View className="gap-4">
+                {GOALS.map((goal) => {
+                    const isSelected = selectedId === goal.id;
+                    const Icon = goal.icon;
 
-                return (
-                    <TouchableOpacity
-                        key={goal.id}
-                        onPress={() => {
-                            setSelectedGoal(goal.value);
-                            setSelectedId(goal.id);
-                        }}
-                        activeOpacity={0.8}
-                    >
-                        <Card
-                            className={cn(
-                                'border-2 border-border bg-card',
-                                isSelected && 'border-primary bg-primary/5'
-                            )}
+                    return (
+                        <TouchableOpacity
+                            key={goal.id}
+                            onPress={() => {
+                                setSelectedGoal(goal.value);
+                                setSelectedId(goal.id);
+                            }}
+                            activeOpacity={0.7}
                         >
-                            <CardContent className="flex-row items-center p-4">
-                                <View className={cn('mr-4 rounded-full p-3', goal.bgClass)}>
-                                    <Icon size={22} className={goal.colorClass} />
-                                </View>
-
-                                <View className="flex-1">
-                                    <Subheading className={cn('text-base', isSelected && 'text-primary')}>
-                                        {goal.label}
-                                    </Subheading>
-                                    <Body className="text-sm text-muted-foreground">{goal.description}</Body>
-                                </View>
-
-                                {isSelected && (
-                                    <View className="h-6 w-6 items-center justify-center rounded-full bg-primary">
-                                        <Trophy size={14} className="text-primary-foreground" />
-                                    </View>
+                            <Card
+                                className={cn(
+                                    'border-2 overflow-hidden shadow-sm transition-colors',
+                                    isSelected
+                                        ? 'border-primary bg-primary/10 shadow-primary/10'
+                                        : 'border-border/50 bg-card/80 shadow-black/5'
                                 )}
-                            </CardContent>
-                        </Card>
-                    </TouchableOpacity>
-                );
-            })}
+                            >
+                                <CardContent className="flex-row items-center p-4">
+                                    <View className={cn('mr-4 rounded-xl p-3', goal.bgClass)}>
+                                        <Icon
+                                            size={24}
+                                            className={goal.colorClass}
+                                            strokeWidth={isSelected ? 2.5 : 2}
+                                        />
+                                    </View>
 
-            <Card className="border-border bg-card">
-                <CardContent className="p-4">
-                    <Subheading className="mb-3 text-base">Live Equation Preview</Subheading>
-                    <View className="flex-row gap-3">
-                        <View className="flex-1 rounded-lg bg-muted/40 p-3">
-                            <Body className="text-xs text-muted-foreground">BMR</Body>
-                            <Subheading className="text-base">{nutritionPreview.bmr} kcal</Subheading>
-                        </View>
-                        <View className="flex-1 rounded-lg bg-muted/40 p-3">
-                            <Body className="text-xs text-muted-foreground">TDEE</Body>
-                            <Subheading className="text-base">{nutritionPreview.tdee} kcal</Subheading>
-                        </View>
-                        <View className="flex-1 rounded-lg bg-muted/40 p-3">
-                            <Body className="text-xs text-muted-foreground">Goal Calories</Body>
-                            <Subheading className="text-base">{nutritionPreview.calorieTarget}</Subheading>
+                                    <View className="flex-1">
+                                        <Subheading
+                                            className={cn(
+                                                'text-lg font-bold',
+                                                isSelected ? 'text-primary' : 'text-foreground'
+                                            )}
+                                        >
+                                            {goal.label}
+                                        </Subheading>
+                                        <Body className="text-sm text-muted-foreground mt-0.5">{goal.description}</Body>
+                                    </View>
+
+                                    {isSelected && (
+                                        <View className="h-7 w-7 items-center justify-center rounded-full bg-primary shadow-sm shadow-primary/30">
+                                            <Trophy size={14} className="text-primary-foreground" strokeWidth={2.5} />
+                                        </View>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+
+            <Card className="mt-8 border-border/50 bg-card/80 shadow-sm shadow-black/5">
+                <CardContent className="p-5">
+                    <View className="flex-row items-center justify-between mb-4">
+                        <Subheading className="text-base font-bold">Live Equation Preview</Subheading>
+                        <View className="bg-primary/20 px-2 py-1 rounded">
+                            <Body className="text-[10px] font-bold text-primary uppercase tracking-wider">Updates Live</Body>
                         </View>
                     </View>
+                    <View className="flex-row gap-3">
+                        <View className="flex-1 rounded-xl bg-background/50 border border-border/30 p-3 items-center">
+                            <Body className="text-xs text-muted-foreground mb-1">BMR</Body>
+                            <Subheading className="text-base font-bold">{nutritionPreview.bmr} <Body className="text-xs font-normal">kcal</Body></Subheading>
+                        </View>
+                        <View className="flex-1 rounded-xl bg-background/50 border border-border/30 p-3 items-center">
+                            <Body className="text-xs text-muted-foreground mb-1">TDEE</Body>
+                            <Subheading className="text-base font-bold">{nutritionPreview.tdee} <Body className="text-xs font-normal">kcal</Body></Subheading>
+                        </View>
+                        <View className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 items-center">
+                            <Body className="text-xs text-primary/80 font-medium mb-1">Calories</Body>
+                            <Subheading className="text-base font-bold text-primary">{nutritionPreview.calorieTarget}</Subheading>
+                        </View>
+                    </View>
+                    {selectedGoal === 'general_health' && (
+                        <Body className="mt-4 text-xs text-muted-foreground">
+                            General health keeps calories near maintenance and nudges macros toward a more fiber-forward balance.
+                        </Body>
+                    )}
                 </CardContent>
             </Card>
         </OnboardingStepScreen>

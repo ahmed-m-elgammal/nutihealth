@@ -1,6 +1,9 @@
 -- NutriHealth direct-client sync RLS policies
--- Run in Supabase SQL editor after creating tables.
--- Assumes auth.users.id matches your app-level user id strategy.
+-- Run in Supabase SQL editor after critical-hardening.sql.
+-- Uses public.users.user_id (auth uid as text) for ownership checks.
+
+alter table if exists public.users
+    add column if not exists user_id text;
 
 -- Enable RLS on sync tables
 alter table public.users enable row level security;
@@ -23,8 +26,8 @@ drop policy if exists users_self_access on public.users;
 create policy users_self_access
 on public.users
 for all
-using (auth.uid()::text = id)
-with check (auth.uid()::text = id);
+using (auth.uid()::text = user_id)
+with check (auth.uid()::text = user_id);
 
 -- direct user_id tables
 drop policy if exists meals_owner_access on public.meals;

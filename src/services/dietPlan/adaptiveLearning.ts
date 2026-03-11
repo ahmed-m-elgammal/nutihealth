@@ -31,6 +31,76 @@ type MealTypeMetrics = {
 
 const FEEDBACK_KEY = (userId: string) => `adaptive_feedback_${userId}`;
 const LAST_RUN_KEY = (userId: string) => `adaptive_analysis_last_run_${userId}`;
+const RESULT_CACHE_KEY = (userId: string) => `adaptive_analysis_cached_result_${userId}`;
+
+export const WEEKLY_ADAPTIVE_ANALYSIS_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function getAdaptiveLastRunStorageKey(userId: string): string {
+    return LAST_RUN_KEY(userId);
+}
+
+function serializeAnalysisResult(result: WeeklyAdaptiveAnalysisResult): string {
+    return JSON.stringify({
+        ...result,
+        windowStart: result.windowStart.toISOString(),
+        windowEnd: result.windowEnd.toISOString(),
+    });
+}
+
+function parseAnalysisResult(raw: string): WeeklyAdaptiveAnalysisResult | null {
+    try {
+        const parsed = JSON.parse(raw) as Partial<WeeklyAdaptiveAnalysisResult> & {
+            windowStart?: string;
+            windowEnd?: string;
+        };
+
+        if (!Array.isArray(parsed.suggestions) || typeof parsed.analyzedDays !== 'number') {
+            return null;
+        }
+
+        const windowStart = parsed.windowStart ? new Date(parsed.windowStart) : null;
+        const windowEnd = parsed.windowEnd ? new Date(parsed.windowEnd) : null;
+
+        if (!windowStart || Number.isNaN(windowStart.getTime()) || !windowEnd || Number.isNaN(windowEnd.getTime())) {
+            return null;
+        }
+
+        return {
+            windowStart,
+            windowEnd,
+            suggestions: parsed.suggestions.filter(Boolean) as AdaptationSuggestion[],
+            analyzedDays: parsed.analyzedDays,
+        };
+    } catch {
+        return null;
+    }
+}
+
+export async function getAdaptiveLastRunTimestamp(userId: string): Promise<number | null> {
+    const raw = await storage.getItem(LAST_RUN_KEY(userId));
+    if (!raw) {
+        return null;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export async function getCachedWeeklyAdaptiveAnalysis(userId: string): Promise<WeeklyAdaptiveAnalysisResult | null> {
+    const raw = await storage.getItem(RESULT_CACHE_KEY(userId));
+    if (!raw) {
+        return null;
+    }
+
+    return parseAnalysisResult(raw);
+}
+
+async function persistWeeklyAdaptiveAnalysis(userId: string, result: WeeklyAdaptiveAnalysisResult): Promise<void> {
+    await Promise.all([
+        storage.setItem(LAST_RUN_KEY(userId), String(Date.now())),
+        storage.setItem(RESULT_CACHE_KEY(userId), serializeAnalysisResult(result)),
+    ]);
+}
 
 function getPlannedStartMinutes(planMeal: { timeWindowStart: string }) {
     return parseTimeToMinutes(planMeal.timeWindowStart);
@@ -53,13 +123,14 @@ export async function runWeeklyAdaptiveAnalysis(userId: string): Promise<WeeklyA
     const suggestions: AdaptationSuggestion[] = [];
 
     if (!plan) {
-        await storage.setItem(LAST_RUN_KEY(userId), String(Date.now()));
-        return {
+        const result: WeeklyAdaptiveAnalysisResult = {
             windowStart,
             windowEnd,
             suggestions,
             analyzedDays: 7,
         };
+        await persistWeeklyAdaptiveAnalysis(userId, result);
+        return result;
     }
 
     const metrics = new Map<SuggestedMealType, MealTypeMetrics>(
@@ -169,14 +240,16 @@ export async function runWeeklyAdaptiveAnalysis(userId: string): Promise<WeeklyA
         }
     });
 
-    await storage.setItem(LAST_RUN_KEY(userId), String(Date.now()));
-
-    return {
+    const result: WeeklyAdaptiveAnalysisResult = {
         windowStart,
         windowEnd,
         suggestions: suggestions.sort((a, b) => b.confidence - a.confidence),
         analyzedDays: 7,
     };
+
+    await persistWeeklyAdaptiveAnalysis(userId, result);
+
+    return result;
 }
 
 export async function applyAdaptationSuggestion(suggestion: AdaptationSuggestion, userId: string): Promise<void> {

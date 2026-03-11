@@ -13,6 +13,7 @@ export default class WorkoutSchedule extends Model {
     @field('user_id') userId!: string;
     @field('template_id') templateId!: string;
     @field('day_of_week') dayOfWeek!: string;
+    @field('intensity') intensity?: string;
     @readonly @date('created_at') createdAt!: Date;
     @readonly @date('updated_at') updatedAt!: Date;
 

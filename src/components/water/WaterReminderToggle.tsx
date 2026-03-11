@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Switch, Text, View } from 'react-native';
 import { calculateWeatherAdjustment, getCurrentWeatherByCity } from '../../services/weather';
 import { clearScheduledReminders, scheduleDailyWaterReminder } from '../../services/notifications';
 
@@ -42,49 +42,49 @@ export default function WaterReminderToggle({ enabled, onToggle }: WaterReminder
                 style={{
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: '#dbeafe',
-                    backgroundColor: '#f8fafc',
-                    padding: 12,
+                    borderColor: '#334155',
+                    backgroundColor: '#1e293b',
+                    padding: 14,
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                 }}
             >
                 <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={{ color: '#0f172a', fontWeight: '700' }}>Smart reminders</Text>
-                    <Text style={{ color: '#64748b', marginTop: 2, fontSize: 12 }}>
+                    <Text style={{ color: '#f8fafc', fontWeight: '700', fontSize: 15 }}>Smart Reminders</Text>
+                    <Text style={{ color: '#94a3b8', marginTop: 3, fontSize: 12 }}>
                         Schedule hydration nudges based on your needs.
                     </Text>
                 </View>
                 {loading ? (
-                    <ActivityIndicator color="#0e7490" />
+                    <ActivityIndicator color="#10b748" />
                 ) : (
                     <Switch
                         value={enabled}
                         onValueChange={handleToggle}
-                        trackColor={{ false: '#cbd5e1', true: '#67e8f9' }}
-                        thumbColor={enabled ? '#0e7490' : '#f8fafc'}
+                        trackColor={{ false: '#334155', true: '#15803d' }}
+                        thumbColor={enabled ? '#10b748' : '#64748b'}
+                        ios_backgroundColor="#334155"
                     />
                 )}
             </View>
 
             {enabled && weatherBoost >= 250 ? (
-                <Pressable
-                    android_ripple={{ color: 'rgba(251,191,36,0.18)' }}
+                <View
                     style={{
                         marginTop: 8,
                         borderRadius: 12,
-                        backgroundColor: '#fffbeb',
+                        backgroundColor: 'rgba(234,179,8,0.1)',
                         borderWidth: 1,
-                        borderColor: '#fde68a',
-                        padding: 10,
+                        borderColor: 'rgba(234,179,8,0.3)',
+                        padding: 12,
                     }}
                 >
-                    <Text style={{ color: '#92400e', fontWeight: '700' }}>Warm weather notice</Text>
-                    <Text style={{ color: '#b45309', marginTop: 2, fontSize: 12 }}>
+                    <Text style={{ color: '#fbbf24', fontWeight: '700' }}>☀️ Warm weather notice</Text>
+                    <Text style={{ color: '#d97706', marginTop: 2, fontSize: 12 }}>
                         Suggested hydration boost: +{weatherBoost} ml ({weatherReason}).
                     </Text>
-                </Pressable>
+                </View>
             ) : null}
         </View>
     );

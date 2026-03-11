@@ -1,6 +1,8 @@
 import { useUIStore } from '../store/uiStore';
 import { API_BASE_URL } from '../constants/api';
-import { API_KEY_HEADER, APP_API_KEY } from '../constants/security';
+import { AUTHORIZATION_HEADER, BEARER_TOKEN_PREFIX } from '../constants/security';
+import { getAuthToken as getStoredAuthToken } from '../utils/storage';
+import { logger } from '../utils/logger';
 
 /**
  * API Call Options
@@ -28,6 +30,28 @@ const inFlightGetRequests = new Map<string, Promise<unknown>>();
 export function resetInFlightGetRequests() {
     inFlightGetRequests.clear();
 }
+
+const getSupabaseSessionAccessToken = async (): Promise<string | undefined> => {
+    try {
+        const { supabase } = await import('./supabaseClient');
+        if (!supabase) {
+            return undefined;
+        }
+
+        const {
+            data: { session },
+            error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+            return undefined;
+        }
+
+        return session?.access_token || undefined;
+    } catch {
+        return undefined;
+    }
+};
 
 /**
  * Unified API wrapper for all HTTP requests
@@ -58,8 +82,16 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
         ...((options?.headers as Record<string, string>) || {}),
     };
 
-    if (APP_API_KEY) {
-        headers[API_KEY_HEADER] = APP_API_KEY;
+    const hasAuthorizationHeader = Object.keys(headers).some((header) => header.toLowerCase() === 'authorization');
+    if (!hasAuthorizationHeader && url.startsWith(API_BASE_URL)) {
+        try {
+            const authToken = (await getStoredAuthToken()) || (await getSupabaseSessionAccessToken());
+            if (authToken) {
+                headers[AUTHORIZATION_HEADER] = `${BEARER_TOKEN_PREFIX} ${authToken}`;
+            }
+        } catch {
+            // Storage can be unavailable before initialization during startup/login flows.
+        }
     }
 
     // Get auth token from SecureStore (if available)
@@ -90,6 +122,17 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
         let lastError: Error | null = null;
 
         for (let attempt = 0; attempt <= retryCount; attempt++) {
+            const attemptNumber = attempt + 1;
+            const requestStartedAt = Date.now();
+            logger.apiRequest({
+                method,
+                url,
+                headers,
+                body: options?.body,
+                params: options?.params,
+                attempt: attemptNumber,
+            });
+
             try {
                 const response = await new Promise<Response>((resolve, reject) => {
                     const timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeout);
@@ -103,6 +146,14 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
                             clearTimeout(timeoutId);
                             reject(error);
                         });
+                });
+
+                logger.apiResponse({
+                    method,
+                    url,
+                    status: response.status,
+                    durationMs: Date.now() - requestStartedAt,
+                    attempt: attemptNumber,
                 });
 
                 if (!response.ok) {
@@ -129,6 +180,15 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
                         useUIStore.getState().showToast('error', errorMessage);
                     }
 
+                    logger.apiError({
+                        method,
+                        url,
+                        status: response.status,
+                        error: errorMessage,
+                        durationMs: Date.now() - requestStartedAt,
+                        attempt: attemptNumber,
+                    });
+
                     throw new Error(errorMessage);
                 }
 
@@ -137,6 +197,13 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
                 return jsonResponse as T;
             } catch (err: any) {
                 lastError = err as Error;
+                logger.apiError({
+                    method,
+                    url,
+                    error: lastError.message,
+                    durationMs: Date.now() - requestStartedAt,
+                    attempt: attemptNumber,
+                });
 
                 const isNetworkError =
                     err?.name?.includes('AbortError') ||
@@ -162,6 +229,12 @@ export async function apiCall<T = any>(endpoint: string, options?: ApiCallOption
         if (!options?.suppressErrors) {
             useUIStore.getState().showToast('error', networkErrorMessage);
         }
+
+        logger.apiError({
+            method,
+            url,
+            error: lastError?.message || networkErrorMessage,
+        });
 
         throw lastError || new Error(networkErrorMessage);
     })();

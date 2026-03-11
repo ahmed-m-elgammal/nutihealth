@@ -1,5 +1,5 @@
 export type BiologicalSex = 'male' | 'female' | 'other';
-export type Goal = 'lose' | 'maintain' | 'gain';
+export type Goal = 'lose' | 'maintain' | 'gain' | 'general_health';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very_active' | 'athlete';
 export type ProgressStatus = 'Faster Than Expected' | 'Stalled' | 'Slower Than Expected' | 'On Track';
 
@@ -36,10 +36,12 @@ const HYDRATION_ACTIVITY_BONUS_ML: Record<ActivityLevel, number> = {
     athlete: 1000,
 } as const;
 
-const LEGACY_MACRO_RATIOS: Record<Goal, { protein: number; carbs: number; fats: number }> = {
+// Legacy fallback ratios used when full profile context is unavailable.
+export const MACRO_RATIOS: Record<Goal, { protein: number; carbs: number; fats: number }> = {
     lose: { protein: 0.35, carbs: 0.35, fats: 0.3 },
     maintain: { protein: 0.3, carbs: 0.4, fats: 0.3 },
     gain: { protein: 0.3, carbs: 0.45, fats: 0.25 },
+    general_health: { protein: 0.28, carbs: 0.45, fats: 0.27 },
 } as const;
 
 function clamp(value: number, min: number, max: number): number {
@@ -379,7 +381,7 @@ function calculateLegacyMacros(
     calorieTarget: number,
     goal: Goal
 ): MacroTargets {
-    const ratios = LEGACY_MACRO_RATIOS[goal];
+    const ratios = MACRO_RATIOS[goal];
     const protein = Math.round((calorieTarget * ratios.protein) / 4);
     const carbs = Math.round((calorieTarget * ratios.carbs) / 4);
     const fats = Math.round((calorieTarget * ratios.fats) / 9);
@@ -399,6 +401,8 @@ function calculateProteinPerKg(goal: Goal, context: MacroContext): number {
         }
     } else if (goal === 'gain') {
         proteinPerKg = context.isAthlete ? 2.0 : 1.8;
+    } else if (goal === 'general_health') {
+        proteinPerKg = 1.5;
     }
 
     const age = context.age ?? 30;
@@ -453,6 +457,7 @@ export function calculateMacros(
     }
 
     const isPcosMode = Boolean(context.hasPCOS || context.hasInsulinResistance);
+    const isGeneralHealthMode = goal === 'general_health';
     const bmi = typeof context.heightCm === 'number'
         ? calculateRawBMI(context.weightKg, context.heightCm)
         : 0;
@@ -489,12 +494,25 @@ export function calculateMacros(
         }
     }
 
-    const minCarbs = (calorieTarget * (isPcosMode ? 0.30 : 0.45)) / 4;
-    const maxCarbs = (calorieTarget * (isPcosMode ? 0.40 : 0.65)) / 4;
+    const minCarbs = (calorieTarget * (isPcosMode ? 0.30 : isGeneralHealthMode ? 0.50 : 0.45)) / 4;
+    const maxCarbs = (calorieTarget * (isPcosMode ? 0.40 : isGeneralHealthMode ? 0.68 : 0.65)) / 4;
 
     carbs = clamp(carbs, minCarbs, maxCarbs);
     fat = clamp((calorieTarget - protein * 4 - carbs * 4) / 9, minFat, maxFat);
     carbs = clamp((calorieTarget - protein * 4 - fat * 9) / 4, minCarbs, maxCarbs);
+
+    if (isGeneralHealthMode) {
+        const preferredCarbShiftCalories = calorieTarget * 0.03;
+        const availableFatReduction = Math.max(0, fat - minFat) * 9;
+        const shiftCalories = Math.min(preferredCarbShiftCalories, availableFatReduction);
+
+        if (shiftCalories > 0) {
+            fat -= shiftCalories / 9;
+            carbs += shiftCalories / 4;
+            carbs = clamp(carbs, minCarbs, maxCarbs);
+            fat = clamp((calorieTarget - protein * 4 - carbs * 4) / 9, minFat, maxFat);
+        }
+    }
 
     const roundedProtein = Math.max(0, Math.round(protein));
     const roundedCarbs = Math.max(0, Math.round(carbs));
@@ -509,15 +527,42 @@ export function verifyMacroPercentages(
     fatGrams: number,
     totalCalories: number
 ): MacroTargets {
-    const proteinPercent = (proteinGrams * 4 / totalCalories) * 100;
-    const carbsPercent = (carbGrams * 4 / totalCalories) * 100;
-    const fatsPercent = (fatGrams * 9 / totalCalories) * 100;
+    const safeTotalCalories = Math.max(1, Math.round(totalCalories));
+    let protein = Math.max(0, Math.round(proteinGrams));
+    let fats = Math.max(0, Math.round(fatGrams));
+
+    let proteinCalories = protein * 4;
+    let fatsCalories = fats * 9;
+    let remainingCalories = safeTotalCalories - proteinCalories - fatsCalories;
+
+    // Normalize rounded macros so they cannot overshoot the calorie target.
+    if (remainingCalories < 0) {
+        const fatReduction = Math.ceil(Math.abs(remainingCalories) / 9);
+        fats = Math.max(0, fats - fatReduction);
+        fatsCalories = fats * 9;
+        remainingCalories = safeTotalCalories - proteinCalories - fatsCalories;
+    }
+
+    if (remainingCalories < 0) {
+        const proteinReduction = Math.ceil(Math.abs(remainingCalories) / 4);
+        protein = Math.max(0, protein - proteinReduction);
+        proteinCalories = protein * 4;
+        remainingCalories = safeTotalCalories - proteinCalories - fatsCalories;
+    }
+
+    // Derive carbs from remaining calories so percentages remain internally consistent.
+    const normalizedCarbCalories = Math.max(0, safeTotalCalories - proteinCalories - fatsCalories);
+    const carbs = Math.max(0, Math.round(normalizedCarbCalories / 4));
+
+    const proteinPercent = (proteinCalories / safeTotalCalories) * 100;
+    const fatsPercent = (fatsCalories / safeTotalCalories) * 100;
+    const carbsPercent = Math.max(0, 100 - proteinPercent - fatsPercent);
     const totalPercent = proteinPercent + carbsPercent + fatsPercent;
 
     return {
-        protein: proteinGrams,
-        carbs: carbGrams,
-        fats: fatGrams,
+        protein,
+        carbs,
+        fats,
         proteinPercent,
         carbsPercent,
         fatsPercent,

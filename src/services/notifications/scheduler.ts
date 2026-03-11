@@ -8,6 +8,7 @@ export interface ReminderScheduleOptions {
     includeMeals: boolean;
     includeWorkout: boolean;
     includeStreakWarning: boolean;
+    includeSmartCooker: boolean;
     workoutHour: number;
 }
 
@@ -16,6 +17,7 @@ const DEFAULT_REMINDER_OPTIONS: ReminderScheduleOptions = {
     includeMeals: true,
     includeWorkout: true,
     includeStreakWarning: true,
+    includeSmartCooker: true,
     workoutHour: 18,
 };
 
@@ -146,12 +148,39 @@ export async function scheduleSmartReminders(options?: Partial<ReminderScheduleO
         );
     }
 
+    // Smart Cooker meal-time prompts: nudge users to cook from available ingredients
+    if (mergedOptions.includeSmartCooker) {
+        ids.push(
+            await scheduleReminder(
+                {
+                    title: '🍳 Smart Cooker – Lunch',
+                    body: 'Have ingredients? Smart Cooker can suggest a recipe for lunch.',
+                    data: { action: 'open_smart_cooker', mealType: 'lunch' },
+                },
+                11,
+                30,
+            ),
+        );
+
+        ids.push(
+            await scheduleReminder(
+                {
+                    title: '🍳 Smart Cooker – Dinner',
+                    body: 'Use your ingredients — Smart Cooker has recipe ideas for dinner.',
+                    data: { action: 'open_smart_cooker', mealType: 'dinner' },
+                },
+                17,
+                30,
+            ),
+        );
+    }
+
     if (mergedOptions.includeWorkout) {
         ids.push(
             await scheduleReminder(
                 {
                     title: 'Workout Reminder',
-                    body: 'Keep your streak alive with today’s workout.',
+                    body: 'Keep your streak alive with today\u2019s workout.',
                 },
                 mergedOptions.workoutHour,
                 0,
@@ -164,7 +193,7 @@ export async function scheduleSmartReminders(options?: Partial<ReminderScheduleO
             await scheduleReminder(
                 {
                     title: 'Streak Warning',
-                    body: 'You still have time to complete today’s habits.',
+                    body: 'You still have time to complete today\u2019s habits.',
                 },
                 20,
                 0,

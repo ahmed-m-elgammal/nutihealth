@@ -67,8 +67,8 @@ Create a `.env` file from the example:
 cp .env.example .env
 ```
 
-Populate your secrets (API keys for external services) in the `.env` file.
-The backend is used for AI/recipe/weather proxy routes only.
+Populate your secrets (API keys for external services and Supabase service role for account deletion) in the `.env` file.
+The backend is used for AI/recipe/weather proxy routes and authenticated account deletion.
 
 Start the backend server:
 
@@ -88,7 +88,9 @@ EXPO_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_or_publishable_key
 ```
 
-Before enabling sync in production, run the SQL policies in `docs/supabase/rls-policies.sql` in your Supabase project.
+Before enabling sync in production, run these SQL scripts in your Supabase project:
+- `docs/supabase/critical-hardening.sql`
+- `docs/supabase/rls-policies.sql`
 
 ## 🧪 Testing
 

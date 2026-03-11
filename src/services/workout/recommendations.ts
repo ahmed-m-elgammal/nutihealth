@@ -17,7 +17,7 @@ export interface WorkoutHistorySample {
 }
 
 export interface UserRecommendationContext {
-    goal: 'lose' | 'maintain' | 'gain';
+    goal: 'lose' | 'maintain' | 'gain' | 'general_health';
     activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'athlete';
     workoutPreferences?: unknown;
 }
@@ -54,6 +54,7 @@ const GOAL_TO_CATEGORIES: Record<UserRecommendationContext['goal'], ProgramCandi
     lose: ['fat_loss', 'endurance', 'intro'],
     maintain: ['strength', 'endurance', 'mobility', 'intro'],
     gain: ['strength', 'hypertrophy'],
+    general_health: ['intro', 'endurance', 'mobility', 'strength'],
 };
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -200,7 +201,7 @@ const scoreProgram = (
 
     const categoryScore = targetCategories.includes(program.category)
         ? 24
-        : (program.category === 'strength' && context.goal === 'maintain')
+        : (program.category === 'strength' && (context.goal === 'maintain' || context.goal === 'general_health'))
             ? 14
             : 8;
 

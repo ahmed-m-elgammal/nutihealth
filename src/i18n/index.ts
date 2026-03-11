@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { DevSettings, I18nManager, Platform } from 'react-native';
 import en from './locales/en.json';
 import { getLanguage, setLanguage } from '../utils/storage';
 
@@ -14,6 +15,39 @@ const localeLoaders: Record<Exclude<SupportedLanguage, 'en'>, () => Promise<{ de
 
 const isSupportedLanguage = (value?: string): value is SupportedLanguage =>
     value === 'en' || value === 'ar' || value === 'es';
+
+const syncLayoutDirection = (language: SupportedLanguage): boolean => {
+    if (Platform.OS === 'web') {
+        return false;
+    }
+
+    const shouldUseRTL = language === 'ar';
+    I18nManager.allowRTL(shouldUseRTL);
+
+    if (I18nManager.isRTL !== shouldUseRTL) {
+        I18nManager.forceRTL(shouldUseRTL);
+        return true;
+    }
+
+    return false;
+};
+
+const reloadForDirectionChange = (): boolean => {
+    if (Platform.OS === 'web') {
+        return false;
+    }
+
+    try {
+        if (typeof DevSettings.reload === 'function') {
+            DevSettings.reload();
+            return true;
+        }
+    } catch {
+        // No-op if reload command isn't available in this runtime.
+    }
+
+    return false;
+};
 
 const ensureLocaleLoaded = async (language: SupportedLanguage) => {
     if (loadedLanguages.has(language)) {
@@ -52,16 +86,29 @@ export async function initializeI18n() {
     const language: SupportedLanguage = isSupportedLanguage(preferredLanguage) ? preferredLanguage : 'en';
 
     await ensureLocaleLoaded(language);
+    const directionChanged = syncLayoutDirection(language);
 
     if (i18n.language !== language) {
         await i18n.changeLanguage(language);
+    }
+
+    if (directionChanged) {
+        reloadForDirectionChange();
     }
 }
 
 export async function changeAppLanguage(language: SupportedLanguage) {
     await ensureLocaleLoaded(language);
+    const directionChanged = syncLayoutDirection(language);
     await i18n.changeLanguage(language);
     await setLanguage(language);
+    let reloadTriggered = false;
+
+    if (directionChanged) {
+        reloadTriggered = reloadForDirectionChange();
+    }
+
+    return { directionChanged, reloadTriggered };
 }
 
 export default i18n;

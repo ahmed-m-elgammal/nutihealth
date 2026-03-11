@@ -34,7 +34,27 @@ type SearchCacheEntry = {
 };
 
 const SEARCH_CACHE_TTL = 45_000;
+const SEARCH_CACHE_MAX = 60; // max entries before LRU eviction
 const searchCache = new Map<string, SearchCacheEntry>();
+
+/** Returns true if the entry is still fresh */
+function isCacheHit(entry: SearchCacheEntry): boolean {
+    return Date.now() - entry.timestamp < SEARCH_CACHE_TTL;
+}
+
+/** Write to cache, evicting the oldest entry if over the size limit */
+function setCacheEntry(key: string, data: SearchResults): void {
+    // Evict expired entries first (cheap pass)
+    for (const [k, v] of searchCache) {
+        if (!isCacheHit(v)) searchCache.delete(k);
+    }
+    // If still over limit, evict the oldest by insertion order
+    if (searchCache.size >= SEARCH_CACHE_MAX) {
+        const firstKey = searchCache.keys().next().value;
+        if (firstKey !== undefined) searchCache.delete(firstKey);
+    }
+    searchCache.set(key, { timestamp: Date.now(), data });
+}
 
 const normalizeText = (value: string) =>
     value
@@ -125,9 +145,8 @@ export async function searchFoods(query: string, limit: number = 20): Promise<Se
     }
 
     const cacheKey = `${normalizeText(trimmedQuery)}:${limit}`;
-    const now = Date.now();
     const cached = searchCache.get(cacheKey);
-    if (cached && now - cached.timestamp < SEARCH_CACHE_TTL) {
+    if (cached && isCacheHit(cached)) {
         return cached.data;
     }
 
@@ -145,7 +164,7 @@ export async function searchFoods(query: string, limit: number = 20): Promise<Se
         external: externalFoods,
     };
 
-    searchCache.set(cacheKey, { timestamp: now, data: results });
+    setCacheEntry(cacheKey, results);
     return results;
 }
 

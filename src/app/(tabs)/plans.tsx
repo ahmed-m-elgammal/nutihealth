@@ -5,7 +5,6 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
-import EmptyState from '../../components/common/EmptyState';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
 import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 import ActivePlanHero from '../../components/plans/ActivePlanHero';
@@ -18,11 +17,13 @@ import { useDietTemplates, useActiveDiet } from '../../query/queries/useDiets';
 import { useDietMutations } from '../../query/mutations/useDietMutations';
 import { useUIStore } from '../../store/uiStore';
 import { ProgressSkeleton } from '../../components/skeletons/ScreenSkeletons';
-import { NoPlanIllustration } from '../../components/illustrations/EmptyStateIllustrations';
 import { useColors } from '../../hooks/useColors';
 import { useTranslation } from 'react-i18next';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useDietPlanSuggestions } from '../../hooks/useDietPlanSuggestions';
+import { deactivateActiveDiet } from '../../services/api/plans';
+import { usePostHog } from 'posthog-react-native';
+import { deactivatePlan, getActivePlan as getActiveWeeklyGoalPlan } from '../../services/api/weeklyGoals';
 import {
     CarbCycleDay,
     generateCarbCyclePlan,
@@ -32,12 +33,32 @@ import {
 
 type TabType = 'Meals' | 'Carb Cycle' | 'Prep';
 
+type ActivePlanSummary = {
+    id: string;
+    name: string;
+    source: 'template' | 'weekly';
+    sourceLabel: string;
+    isActive: boolean;
+    dailyCalories: number;
+    macros: {
+        protein: number;
+        carbs: number;
+        fats: number;
+    };
+    startDate: Date;
+    endDate?: Date;
+};
+
 type PlanTemplateCard = {
     id: string;
     name: string;
     type: string;
     calories: string;
     color: string;
+    calorieTarget: number;
+    proteinTarget: number;
+    carbsTarget: number;
+    fatsTarget: number;
     score?: number;
     insight?: string;
 };
@@ -55,6 +76,14 @@ function titleizeMealType(type: string) {
     return `${type[0].toUpperCase()}${type.slice(1)}`;
 }
 
+function toDateFromTimestamp(value?: number): Date | undefined {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+        return undefined;
+    }
+
+    return new Date(value);
+}
+
 export default function PlansScreen() {
     const router = useRouter();
     const { user } = useCurrentUser();
@@ -66,8 +95,26 @@ export default function PlansScreen() {
     const [ingredientChecks, setIngredientChecks] = useState<Record<string, boolean>>({});
 
     const { data: templates = [], isLoading: isLoadingTemplates } = useDietTemplates();
-    const { data: activeUserDiet, isLoading: isLoadingActiveDiet } = useActiveDiet(user?.id);
+    const {
+        data: activeUserDiet,
+        isLoading: isLoadingActiveDiet,
+        refetch: refetchActiveDiet,
+    } = useActiveDiet(user?.id);
+    const {
+        data: activeWeeklyGoalPlan,
+        isLoading: isLoadingWeeklyGoalPlan,
+        refetch: refetchActiveWeeklyGoalPlan,
+    } = useQuery({
+        queryKey: ['weekly-goal-plans', 'active', user?.id],
+        enabled: Boolean(user?.id),
+        staleTime: 0,
+        queryFn: async () => {
+            if (!user?.id) return null;
+            return getActiveWeeklyGoalPlan(user.id);
+        },
+    });
     const { activateDiet } = useDietMutations();
+    const posthog = usePostHog();
     const {
         suggestions,
         adherenceScore,
@@ -100,7 +147,7 @@ export default function PlansScreen() {
         },
     });
 
-    const activeDiet = useMemo(() => {
+    const templateActivePlan = useMemo<ActivePlanSummary | null>(() => {
         if (!activeUserDiet?.userDiet) return null;
 
         const matchedTemplate = templates.find((diet) => diet.id === activeUserDiet.userDiet.dietId);
@@ -110,6 +157,8 @@ export default function PlansScreen() {
         return {
             id: source.id,
             name: source.name,
+            source: 'template',
+            sourceLabel: 'Template',
             isActive: activeUserDiet.userDiet.isActive,
             dailyCalories: source.calorieTarget,
             macros: {
@@ -121,6 +170,31 @@ export default function PlansScreen() {
             endDate: activeUserDiet.userDiet.endDate ? new Date(activeUserDiet.userDiet.endDate) : undefined,
         };
     }, [activeUserDiet?.diet, activeUserDiet?.userDiet, templates]);
+
+    const weeklyActivePlan = useMemo<ActivePlanSummary | null>(() => {
+        if (!activeWeeklyGoalPlan) return null;
+
+        const todayMacros = activeWeeklyGoalPlan.getMacrosForDate(new Date());
+        return {
+            id: activeWeeklyGoalPlan.id,
+            name: activeWeeklyGoalPlan.planName,
+            source: 'weekly',
+            sourceLabel: 'Weekly',
+            isActive: activeWeeklyGoalPlan.isActive,
+            dailyCalories: todayMacros.calories,
+            macros: {
+                protein: todayMacros.protein,
+                carbs: todayMacros.carbs,
+                fats: todayMacros.fats,
+            },
+            startDate: toDateFromTimestamp(activeWeeklyGoalPlan.startDate) || new Date(),
+            endDate: toDateFromTimestamp(activeWeeklyGoalPlan.endDate),
+        };
+    }, [activeWeeklyGoalPlan]);
+
+    const activePlan = weeklyActivePlan ?? templateActivePlan;
+    const hasActivePlan = Boolean(activePlan);
+    const today = format(new Date(), 'EEEE');
 
     const plannedMeals = useMemo(() => {
         if (suggestions.length > 0) {
@@ -145,10 +219,10 @@ export default function PlansScreen() {
             });
         }
 
-        const fallbackCalories = activeDiet?.dailyCalories ?? user?.calorieTarget ?? 2000;
-        const fallbackProtein = activeDiet?.macros.protein ?? user?.proteinTarget ?? 120;
-        const fallbackCarbs = activeDiet?.macros.carbs ?? user?.carbsTarget ?? 220;
-        const fallbackFats = activeDiet?.macros.fats ?? user?.fatsTarget ?? 70;
+        const fallbackCalories = activePlan?.dailyCalories ?? user?.calorieTarget ?? 2000;
+        const fallbackProtein = activePlan?.macros.protein ?? user?.proteinTarget ?? 120;
+        const fallbackCarbs = activePlan?.macros.carbs ?? user?.carbsTarget ?? 220;
+        const fallbackFats = activePlan?.macros.fats ?? user?.fatsTarget ?? 70;
         const ratios = [
             { type: 'Breakfast', time: '08:00', ratio: 0.25 },
             { type: 'Lunch', time: '13:00', ratio: 0.35 },
@@ -169,10 +243,10 @@ export default function PlansScreen() {
             })),
         }));
     }, [
-        activeDiet?.dailyCalories,
-        activeDiet?.macros.carbs,
-        activeDiet?.macros.fats,
-        activeDiet?.macros.protein,
+        activePlan?.dailyCalories,
+        activePlan?.macros.carbs,
+        activePlan?.macros.fats,
+        activePlan?.macros.protein,
         suggestions,
         user?.calorieTarget,
         user?.carbsTarget,
@@ -207,10 +281,10 @@ export default function PlansScreen() {
             });
         }
 
-        const baseCalories = activeDiet?.dailyCalories ?? user?.calorieTarget ?? 2000;
-        const protein = activeDiet?.macros.protein ?? user?.proteinTarget ?? 120;
-        const carbs = activeDiet?.macros.carbs ?? user?.carbsTarget ?? 220;
-        const fats = activeDiet?.macros.fats ?? user?.fatsTarget ?? 70;
+        const baseCalories = activePlan?.dailyCalories ?? user?.calorieTarget ?? 2000;
+        const protein = activePlan?.macros.protein ?? user?.proteinTarget ?? 120;
+        const carbs = activePlan?.macros.carbs ?? user?.carbsTarget ?? 220;
+        const fats = activePlan?.macros.fats ?? user?.fatsTarget ?? 70;
         const workoutBoost = workoutAdjustment
             ? workoutAdjustment.adjustedCalories - workoutAdjustment.baseCalories
             : 0;
@@ -233,10 +307,10 @@ export default function PlansScreen() {
             };
         });
     }, [
-        activeDiet?.dailyCalories,
-        activeDiet?.macros.carbs,
-        activeDiet?.macros.fats,
-        activeDiet?.macros.protein,
+        activePlan?.dailyCalories,
+        activePlan?.macros.carbs,
+        activePlan?.macros.fats,
+        activePlan?.macros.protein,
         carbCyclePlan,
         user?.calorieTarget,
         user?.carbsTarget,
@@ -244,6 +318,45 @@ export default function PlansScreen() {
         user?.proteinTarget,
         workoutAdjustment,
     ]);
+
+    const todayCycleTarget = useMemo(() => {
+        if (carbCyclePlan && carbCyclePlan.weekPattern.length === 7) {
+            const dayIndex = (new Date().getDay() + 6) % 7;
+            const type = carbCyclePlan.weekPattern[dayIndex] || 'low';
+            const fallbackTarget =
+                type === 'high'
+                    ? carbCyclePlan.highCarbMacros
+                    : type === 'refeed'
+                      ? carbCyclePlan.refeedMacros
+                      : carbCyclePlan.lowCarbMacros;
+            const target = carbCyclePlan.dayTargets?.[dayIndex] || fallbackTarget;
+
+            if (target) {
+                return {
+                    type,
+                    calories: target.calories,
+                    macros: {
+                        protein: target.protein,
+                        carbs: target.carbs,
+                        fats: target.fats,
+                    },
+                    source: 'stored-plan' as const,
+                };
+            }
+        }
+
+        const todayEntry = cycle.find((entry) => entry.day === today);
+        if (!todayEntry?.adjustedMacros) {
+            return null;
+        }
+
+        return {
+            type: todayEntry.type,
+            calories: todayEntry.adjustedCalories || 0,
+            macros: todayEntry.adjustedMacros,
+            source: 'derived' as const,
+        };
+    }, [carbCyclePlan, cycle, today]);
 
     const ingredients = useMemo(() => {
         if (mealPrepPlan?.items?.length) {
@@ -288,6 +401,10 @@ export default function PlansScreen() {
                     name: template.name,
                     type: template.type,
                     calories: `${template.calorieTarget} kcal target`,
+                    calorieTarget: template.calorieTarget,
+                    proteinTarget: template.proteinTarget,
+                    carbsTarget: template.carbsTarget,
+                    fatsTarget: template.fatsTarget,
                     score: recommendation?.score,
                     insight: recommendation?.reasons?.[0],
                     color:
@@ -310,20 +427,95 @@ export default function PlansScreen() {
         templates,
     ]);
 
-    const topAdaptation = adaptationSuggestions[0] ?? null;
-    const today = format(new Date(), 'EEEE');
+    const topAdaptation = hasActivePlan ? (adaptationSuggestions[0] ?? null) : null;
     const prepTimeEstimate = mealPrepPlan?.estimatedPrepTimeMinutes ?? 45;
-    const loadingPlans = isLoadingTemplates || isLoadingActiveDiet || (!!user?.id && isLoadingIntelligence);
+    const loadingPlans =
+        isLoadingTemplates || isLoadingActiveDiet || isLoadingWeeklyGoalPlan || (!!user?.id && isLoadingIntelligence);
 
-    const activateTemplate = (templateId: string, templateName: string) => {
+    const openPrefilledWeeklyPlan = ({
+        name,
+        calories,
+        protein,
+        carbs,
+        fats,
+    }: {
+        name: string;
+        calories: number;
+        protein: number;
+        carbs: number;
+        fats: number;
+    }) => {
+        router.push({
+            pathname: '/(modals)/create-weekly-plan',
+            params: {
+                prefillName: name,
+                prefillCalories: String(calories),
+                prefillProtein: String(protein),
+                prefillCarbs: String(carbs),
+                prefillFats: String(fats),
+            },
+        } as any);
+    };
+
+    const activateTemplate = async (templateId: string, templateName: string) => {
         if (!user?.id) return;
-        activateDiet(user.id, templateId)
-            .then(() => {
-                showToast('success', `${templateName} activated`);
-            })
-            .catch(() => {
-                showToast('error', 'Failed to activate template');
-            });
+
+        try {
+            if (activeWeeklyGoalPlan?.id) {
+                await deactivatePlan(activeWeeklyGoalPlan.id);
+                await refetchActiveWeeklyGoalPlan();
+            }
+
+            await activateDiet(user.id, templateId);
+            await refetchActiveDiet();
+            posthog.capture('diet_plan_activated', { plan_name: templateName, plan_id: templateId });
+            showToast('success', `${templateName} activated`);
+        } catch {
+            showToast('error', 'Failed to activate template');
+        }
+    };
+
+    const deactivateCurrentPlan = async () => {
+        if (!activePlan || !user?.id) return;
+
+        try {
+            if (activePlan.source === 'weekly') {
+                await deactivatePlan(activePlan.id);
+                await refetchActiveWeeklyGoalPlan();
+                showToast('info', 'Weekly plan deactivated');
+                return;
+            }
+
+            await deactivateActiveDiet(user.id);
+            await refetchActiveDiet();
+            posthog.capture('diet_plan_deactivated', { plan_kind: 'template' });
+            showToast('info', 'Template deactivated');
+        } catch {
+            showToast('error', 'Failed to deactivate plan');
+        }
+    };
+
+    const handleEditActivePlan = () => {
+        if (!activePlan) {
+            router.push('/(modals)/create-weekly-plan');
+            return;
+        }
+
+        if (activePlan.source === 'weekly') {
+            router.push({
+                pathname: '/(modals)/create-weekly-plan',
+                params: { planId: activePlan.id },
+            } as any);
+            return;
+        }
+
+        openPrefilledWeeklyPlan({
+            name: activePlan.name,
+            calories: activePlan.dailyCalories,
+            protein: activePlan.macros.protein,
+            carbs: activePlan.macros.carbs,
+            fats: activePlan.macros.fats,
+        });
     };
 
     return (
@@ -356,19 +548,25 @@ export default function PlansScreen() {
                     ) : (
                         <>
                             <ActivePlanHero
-                                plan={activeDiet}
-                                onEdit={() => router.push('/(modals)/create-weekly-plan')}
+                                plan={activePlan}
+                                onEdit={handleEditActivePlan}
                                 onDeactivate={() => {
-                                    Alert.alert('Deactivate plan', 'Do you want to deactivate your current plan?', [
+                                    if (!activePlan) return;
+                                    const planKind = activePlan.source === 'weekly' ? 'weekly plan' : 'template';
+
+                                    Alert.alert('Deactivate plan', `Do you want to deactivate this ${planKind}?`, [
                                         { text: 'Cancel', style: 'cancel' },
                                         {
                                             text: 'Deactivate',
                                             style: 'destructive',
-                                            onPress: () => showToast('info', 'Plan deactivated'),
+                                            onPress: () => {
+                                                deactivateCurrentPlan().catch(() => undefined);
+                                            },
                                         },
                                     ]);
                                 }}
                                 onCreatePlan={() => router.push('/(modals)/create-weekly-plan')}
+                                onManagePlans={() => router.push('/(modals)/weekly-plans')}
                             />
 
                             {topAdaptation ? (
@@ -416,54 +614,48 @@ export default function PlansScreen() {
                                 </View>
                             ) : null}
 
-                            {!activeDiet ? (
-                                <EmptyState
-                                    illustration={<NoPlanIllustration />}
-                                    title="No active plan"
-                                    message="Activate a recommended template or create a weekly plan to unlock advanced meal and prep intelligence."
-                                    actionLabel="Create Plan"
-                                    onAction={() => router.push('/(modals)/create-weekly-plan')}
-                                />
-                            ) : null}
-
-                            <PlanFeaturesTabs
-                                activeTab={activeTab}
-                                onTabChange={(tab) => setActiveTab(tab as TabType)}
-                            />
-
-                            {activeTab === 'Meals' ? (
-                                <Animated.View entering={FadeIn.duration(240)}>
-                                    <PlannedMealsTab
-                                        plannedMeals={plannedMeals}
-                                        onFoodPress={(foodName) => {
-                                            showToast('info', `${foodName} is ready to prefill add-meal`);
-                                        }}
+                            {hasActivePlan ? (
+                                <>
+                                    <PlanFeaturesTabs
+                                        activeTab={activeTab}
+                                        onTabChange={(tab) => setActiveTab(tab as TabType)}
                                     />
-                                </Animated.View>
-                            ) : null}
 
-                            {activeTab === 'Carb Cycle' ? (
-                                <Animated.View entering={FadeIn.duration(240)}>
-                                    <CarbCycleTab cycle={cycle} today={today} />
-                                </Animated.View>
-                            ) : null}
+                                    {activeTab === 'Meals' ? (
+                                        <Animated.View entering={FadeIn.duration(240)}>
+                                            <PlannedMealsTab
+                                                plannedMeals={plannedMeals}
+                                                onFoodPress={(foodName) => {
+                                                    showToast('info', `${foodName} is ready to prefill add-meal`);
+                                                }}
+                                            />
+                                        </Animated.View>
+                                    ) : null}
 
-                            {activeTab === 'Prep' ? (
-                                <Animated.View entering={FadeIn.duration(240)}>
-                                    <PrepTab
-                                        ingredients={ingredients}
-                                        prepTime={prepTimeEstimate}
-                                        onToggleIngredient={(index) => {
-                                            const ingredient = ingredients[index];
-                                            if (!ingredient) return;
+                                    {activeTab === 'Carb Cycle' ? (
+                                        <Animated.View entering={FadeIn.duration(240)}>
+                                            <CarbCycleTab cycle={cycle} today={today} todayTarget={todayCycleTarget} />
+                                        </Animated.View>
+                                    ) : null}
 
-                                            setIngredientChecks((prev) => ({
-                                                ...prev,
-                                                [ingredient.name]: !prev[ingredient.name],
-                                            }));
-                                        }}
-                                    />
-                                </Animated.View>
+                                    {activeTab === 'Prep' ? (
+                                        <Animated.View entering={FadeIn.duration(240)}>
+                                            <PrepTab
+                                                ingredients={ingredients}
+                                                prepTime={prepTimeEstimate}
+                                                onToggleIngredient={(index) => {
+                                                    const ingredient = ingredients[index];
+                                                    if (!ingredient) return;
+
+                                                    setIngredientChecks((prev) => ({
+                                                        ...prev,
+                                                        [ingredient.name]: !prev[ingredient.name],
+                                                    }));
+                                                }}
+                                            />
+                                        </Animated.View>
+                                    ) : null}
+                                </>
                             ) : null}
 
                             <TemplateLibrary
@@ -478,14 +670,28 @@ export default function PlansScreen() {
                                         [
                                             {
                                                 text: 'Activate',
-                                                onPress: () => activateTemplate(template.id, template.name),
+                                                onPress: () => {
+                                                    activateTemplate(template.id, template.name).catch(() => undefined);
+                                                },
+                                            },
+                                            {
+                                                text: 'Customize',
+                                                onPress: () => {
+                                                    openPrefilledWeeklyPlan({
+                                                        name: template.name,
+                                                        calories: template.calorieTarget,
+                                                        protein: template.proteinTarget,
+                                                        carbs: template.carbsTarget,
+                                                        fats: template.fatsTarget,
+                                                    });
+                                                },
                                             },
                                             { text: 'Close', style: 'cancel' },
                                         ],
                                     );
                                 }}
                                 onTemplateLongPress={(template) => {
-                                    activateTemplate(template.id, template.name);
+                                    activateTemplate(template.id, template.name).catch(() => undefined);
                                 }}
                             />
                         </>

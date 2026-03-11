@@ -1,11 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text } from 'react-native';
+import React from 'react';
+import { View, Text, ScrollView } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { format } from 'date-fns';
-import { useWaterStore } from '../../store/waterStore';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
-import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 import WaterFill from '../../components/water/WaterFill';
 import WaterQuickAdd from '../../components/water/WaterQuickAdd';
 import WaterCustomInput from '../../components/water/WaterCustomInput';
@@ -14,110 +11,76 @@ import WaterHistory from '../../components/water/WaterHistory';
 import WaterReminderToggle from '../../components/water/WaterReminderToggle';
 import { triggerHaptic } from '../../utils/haptics';
 import { EmptyGlassIllustration } from '../../components/illustrations/EmptyStateIllustrations';
-import { storage } from '../../utils/storage-adapter';
-
-const WATER_REMINDER_STORAGE_KEY = 'water_reminders_enabled';
-
-type LastAdded = {
-    id: string;
-    amount: number;
-};
+import { useWaterActions } from '../../hooks/useWaterActions';
+import { Droplets } from 'lucide-react-native';
 
 export default function WaterScreen() {
-    const { todaysLogs, totalConsumed, targetAmount, percentage, addWaterLog, deleteWaterLog, loadTodaysWater } =
-        useWaterStore();
-
-    const [undoVisible, setUndoVisible] = useState(false);
-    const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
-    const [remindersEnabled, setRemindersEnabled] = useState(false);
-
-    useEffect(() => {
-        loadTodaysWater().catch(() => undefined);
-    }, [loadTodaysWater]);
-
-    useEffect(() => {
-        storage
-            .getItem(WATER_REMINDER_STORAGE_KEY)
-            .then((storedValue) => {
-                if (storedValue === 'true') {
-                    setRemindersEnabled(true);
-                }
-            })
-            .catch(() => undefined);
-    }, []);
-
-    useEffect(() => {
-        storage.setItem(WATER_REMINDER_STORAGE_KEY, remindersEnabled ? 'true' : 'false').catch(() => undefined);
-    }, [remindersEnabled]);
-
-    const addWater = async (amount: number) => {
-        const prevLatestId = todaysLogs[0]?.id;
-        await addWaterLog(amount, 'custom');
-        await loadTodaysWater();
-
-        const nextLatest = useWaterStore.getState().todaysLogs[0];
-        if (nextLatest && nextLatest.id !== prevLatestId) {
-            setLastAdded({ id: nextLatest.id, amount: nextLatest.amount });
-            setUndoVisible(true);
-        }
-    };
-
-    const handleUndo = async () => {
-        if (!lastAdded) return;
-        await deleteWaterLog(lastAdded.id);
-        await loadTodaysWater();
-        setUndoVisible(false);
-        setLastAdded(null);
-    };
-
-    const entries = useMemo(
-        () =>
-            todaysLogs.map((log) => ({
-                id: log.id,
-                time: format(new Date(log.loggedAt), 'HH:mm'),
-                amount: log.amount,
-            })),
-        [todaysLogs],
-    );
+    const {
+        totalConsumed,
+        targetAmount,
+        percentage,
+        remindersEnabled,
+        entries,
+        undoVisible,
+        addWater,
+        handleUndo,
+        clearUndo,
+        setRemindersEnabled,
+    } = useWaterActions();
 
     return (
         <ScreenErrorBoundary screenName="water">
-            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <CollapsibleHeaderScrollView
-                    header={
-                        <View>
-                            <Text style={{ fontSize: 28, fontWeight: '800', color: '#0f172a' }}>Hydration</Text>
-                            <Text style={{ marginTop: 4, color: '#64748b' }}>
-                                Engaging water tracking with quick rituals
-                            </Text>
-                        </View>
-                    }
-                    headerHeight={120}
-                    contentContainerStyle={{ paddingHorizontal: 16 }}
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }} edges={['top']}>
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 40 }}
+                    showsVerticalScrollIndicator={false}
                 >
+                    {/* Header */}
+                    <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <Droplets size={26} color="#10b748" />
+                            <Text style={{ fontSize: 26, fontWeight: '800', color: '#f8fafc' }}>Hydration</Text>
+                        </View>
+                        <Text style={{ marginTop: 4, color: '#94a3b8', fontSize: 14 }}>
+                            Track your daily water intake
+                        </Text>
+                    </View>
+
+                    {/* Circular Progress */}
+                    <View style={{ alignItems: 'center', paddingVertical: 28 }}>
+                        <WaterFill
+                            currentAmount={totalConsumed}
+                            goalAmount={targetAmount}
+                            width={220}
+                            height={220}
+                        />
+                        <Text style={{ marginTop: 16, color: '#94a3b8', fontSize: 14 }}>
+                            Daily Goal:{' '}
+                            <Text style={{ color: '#10b748', fontWeight: '700' }}>
+                                {Math.round(percentage)}%
+                            </Text>
+                        </Text>
+                    </View>
+
+                    {/* Action Card */}
                     <View
                         style={{
-                            borderRadius: 20,
+                            marginHorizontal: 16,
+                            borderRadius: 16,
+                            backgroundColor: '#1e293b',
                             borderWidth: 1,
-                            borderColor: '#dbeafe',
-                            backgroundColor: '#f0fdfa',
-                            padding: 14,
+                            borderColor: '#334155',
+                            padding: 16,
+                            gap: 0,
                         }}
                     >
-                        <WaterFill currentAmount={totalConsumed} goalAmount={targetAmount} width={320} height={240} />
-
-                        <Text style={{ marginTop: 10, color: '#0f172a', fontWeight: '700' }}>
-                            {Math.round(totalConsumed)} / {Math.round(targetAmount)} ml · {Math.round(percentage)}%
-                        </Text>
-
-                        <View style={{ marginTop: 12 }}>
-                            <WaterQuickAdd
-                                onAdd={(amount) => {
-                                    triggerHaptic('light').catch(() => undefined);
-                                    addWater(amount).catch(() => undefined);
-                                }}
-                            />
-                        </View>
+                        <WaterQuickAdd
+                            onAdd={(amount) => {
+                                triggerHaptic('light').catch(() => undefined);
+                                addWater(amount).catch(() => undefined);
+                            }}
+                        />
 
                         <WaterCustomInput
                             onSubmit={(amount) => {
@@ -132,24 +95,34 @@ export default function WaterScreen() {
                                 handleUndo().catch(() => undefined);
                             }}
                             onExpire={() => {
-                                setUndoVisible(false);
-                                setLastAdded(null);
+                                clearUndo();
                             }}
                         />
                     </View>
 
-                    <WaterReminderToggle enabled={remindersEnabled} onToggle={setRemindersEnabled} />
-
-                    {entries.length === 0 ? (
-                        <EmptyState
-                            illustration={<EmptyGlassIllustration />}
-                            title="Fresh hydration start"
-                            message="Log your first glass to build today's hydration timeline."
+                    {/* Reminder Toggle */}
+                    <View style={{ marginHorizontal: 16 }}>
+                        <WaterReminderToggle
+                            enabled={remindersEnabled}
+                            onToggle={(enabled) => {
+                                setRemindersEnabled(enabled).catch(() => undefined);
+                            }}
                         />
-                    ) : (
-                        <WaterHistory entries={entries} />
-                    )}
-                </CollapsibleHeaderScrollView>
+                    </View>
+
+                    {/* History */}
+                    <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+                        {entries.length === 0 ? (
+                            <EmptyState
+                                illustration={<EmptyGlassIllustration />}
+                                title="Fresh hydration start"
+                                message="Log your first glass to build today's hydration timeline."
+                            />
+                        ) : (
+                            <WaterHistory entries={entries} />
+                        )}
+                    </View>
+                </ScrollView>
             </SafeAreaView>
         </ScreenErrorBoundary>
     );

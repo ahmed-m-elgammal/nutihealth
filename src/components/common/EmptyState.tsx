@@ -21,6 +21,7 @@ export default function EmptyState({
 }: EmptyStateProps) {
     const colors = useColors();
     const isError = variant === 'error';
+    const errorColor = colors.brand.semantic.error;
 
     return (
         <View className="flex-1 items-center justify-center px-8 py-10">
@@ -29,7 +30,7 @@ export default function EmptyState({
             </View>
             <Text
                 className="mt-4 text-center text-2xl font-semibold"
-                style={{ color: isError ? '#dc2626' : colors.text.primary }}
+                style={{ color: isError ? errorColor : colors.text.primary }}
             >
                 {title}
             </Text>
@@ -41,7 +42,7 @@ export default function EmptyState({
                     onPress={onAction}
                     android_ripple={{ color: 'rgba(255,255,255,0.25)' }}
                     className="mt-6 rounded-xl px-5 py-3"
-                    style={{ backgroundColor: isError ? '#dc2626' : (colors.brand.primary[500] as string) }}
+                    style={{ backgroundColor: isError ? errorColor : (colors.brand.primary[500] as string) }}
                 >
                     <Text className="font-semibold text-white">{actionLabel}</Text>
                 </Pressable>

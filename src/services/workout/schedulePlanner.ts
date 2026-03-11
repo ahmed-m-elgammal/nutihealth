@@ -34,7 +34,40 @@ export const DEFAULT_WORKOUT_SCHEDULE_PREFERENCES: WorkoutSchedulePreferences = 
     restDays: [],
 };
 
+type WorkoutDayIntensity = 'light' | 'moderate' | 'heavy';
+
 const normalizeDay = (day: string): string => day.trim().toLowerCase();
+
+function mapWorkoutTypeToIntensity(workoutType?: string): WorkoutDayIntensity {
+    const normalized = String(workoutType || '')
+        .trim()
+        .toLowerCase();
+
+    if (!normalized) {
+        return 'light';
+    }
+
+    if (
+        normalized.includes('hiit') ||
+        normalized.includes('strength') ||
+        normalized.includes('power') ||
+        normalized.includes('crossfit') ||
+        normalized.includes('metcon')
+    ) {
+        return 'heavy';
+    }
+
+    if (
+        normalized.includes('cardio') ||
+        normalized.includes('conditioning') ||
+        normalized.includes('hypertrophy') ||
+        normalized.includes('full body')
+    ) {
+        return 'moderate';
+    }
+
+    return 'light';
+}
 
 const toWeekDayName = (value?: string | null): WeekDayName | null => {
     if (!value) {
@@ -143,6 +176,7 @@ export async function applyTemplateScheduleForUser({
     preferences,
 }: ApplyTemplateScheduleParams): Promise<ApplyTemplateScheduleResult> {
     const orderedUniqueTemplateIds = Array.from(new Set(templates.map((template) => template.id).filter(Boolean)));
+    const templateById = new Map(templates.map((template) => [template.id, template]));
 
     const storedPreferences = getSchedulePreferencesFromUser(user.workoutPreferences);
     const mergedPreferences = sanitizeSchedulePreferences({
@@ -160,9 +194,11 @@ export async function applyTemplateScheduleForUser({
         const deleteOperations = existingSchedules.map((schedule) => schedule.prepareDestroyPermanently());
         const createOperations = mapped.assignments.map((assignment) =>
             schedulesCollection.prepareCreate((record) => {
+                const template = templateById.get(assignment.templateId);
                 record.userId = user.id;
                 record.templateId = assignment.templateId;
                 record.dayOfWeek = assignment.dayOfWeek;
+                record.intensity = mapWorkoutTypeToIntensity(template?.workoutType);
             }),
         );
 

@@ -1,100 +1,97 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import { useSyncStore } from '../store/syncStore';
 import { config } from '../constants/config';
-import syncService from '../services/api/sync';
+import syncService, { type SyncResult } from '../services/api/sync';
 
 /**
- * Hook for managing sync state and operations
- * @returns Sync utilities
+ * Hook for sync status + resilient reconnect behavior.
  */
 export function useSync() {
     const isSyncing = useSyncStore((state) => state.isSyncing);
     const lastSyncTime = useSyncStore((state) => state.lastSyncTime);
     const syncError = useSyncStore((state) => state.syncError);
-    const startSync = useSyncStore((state) => state.startSync);
-    const completeSync = useSyncStore((state) => state.completeSync);
-    const failSync = useSyncStore((state) => state.failSync);
+    const [isOnline, setIsOnline] = useState(true);
+    const wasOnlineRef = useRef(true);
+    const bootstrappedSyncRef = useRef(false);
 
-    /**
-     * Check if sync is enabled in config
-     */
     const isSyncEnabled = config.features.enableSync;
 
-    /**
-     * Trigger a manual sync
-     */
-    const triggerSync = async () => {
+    const triggerSync = useCallback(async (): Promise<SyncResult | null> => {
+        if (!isSyncEnabled || isSyncing || !isOnline) {
+            return null;
+        }
+
+        return await syncService.performSync();
+    }, [isOnline, isSyncEnabled, isSyncing]);
+
+    const getTimeSinceLastSync = useCallback((): number | null => {
+        if (!lastSyncTime) return null;
+        return Math.floor((Date.now() - lastSyncTime) / 60000);
+    }, [lastSyncTime]);
+
+    const isSyncNeeded = useCallback((): boolean => {
+        const timeSinceSync = getTimeSinceLastSync();
+        if (timeSinceSync === null) return true;
+        return timeSinceSync >= config.sync.intervalMinutes;
+    }, [getTimeSinceLastSync]);
+
+    useEffect(() => {
         if (!isSyncEnabled) {
-            console.warn('Sync is not enabled in configuration');
             return;
         }
 
-        if (isSyncing) {
-            console.warn('Sync is already in progress');
-            return;
-        }
+        const unsubscribe = NetInfo.addEventListener((state) => {
+            const onlineNow = Boolean(state.isConnected && state.isInternetReachable !== false);
+            setIsOnline(onlineNow);
 
-        try {
-            startSync();
-
-            const result = await syncService.performSync();
-            if (!result.success || result.failedItems > 0) {
-                throw new Error(`Sync completed with ${result.failedItems} failed item(s).`);
+            if (!wasOnlineRef.current && onlineNow && isSyncNeeded()) {
+                triggerSync().catch(() => undefined);
             }
 
-            completeSync();
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Sync failed';
-            failSync(errorMessage);
+            wasOnlineRef.current = onlineNow;
+        });
+
+        return unsubscribe;
+    }, [isSyncEnabled, isSyncNeeded, triggerSync]);
+
+    useEffect(() => {
+        if (!isSyncEnabled || !isOnline || bootstrappedSyncRef.current) {
+            return;
         }
-    };
 
-    /**
-     * Get time since last sync in minutes
-     */
-    const getTimeSinceLastSync = (): number | null => {
-        if (!lastSyncTime) return null;
-        return Math.floor((Date.now() - lastSyncTime) / 60000); // Convert to minutes
-    };
+        bootstrappedSyncRef.current = true;
+        if (isSyncNeeded()) {
+            triggerSync().catch(() => undefined);
+        }
+    }, [isOnline, isSyncEnabled, isSyncNeeded, triggerSync]);
 
-    /**
-     * Check if sync is needed based on interval
-     */
-    const isSyncNeeded = (): boolean => {
-        const timeSinceSync = getTimeSinceLastSync();
-        if (timeSinceSync === null) return true; // Never synced
-        return timeSinceSync >= config.sync.intervalMinutes;
-    };
-
-    /**
-     * Get human-readable sync status
-     */
-    const getSyncStatus = (): string => {
+    const syncStatus = useMemo(() => {
         if (!isSyncEnabled) return 'Sync disabled';
+        if (!isOnline) return 'Offline';
         if (isSyncing) return 'Syncing...';
         if (syncError) return `Sync error: ${syncError}`;
         if (!lastSyncTime) return 'Never synced';
 
-        const timeSince = getTimeSinceLastSync();
-        if (timeSince === null) return 'Unknown';
-        if (timeSince < 1) return 'Just now';
-        if (timeSince < 60) return `${timeSince}m ago`;
+        const minutes = getTimeSinceLastSync();
+        if (minutes === null || minutes < 1) return 'Just now';
+        if (minutes < 60) return `${minutes}m ago`;
 
-        const hours = Math.floor(timeSince / 60);
+        const hours = Math.floor(minutes / 60);
         if (hours < 24) return `${hours}h ago`;
-
-        const days = Math.floor(hours / 24);
-        return `${days}d ago`;
-    };
+        return `${Math.floor(hours / 24)}d ago`;
+    }, [getTimeSinceLastSync, isOnline, isSyncEnabled, isSyncing, lastSyncTime, syncError]);
 
     return {
+        isOnline,
         isSyncing,
         isSyncEnabled,
         lastSyncTime,
         syncError,
+        syncStatus,
         triggerSync,
         getTimeSinceLastSync,
         isSyncNeeded,
-        getSyncStatus,
     };
 }
 

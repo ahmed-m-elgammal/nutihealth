@@ -4,6 +4,7 @@
     "slug": "nutrihealth",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
+    "newArchEnabled": true,
     "orientation": "portrait",
     "scheme": "nutrihealth",
     "icon": "./assets/icon.png",
@@ -14,7 +15,7 @@
       "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
-      "**/*"
+      "assets/**"
     ],
     "ios": {
       "supportsTablet": false,
@@ -26,25 +27,56 @@
       }
     },
     "android": {
+      "icon": "./assets/icon.png",
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.nutrihealth.app",
+      "versionCode": 1,
+      "allowBackup": false,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION",
-        "ACTIVITY_RECOGNITION",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_AUDIO",
         "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "nutrihealth.app",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.nutrihealth.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {
@@ -54,16 +86,16 @@
     "plugins": [
       "expo-router",
       [
-        "expo-camera",
+        "@morrowdigital/watermelondb-expo-plugin",
         {
-          "cameraPermission": "Allow NutriHealth to access your camera to scan barcodes and take food photos."
+          "disableJsi": true
         }
       ],
       [
-        "expo-media-library",
+        "expo-camera",
         {
-          "photosPermission": "Allow NutriHealth to access your photo library.",
-          "savePhotosPermission": "Allow NutriHealth to save photos to your library."
+          "cameraPermission": "Allow NutriHealth to access your camera to scan barcodes and take food photos.",
+          "recordAudioAndroid": false
         }
       ],
       [
@@ -71,6 +103,20 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#22c55e"
+        }
+      ],
+      "expo-localization",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a",
+              "x86",
+              "x86_64"
+            ]
+          }
         }
       ]
     ],

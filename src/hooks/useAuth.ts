@@ -1,5 +1,5 @@
 import { getAuthToken, getUserId, clearAuthData } from '../utils/storage';
-
+import { supabase } from '../services/supabaseClient';
 
 /**
  * Hook for managing authentication state
@@ -34,8 +34,21 @@ export function useAuth() {
      */
     const logout = async () => {
         try {
+            // Invalidate the server-side session when possible.
+            // If offline/unreachable, continue with local logout.
+            if (supabase) {
+                try {
+                    const { error } = await supabase.auth.signOut({ scope: 'global' });
+                    if (error) {
+                        console.warn('Supabase signOut failed, continuing with local logout:', error.message);
+                    }
+                } catch (error) {
+                    console.warn('Supabase signOut failed, continuing with local logout:', error);
+                }
+            }
+
             // Clear auth storage
-            clearAuthData();
+            await clearAuthData();
 
             // Clear user store
             // Note: Implementing a reset function in userStore would be ideal
@@ -44,11 +57,8 @@ export function useAuth() {
             // - Clear WatermelonDB database
             // - Navigate to login screen
             // - Cancel any pending API requests
-
-            console.log('User logged out successfully');
         } catch (error) {
             console.error('Logout error:', error);
-            throw error;
         }
     };
 

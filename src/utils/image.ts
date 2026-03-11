@@ -6,8 +6,9 @@
  */
 export const formatImageForAI = (base64: string | null | undefined): string | null => {
     if (!base64) return null;
-    // If it already has the prefix, we might want to keep it or strip it depending on API.
-    // Hugging Face Inference API via JSON usually expects the base64 string directly in 'inputs'.
-    // Some implementations prefer data URI. We'll start with raw base64.
-    return base64.replace(/^data:image\/\w+;base64,/, "");
+    // The local backend proxy expects the data URI prefix
+    if (base64.startsWith('data:image')) {
+        return base64;
+    }
+    return `data:image/jpeg;base64,${base64}`;
 };

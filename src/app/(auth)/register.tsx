@@ -2,12 +2,17 @@ import React from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signup } from '../../services/api/auth';
+import { useToast } from '../../hooks/useToast';
+import { usePostHog } from 'posthog-react-native';
 
 export default function RegisterScreen() {
     const router = useRouter();
+    const { error: showErrorToast, success: showSuccessToast } = useToast();
+    const posthog = usePostHog();
     const [name, setName] = React.useState('');
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
+    const [confirmPassword, setConfirmPassword] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
@@ -17,22 +22,54 @@ export default function RegisterScreen() {
         }
 
         setErrorMessage(null);
+
+        const trimmedName = name.trim();
+        const trimmedEmail = email.trim();
+        if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
+            const message = 'Name, email, password, and confirmation are required.';
+            setErrorMessage(message);
+            showErrorToast(message);
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            const message = 'Passwords do not match.';
+            setErrorMessage(message);
+            showErrorToast(message);
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
             const response = await signup({
-                name,
-                email,
+                name: trimmedName,
+                email: trimmedEmail,
                 password,
-                confirmPassword: password,
+                confirmPassword,
             });
 
             if (!response.success) {
-                setErrorMessage(response.error?.message || 'Unable to create account.');
+                const message = response.error?.message || 'Unable to create account.';
+                setErrorMessage(message);
+                showErrorToast(message);
                 return;
             }
 
+            const userId = response.data?.user.id;
+            if (userId) {
+                posthog.identify(userId, {
+                    $set: { email: trimmedEmail, name: trimmedName },
+                    $set_once: { signup_date: new Date().toISOString() },
+                });
+            }
+            posthog.capture('user_signed_up', { method: 'email' });
+            showSuccessToast('Account created successfully.');
             router.replace('/onboarding/welcome');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unable to create account.';
+            setErrorMessage(message);
+            showErrorToast(message);
         } finally {
             setIsSubmitting(false);
         }
@@ -62,9 +99,16 @@ export default function RegisterScreen() {
                 <TextInput
                     placeholder="Password"
                     secureTextEntry
-                    className="mb-6 rounded-xl bg-gray-100 p-4 text-gray-900"
+                    className="mb-4 rounded-xl bg-gray-100 p-4 text-gray-900"
                     value={password}
                     onChangeText={setPassword}
+                />
+                <TextInput
+                    placeholder="Confirm Password"
+                    secureTextEntry
+                    className="mb-6 rounded-xl bg-gray-100 p-4 text-gray-900"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
                 />
 
                 <TouchableOpacity

@@ -1,12 +1,12 @@
 import React from 'react';
 import {
     ActivityIndicator,
-    Image,
     Pressable,
     ScrollView,
     Text,
     View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import CalorieCircle from '../charts/CalorieCircle';
 import { RecipeIngredient, ImportedRecipe, RecipeTotals } from '../../utils/recipeParser';
@@ -73,7 +73,9 @@ export function RecipePreviewCard({
                     <Image
                         source={{ uri: recipe.imageUrl }}
                         style={{ width: '100%', height: 200, backgroundColor: '#f5f5f5' }}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={200}
                     />
                 ) : (
                     <View className="h-52 bg-neutral-100 items-center justify-center">
@@ -203,11 +205,10 @@ export function RecipePreviewCard({
                         <Pressable
                             key={type}
                             onPress={() => onSetMealType(type)}
-                            className={`px-4 py-2 rounded-full border ${
-                                mealType === type
+                            className={`px-4 py-2 rounded-full border ${mealType === type
                                     ? 'bg-primary-500 border-primary-500'
                                     : 'bg-white border-neutral-200'
-                            }`}
+                                }`}
                         >
                             <Text className={`font-semibold ${mealType === type ? 'text-white' : 'text-neutral-700'}`}>
                                 {t(`recipeImport.mealTypes.${type}`)}

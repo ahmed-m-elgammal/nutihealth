@@ -1,12 +1,21 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking } from 'react-native';
+import { ActivityIndicator, Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { X } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
+import { Flashlight, Image as ImageIcon, ScanLine, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getFoodByBarcode, extractNutrition } from '../../services/api/openFoodFacts';
+import { extractNutrition, getFoodByBarcode } from '../../services/api/openFoodFacts';
 
 const SCAN_COOLDOWN_MS = 1500;
+
+const COLORS = {
+    primary: '#10b77f',
+    bgDark: '#10221c',
+    textMain: '#f8fafc',
+    textSecondary: '#94a3b8',
+    border: '#334155',
+};
 
 export default function BarcodeScannerScreen() {
     const router = useRouter();
@@ -14,6 +23,7 @@ export default function BarcodeScannerScreen() {
     const [scanned, setScanned] = useState(false);
     const [loading, setLoading] = useState(false);
     const lastScanTimestampRef = useRef(0);
+
     const resetScanner = useCallback(() => {
         setScanned(false);
         setLoading(false);
@@ -21,8 +31,9 @@ export default function BarcodeScannerScreen() {
 
     if (!permission) {
         return (
-            <View className="flex-1 items-center justify-center bg-black">
-                <ActivityIndicator size="large" color="white" />
+            <View style={styles.permissionRoot}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.permissionSubtitle}>Preparing camera...</Text>
             </View>
         );
     }
@@ -31,36 +42,31 @@ export default function BarcodeScannerScreen() {
         const canAskAgain = permission.canAskAgain;
 
         return (
-            <View className="flex-1 items-center justify-center bg-white p-4">
-                <Text className="mb-2 text-center text-lg font-semibold text-neutral-900">
-                    Camera permission needed
-                </Text>
-                <Text className="mb-6 text-center text-neutral-600">Barcode scanning requires camera access.</Text>
+            <View style={styles.permissionRoot}>
+                <Text style={styles.permissionTitle}>Camera permission needed</Text>
+                <Text style={styles.permissionSubtitle}>Barcode scanning requires camera access.</Text>
 
                 {canAskAgain ? (
-                    <TouchableOpacity onPress={requestPermission} className="rounded-lg bg-blue-500 px-4 py-3">
-                        <Text className="font-semibold text-white">Grant Permission</Text>
+                    <TouchableOpacity onPress={requestPermission} style={styles.primaryButton}>
+                        <Text style={styles.primaryButtonText}>Grant Permission</Text>
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
                         onPress={() => {
                             Linking.openSettings().catch(() => undefined);
                         }}
-                        className="rounded-lg bg-blue-500 px-4 py-3"
+                        style={styles.primaryButton}
                     >
-                        <Text className="font-semibold text-white">Open Settings</Text>
+                        <Text style={styles.primaryButtonText}>Open Settings</Text>
                     </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
-                    onPress={() => router.replace('/(modals)/food-search')}
-                    className="mt-4 rounded-lg bg-neutral-100 px-4 py-3"
-                >
-                    <Text className="font-semibold text-neutral-700">Enter Food Manually</Text>
+                <TouchableOpacity onPress={() => router.replace('/(modals)/food-search')} style={styles.ghostButton}>
+                    <Text style={styles.ghostButtonText}>Manual Search</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => router.back()} className="mt-4">
-                    <Text className="text-gray-500">Cancel</Text>
+                <TouchableOpacity onPress={() => router.back()} style={styles.cancelButton}>
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -127,34 +133,297 @@ export default function BarcodeScannerScreen() {
     };
 
     return (
-        <View className="flex-1 bg-black">
+        <View style={styles.screenRoot}>
             <CameraView
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
                 onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
             />
-            <SafeAreaView className="flex-1">
-                <TouchableOpacity onPress={() => router.back()} className="m-4 self-start rounded-full bg-black/50 p-2">
-                    <X color="white" size={24} />
-                </TouchableOpacity>
-                <View className="flex-1 items-center justify-center">
-                    <View className="relative h-64 w-64 rounded-xl border-2 border-white/50">
-                        {loading && (
-                            <View className="absolute inset-0 items-center justify-center rounded-xl bg-black/60">
-                                <ActivityIndicator size="large" color="white" />
-                                <Text className="mt-2 font-medium text-white">Fetching details...</Text>
-                            </View>
-                        )}
-                    </View>
-                    <Text className="mt-4 rounded-full bg-black/50 px-4 py-1 font-bold text-white">Scan a barcode</Text>
-                    <TouchableOpacity
-                        onPress={() => router.replace('/(modals)/food-search')}
-                        className="mt-4 rounded-full bg-white/90 px-4 py-2"
-                    >
-                        <Text className="font-semibold text-neutral-900">Manual Search</Text>
+
+            <SafeAreaView style={StyleSheet.absoluteFillObject}>
+                <BlurView intensity={24} tint="dark" style={styles.topBar}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.closeIconButton}>
+                        <X color={COLORS.textMain} size={20} />
                     </TouchableOpacity>
+                    <Text style={styles.topBarTitle}>Scan Barcode</Text>
+                    <View style={styles.topBarSpacer} />
+                </BlurView>
+
+                <View style={styles.scanAreaWrap}>
+                    <View style={styles.scanWindow}>
+                        <View style={[styles.corner, styles.cornerTopLeft]} />
+                        <View style={[styles.corner, styles.cornerTopRight]} />
+                        <View style={[styles.corner, styles.cornerBottomLeft]} />
+                        <View style={[styles.corner, styles.cornerBottomRight]} />
+                        <View style={styles.scanLine} />
+
+                        {loading ? (
+                            <View style={styles.loadingOverlay}>
+                                <ActivityIndicator size="large" color={COLORS.primary} />
+                                <Text style={styles.loadingText}>Fetching details...</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </View>
+
+                <View style={styles.bottomPanelWrap}>
+                    <BlurView intensity={32} tint="dark" style={styles.bottomPanel}>
+                        <Text style={styles.bottomTitle}>Point camera at a barcode</Text>
+                        <Text style={styles.bottomSubtitle}>Align the code within the frame to scan</Text>
+
+                        <View style={styles.controlsRow}>
+                            <TouchableOpacity style={styles.iconControl} onPress={() => undefined}>
+                                <ImageIcon color={COLORS.textMain} size={20} />
+                            </TouchableOpacity>
+                            <View style={styles.scanButtonCenter}>
+                                <ScanLine color={COLORS.primary} size={34} />
+                            </View>
+                            <TouchableOpacity style={styles.iconControl} onPress={() => undefined}>
+                                <Flashlight color={COLORS.textMain} size={20} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={() => router.replace('/(modals)/food-search')}
+                            style={styles.manualSearchButton}
+                        >
+                            <Text style={styles.manualSearchText}>Manual Search</Text>
+                        </TouchableOpacity>
+                    </BlurView>
                 </View>
             </SafeAreaView>
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    screenRoot: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    permissionRoot: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.bgDark,
+        padding: 20,
+    },
+    permissionTitle: {
+        marginBottom: 8,
+        textAlign: 'center',
+        fontSize: 20,
+        fontWeight: '700',
+        color: COLORS.textMain,
+    },
+    permissionSubtitle: {
+        marginBottom: 18,
+        textAlign: 'center',
+        color: COLORS.textSecondary,
+    },
+    primaryButton: {
+        borderRadius: 12,
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.32,
+        shadowRadius: 14,
+        elevation: 8,
+    },
+    primaryButtonText: {
+        color: COLORS.bgDark,
+        fontWeight: '800',
+    },
+    ghostButton: {
+        marginTop: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: 'rgba(30,41,59,0.9)',
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+    },
+    ghostButtonText: {
+        color: COLORS.textMain,
+        fontWeight: '700',
+    },
+    cancelButton: {
+        marginTop: 10,
+    },
+    cancelButtonText: {
+        color: COLORS.textSecondary,
+        fontWeight: '600',
+    },
+    topBar: {
+        marginHorizontal: 16,
+        marginTop: 4,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(248,250,252,0.12)',
+        backgroundColor: 'rgba(16,34,28,0.4)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    closeIconButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(16,34,28,0.55)',
+    },
+    topBarTitle: {
+        color: COLORS.textMain,
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    topBarSpacer: {
+        width: 36,
+        height: 36,
+    },
+    scanAreaWrap: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    scanWindow: {
+        width: 270,
+        height: 270,
+        position: 'relative',
+    },
+    corner: {
+        position: 'absolute',
+        width: 32,
+        height: 32,
+        borderColor: COLORS.primary,
+        shadowColor: COLORS.primary,
+        shadowOpacity: 0.5,
+        shadowOffset: { width: 0, height: 0 },
+        shadowRadius: 10,
+    },
+    cornerTopLeft: {
+        top: 0,
+        left: 0,
+        borderTopWidth: 4,
+        borderLeftWidth: 4,
+        borderTopLeftRadius: 10,
+    },
+    cornerTopRight: {
+        top: 0,
+        right: 0,
+        borderTopWidth: 4,
+        borderRightWidth: 4,
+        borderTopRightRadius: 10,
+    },
+    cornerBottomLeft: {
+        bottom: 0,
+        left: 0,
+        borderBottomWidth: 4,
+        borderLeftWidth: 4,
+        borderBottomLeftRadius: 10,
+    },
+    cornerBottomRight: {
+        bottom: 0,
+        right: 0,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
+        borderBottomRightRadius: 10,
+    },
+    scanLine: {
+        position: 'absolute',
+        top: '50%',
+        left: 0,
+        right: 0,
+        height: 1,
+        backgroundColor: 'rgba(16,183,127,0.5)',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 12,
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: 14,
+        backgroundColor: 'rgba(16,34,28,0.72)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    loadingText: {
+        marginTop: 8,
+        color: COLORS.textMain,
+        fontWeight: '600',
+    },
+    bottomPanelWrap: {
+        paddingHorizontal: 16,
+        paddingBottom: 24,
+    },
+    bottomPanel: {
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(51,65,85,0.8)',
+        backgroundColor: 'rgba(16,34,28,0.8)',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        alignItems: 'center',
+    },
+    bottomTitle: {
+        color: COLORS.textMain,
+        fontSize: 17,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    bottomSubtitle: {
+        marginTop: 4,
+        color: COLORS.textSecondary,
+        fontSize: 13,
+        textAlign: 'center',
+    },
+    controlsRow: {
+        marginTop: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 20,
+    },
+    iconControl: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(30,41,59,0.85)',
+        borderWidth: 1,
+        borderColor: 'rgba(51,65,85,1)',
+    },
+    scanButtonCenter: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(16,183,127,0.14)',
+        borderWidth: 2,
+        borderColor: COLORS.primary,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 16,
+        elevation: 8,
+    },
+    manualSearchButton: {
+        marginTop: 14,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(16,183,127,0.4)',
+        backgroundColor: 'rgba(16,183,127,0.18)',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+    },
+    manualSearchText: {
+        color: COLORS.textMain,
+        fontWeight: '700',
+    },
+});

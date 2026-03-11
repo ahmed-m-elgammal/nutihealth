@@ -1,0 +1,12 @@
+appId: com.nutrihealth.app
+---
+- launchApp
+- tapOn: "Pantry"
+- tapOn: "Add Ingredient"
+- tapOn: "e.g. Tomato"
+- inputText: "Tomato"
+- tapOn: "1"
+- eraseText
+- inputText: "2"
+- tapOn: "Save"
+- assertVisible: "Tomato"

@@ -3,13 +3,13 @@ import { database } from '../database';
 import { waitForDatabaseReady } from '../database/ready';
 import { handleError } from '../utils/errors';
 import User from '../database/models/User';
-import {
-    calculateNutritionTargets,
-    type ActivityLevel,
-    type Goal,
-} from '../utils/calculations';
-import { clearAuthData } from '../utils/storage';
+import { calculateNutritionTargets, type ActivityLevel, type Goal } from '../utils/nutrition';
+import { getUserId, setUserId } from '../utils/storage';
 import { UserWorkoutProfile } from '../types/workout';
+import { supabase } from '../services/supabaseClient';
+import { deleteAccountAndWipeLocalData } from '../services/accountDeletion';
+import { withOnboardingPreferenceDefaults } from '../constants/onboarding';
+import { logout as logoutUserSession } from '../services/api/auth';
 
 interface UserState {
     user: User | null;
@@ -21,6 +21,7 @@ interface UserState {
     updateUserTargets: () => Promise<void>;
     completeOnboarding: () => Promise<void>;
     logout: () => Promise<void>;
+    deleteAccount: () => Promise<void>;
 }
 
 export interface UserData {
@@ -52,6 +53,16 @@ export interface UserData {
     workoutPreferences?: UserWorkoutProfile;
 }
 
+const findUserById = async (userId: string): Promise<User | null> => {
+    await waitForDatabaseReady();
+    const usersCollection = database.get<User>('users');
+    try {
+        return await usersCollection.find(userId);
+    } catch {
+        return null;
+    }
+};
+
 export const useUserStore = create<UserState>((set, get) => ({
     user: null, // @deprecated - components should observe DB
     isLoading: false,
@@ -60,11 +71,14 @@ export const useUserStore = create<UserState>((set, get) => ({
     loadUser: async () => {
         try {
             set({ isLoading: true, error: null });
-            await waitForDatabaseReady();
-            const usersCollection = database.get<User>('users');
-            const users = await usersCollection.query().fetch();
-            // We still keep a reference for non-reactive needs, but UI should avoid it
-            set({ user: users.length > 0 ? users[0] : null, isLoading: false });
+            const activeUserId = await getUserId();
+            if (!activeUserId) {
+                set({ user: null, isLoading: false });
+                return;
+            }
+
+            const user = await findUserById(activeUserId);
+            set({ user, isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.loadUser');
             set({ error: (error as Error).message, isLoading: false });
@@ -76,14 +90,23 @@ export const useUserStore = create<UserState>((set, get) => ({
         try {
             set({ isLoading: true, error: null });
 
-            const preferences = userData.preferences || {
-                allergies: [],
-                dietary_restrictions: [],
-                theme: 'auto' as const,
-                notifications_enabled: true,
-                language: 'en',
-                needsBodyMetrics: false,
-            };
+            let authenticatedUserId: string | null = null;
+            if (supabase) {
+                try {
+                    const {
+                        data: { user: authenticatedUser },
+                        error: authenticatedUserError,
+                    } = await supabase.auth.getUser();
+
+                    if (!authenticatedUserError && authenticatedUser?.id) {
+                        authenticatedUserId = authenticatedUser.id;
+                    }
+                } catch {
+                    // Non-fatal: local-first fallback still works.
+                }
+            }
+
+            const preferences = withOnboardingPreferenceDefaults(userData.preferences);
 
             const nutrition = calculateNutritionTargets({
                 age: userData.age,
@@ -103,10 +126,43 @@ export const useUserStore = create<UserState>((set, get) => ({
                 compliancePercentage: preferences.compliancePercentage,
             });
 
+            const initialStats = { current_streak: 0, total_workouts: 0, total_meals_logged: 0, achievements: [] };
+            const serializedWorkoutPreferences = userData.workoutPreferences
+                ? JSON.stringify(userData.workoutPreferences)
+                : null;
             let newUser: User;
 
             await database.write(async () => {
                 const usersCollection = database.get<User>('users');
+                if (authenticatedUserId) {
+                    // Use an explicit record id without touching internal _raw fields.
+                    const preparedUser = usersCollection.prepareCreateFromDirtyRaw({
+                        id: authenticatedUserId,
+                        name: userData.name,
+                        email: userData.email,
+                        age: userData.age,
+                        gender: userData.gender,
+                        height: userData.height,
+                        weight: userData.weight,
+                        goal: userData.goal,
+                        activity_level: userData.activityLevel,
+                        target_weight: userData.targetWeight,
+                        bmr: nutrition.bmr,
+                        tdee: nutrition.tdee,
+                        calorie_target: nutrition.calorieTarget,
+                        protein_target: nutrition.macros.protein,
+                        carbs_target: nutrition.macros.carbs,
+                        fats_target: nutrition.macros.fats,
+                        stats: JSON.stringify(initialStats),
+                        preferences: JSON.stringify(preferences),
+                        workout_preferences: serializedWorkoutPreferences,
+                        onboarding_completed: false,
+                    });
+                    await database.batch(preparedUser);
+                    newUser = preparedUser as User;
+                    return;
+                }
+
                 newUser = await usersCollection.create((user) => {
                     user.name = userData.name;
                     user.email = userData.email;
@@ -126,13 +182,14 @@ export const useUserStore = create<UserState>((set, get) => ({
                     user.carbsTarget = nutrition.macros.carbs;
                     user.fatsTarget = nutrition.macros.fats;
 
-                    user.stats = { current_streak: 0, total_workouts: 0, total_meals_logged: 0, achievements: [] };
+                    user.stats = initialStats;
                     user.preferences = preferences;
                     user.workoutPreferences = userData.workoutPreferences || null;
                     user.onboardingCompleted = false;
                 });
             });
 
+            await setUserId(newUser!.id);
             set({ user: newUser!, isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.createUser');
@@ -141,16 +198,33 @@ export const useUserStore = create<UserState>((set, get) => ({
     },
 
     updateUser: async (updates: Partial<UserData>) => {
-        const { user } = get();
-        if (!user) return;
         try {
             set({ isLoading: true, error: null });
-            // User model now handles recalculation internally via updateProfile
-            await user.updateProfile(updates);
+
+            let activeUser = get().user;
+            if (!activeUser) {
+                const activeUserId = await getUserId();
+                if (!activeUserId) {
+                    throw new Error('No active user session found.');
+                }
+
+                activeUser = await findUserById(activeUserId);
+                if (activeUser) {
+                    set({ user: activeUser });
+                }
+            }
+
+            if (!activeUser) {
+                throw new Error('No active user profile found.');
+            }
+
+            // User model now handles recalculation internally via updateProfile.
+            await activeUser.updateProfile(updates as Partial<User>);
             set({ isLoading: false });
         } catch (error) {
             handleError(error, 'userStore.updateUser');
             set({ error: (error as Error).message, isLoading: false });
+            throw error;
         }
     },
 
@@ -175,11 +249,24 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     logout: async () => {
         try {
-            await clearAuthData();
+            await logoutUserSession();
             set({ user: null, error: null });
         } catch (error) {
             handleError(error, 'userStore.logout');
             set({ error: (error as Error).message });
+            throw error;
+        }
+    },
+
+    deleteAccount: async () => {
+        try {
+            set({ isLoading: true, error: null });
+            await deleteAccountAndWipeLocalData();
+            set({ user: null, isLoading: false, error: null });
+        } catch (error) {
+            handleError(error, 'userStore.deleteAccount');
+            set({ isLoading: false, error: (error as Error).message });
+            throw error;
         }
     },
 }));

@@ -1,9 +1,6 @@
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { ChevronRight } from 'lucide-react-native';
-import { useColors } from '../../hooks/useColors';
-import { designTokens } from '../../theme/design-tokens';
 
 type NavItem = {
     type: 'navigation';
@@ -29,26 +26,36 @@ type BadgeItem = {
     key: string;
     icon: React.ReactNode;
     label: string;
+    subtitle?: string;
     badge: string;
     onPress: () => void;
 };
 
 type SettingsItem = NavItem | ToggleItem | BadgeItem;
-type SettingsSection = { title: string; items: SettingsItem[] };
+type SettingsSection = {
+    title: string;
+    items: SettingsItem[];
+    sectionKey?: string;
+    sectionRef?: React.RefObject<View>;
+};
 type SettingsListProps = { sections: SettingsSection[] };
 
-type Row =
-    | { key: string; kind: 'header'; title: string }
-    | { key: string; kind: 'item'; item: SettingsItem; isLast: boolean };
+const CARD_BG = '#1e293b';
+const BORDER = '#334155';
+const TEXT_PRIMARY = '#f8fafc';
+const TEXT_SECONDARY = '#94a3b8';
+const ACCENT = '#10b748';
+const ICON_BG = '#0f2d1a';
 
-const HeaderRow = memo(({ title, color }: { title: string; color: string }) => (
-    <View style={{ paddingTop: designTokens.spacing.lg, paddingBottom: designTokens.spacing.xs + 2 }}>
+const HeaderRow = memo(({ title }: { title: string }) => (
+    <View style={{ paddingTop: 24, paddingBottom: 8 }}>
         <Text
             style={{
-                color,
-                fontSize: designTokens.typography.size.caption,
+                color: TEXT_SECONDARY,
+                fontSize: 11,
                 fontWeight: '700',
                 textTransform: 'uppercase',
+                letterSpacing: 0.8,
             }}
         >
             {title}
@@ -56,119 +63,106 @@ const HeaderRow = memo(({ title, color }: { title: string; color: string }) => (
     </View>
 ));
 
-const ItemRow = memo(
-    ({ item, isLast, colors }: { item: SettingsItem; isLast: boolean; colors: ReturnType<typeof useColors> }) => {
-        const content = (
-            <>
-                <View
-                    style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 10,
-                        backgroundColor: colors.surface.surfaceVariant,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: 12,
-                    }}
-                >
-                    {item.icon}
-                </View>
-                <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text.primary, fontWeight: '600' }}>{item.label}</Text>
-                    {'subtitle' in item && item.subtitle ? (
-                        <Text style={{ color: colors.text.secondary, fontSize: 12, marginTop: 2 }}>
-                            {item.subtitle}
-                        </Text>
-                    ) : null}
-                </View>
-            </>
-        );
-
-        if (item.type === 'toggle') {
-            return (
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
-                    {content}
-                    <Switch
-                        value={item.value}
-                        onValueChange={item.onToggle}
-                        trackColor={{ false: colors.surface.outlineVariant, true: colors.brand.primary[300] }}
-                        thumbColor={item.value ? colors.brand.primary[600] : colors.surface.surface}
-                    />
-                </View>
-            );
-        }
-
-        return (
-            <Pressable
-                onPress={item.onPress}
-                android_ripple={{ color: 'rgba(15,23,42,0.06)' }}
+const ItemRow = memo(({ item, isLast }: { item: SettingsItem; isLast: boolean }) => {
+    const content = (
+        <>
+            <View
                 style={{
-                    flexDirection: 'row',
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: ICON_BG,
                     alignItems: 'center',
-                    paddingVertical: 12,
-                    overflow: 'hidden',
-                    borderBottomWidth: isLast ? 0 : 1,
-                    borderBottomColor: colors.surface.outline,
-                    marginLeft: isLast ? 0 : 56,
+                    justifyContent: 'center',
+                    marginRight: 12,
+                    borderWidth: 1,
+                    borderColor: '#1a3d26',
                 }}
             >
+                {item.icon}
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 15 }}>{item.label}</Text>
+                {'subtitle' in item && item.subtitle ? (
+                    <Text style={{ color: TEXT_SECONDARY, fontSize: 12, marginTop: 2 }}>{item.subtitle}</Text>
+                ) : null}
+            </View>
+        </>
+    );
+
+    const rowStyle = {
+        backgroundColor: CARD_BG,
+        borderRadius: isLast ? 12 : 0,
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        paddingVertical: 13,
+        paddingHorizontal: 14,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: BORDER,
+        overflow: 'hidden' as const,
+    };
+
+    if (item.type === 'toggle') {
+        return (
+            <View style={rowStyle}>
                 {content}
-                {item.type === 'badge' ? (
-                    <View
-                        style={{
-                            borderRadius: 999,
-                            backgroundColor: colors.brand.secondary[100],
-                            paddingHorizontal: 8,
-                            paddingVertical: 3,
-                        }}
-                    >
-                        <Text style={{ color: colors.brand.secondary[700], fontSize: 11, fontWeight: '700' }}>
-                            {item.badge}
-                        </Text>
-                    </View>
-                ) : null}
-                {item.type === 'navigation' && item.value ? (
-                    <Text style={{ color: colors.text.secondary, fontSize: 12, marginRight: 6 }}>{item.value}</Text>
-                ) : null}
-                <ChevronRight size={16} color={colors.surface.outlineVariant} />
-            </Pressable>
+                <Switch
+                    value={item.value}
+                    onValueChange={item.onToggle}
+                    trackColor={{ false: '#334155', true: '#15803d' }}
+                    thumbColor={item.value ? ACCENT : '#64748b'}
+                    ios_backgroundColor="#334155"
+                />
+            </View>
         );
-    },
-);
-
-function SettingsList({ sections }: SettingsListProps) {
-    const colors = useColors();
-
-    const rows = useMemo<Row[]>(
-        () =>
-            sections.flatMap((section) => [
-                { key: `header-${section.title}`, kind: 'header', title: section.title } as const,
-                ...section.items.map(
-                    (item, index) =>
-                        ({ key: item.key, kind: 'item', item, isLast: index === section.items.length - 1 }) as const,
-                ),
-            ]),
-        [sections],
-    );
-
-    const keyExtractor = useCallback((item: Row) => item.key, []);
-    const getItemType = useCallback((item: Row) => item.kind, []);
-    const renderItem = useCallback(
-        ({ item }: { item: Row }) => {
-            if (item.kind === 'header') return <HeaderRow title={item.title} color={colors.text.secondary} />;
-            return <ItemRow item={item.item} isLast={item.isLast} colors={colors} />;
-        },
-        [colors],
-    );
+    }
 
     return (
-        <FlashList
-            data={rows}
-            keyExtractor={keyExtractor}
-            getItemType={getItemType}
-            scrollEnabled={false}
-            renderItem={renderItem}
-        />
+        <Pressable onPress={item.onPress} android_ripple={{ color: 'rgba(16,183,72,0.08)' }} style={rowStyle}>
+            {content}
+            {item.type === 'badge' ? (
+                <View
+                    style={{
+                        borderRadius: 999,
+                        backgroundColor: 'rgba(16,183,72,0.15)',
+                        paddingHorizontal: 9,
+                        paddingVertical: 3,
+                        marginRight: 6,
+                    }}
+                >
+                    <Text style={{ color: ACCENT, fontSize: 11, fontWeight: '700' }}>{item.badge}</Text>
+                </View>
+            ) : null}
+            {item.type === 'navigation' && item.value ? (
+                <Text style={{ color: TEXT_SECONDARY, fontSize: 12, marginRight: 6 }}>{item.value}</Text>
+            ) : null}
+            <ChevronRight size={16} color="#475569" />
+        </Pressable>
+    );
+});
+
+function SettingsList({ sections }: SettingsListProps) {
+    return (
+        <View>
+            {sections.map((section) => (
+                <View key={section.sectionKey || section.title} ref={section.sectionRef}>
+                    <HeaderRow title={section.title} />
+                    <View
+                        style={{
+                            backgroundColor: CARD_BG,
+                            borderRadius: 12,
+                            overflow: 'hidden',
+                            borderWidth: 1,
+                            borderColor: BORDER,
+                        }}
+                    >
+                        {section.items.map((item, index) => (
+                            <ItemRow key={item.key} item={item} isLast={index === section.items.length - 1} />
+                        ))}
+                    </View>
+                </View>
+            ))}
+        </View>
     );
 }
 

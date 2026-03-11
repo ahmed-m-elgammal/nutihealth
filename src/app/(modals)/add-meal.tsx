@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import AddMealSheet from '../../components/meals/AddMealSheet';
+import StitchAddMealSheet from '../../components/meals/StitchAddMealSheet';
 import { createMeal, type MealData } from '../../services/api/meals';
 import { useAddMealDraftStore, type DraftMealType } from '../../store/addMealDraftStore';
 import { useUIStore } from '../../store/uiStore';
+import { usePostHog } from 'posthog-react-native';
 
 export default function AddMealModalScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ mealType?: string }>();
     const showToast = useUIStore((state) => state.showToast);
+    const posthog = usePostHog();
     const [isSaving, setIsSaving] = useState(false);
     const mealType = useAddMealDraftStore((state) => state.mealType);
     const foods = useAddMealDraftStore((state) => state.foods);
@@ -68,6 +70,11 @@ export default function AddMealModalScreen() {
             };
 
             await createMeal(mealData);
+            posthog.capture('meal_logged', {
+                meal_type: mealType,
+                food_count: foods.length,
+                total_calories: foods.reduce((sum, f) => sum + f.calories, 0),
+            });
             showToast('success', 'Meal saved.');
             clearDraft();
             router.back();
@@ -80,11 +87,12 @@ export default function AddMealModalScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <AddMealSheet
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#10221c' }}>
+            <StitchAddMealSheet
                 onOpenSearch={() => router.push('/(modals)/food-search')}
                 onOpenScan={() => router.push('/(modals)/barcode-scanner')}
                 onOpenAiDetect={() => router.push('/(modals)/ai-food-detect')}
+                onOpenCookpadSearch={() => router.push('/(modals)/smart-cooker')}
                 onSaveMeal={handleSaveMeal}
             />
         </SafeAreaView>

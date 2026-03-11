@@ -139,6 +139,7 @@
     "mealSuggestion": {
         "title": "Next Meal Suggestion",
         "logThisMeal": "Log This Meal",
+        "cookFromPantry": "Find Recipe by Ingredients",
         "dismiss": "Dismiss",
         "targetCalories": "{{calories}} kcal",
         "timeWindow": "{{start}} – {{end}}"
@@ -160,6 +161,9 @@
             "title": "System Health",
             "connected": "Backend connected, secure controls enabled.",
             "unavailable": "Backend health unavailable. Some features may be limited."
+        },
+        "quickActions": {
+            "smartCooker": "Smart Cooker"
         }
     },
     "common": {
@@ -168,11 +172,141 @@
     "tabs": {
         "main": "Main",
         "meals": "Meals",
+        "pantry": "Pantry",
         "workouts": "Workouts",
         "goalsPlans": "Goals & Plans",
         "water": "Water",
         "progress": "Progress",
         "profile": "Profile"
+    },
+    "pantry": {
+        "title": "Pantry",
+        "loading": "Loading pantry items...",
+        "header": {
+            "count": "{{count}} ingredients available",
+            "smartHint": "Use Smart Cooker to discover recipes from your current pantry.",
+            "addItemsHint": "Add at least one ingredient to start Smart Cooker suggestions."
+        },
+        "actions": {
+            "findRecipes": "Find Recipes",
+            "addIngredient": "Add Ingredient",
+            "scan": "Scan",
+            "aiDetect": "AI Detect",
+            "save": "Save",
+            "saving": "Saving...",
+            "cancel": "Cancel"
+        },
+        "messages": {
+            "findRecipesComingSoon": "Recipe suggestions from pantry items are coming in the next phase."
+        },
+        "toast": {
+            "added": "Ingredient added",
+            "removed": "Ingredient removed",
+            "markedUsed": "Ingredient marked as used"
+        },
+        "empty": {
+            "title": "Your pantry is empty",
+            "message": "Add ingredients you currently have so Smart Cooker can suggest recipes."
+        },
+        "card": {
+            "expiry": "Expiry"
+        },
+        "form": {
+            "title": "Add Pantry Item",
+            "subtitle": "Log an ingredient you currently have available.",
+            "nameLabel": "Ingredient Name",
+            "namePlaceholder": "e.g. Tomato",
+            "quantityLabel": "Quantity",
+            "unitLabel": "Unit",
+            "categoryLabel": "Category",
+            "expiryLabel": "Expiry Date (optional)",
+            "expiryPlaceholder": "YYYY-MM-DD",
+            "expiryHint": "Use date format: YYYY-MM-DD",
+            "validation": "Please fill all required fields correctly.",
+            "scannedIndicator": "Pre-filled from barcode scan"
+        },
+        "categories": {
+            "all": "All",
+            "vegetables": "Vegetables",
+            "fruits": "Fruits",
+            "proteins": "Proteins",
+            "grains": "Grains",
+            "dairy": "Dairy",
+            "spices": "Spices",
+            "other": "Other"
+        },
+        "units": {
+            "grams": "grams",
+            "ml": "ml",
+            "pieces": "pieces",
+            "cups": "cups",
+            "tbsp": "tbsp",
+            "tsp": "tsp"
+        }
+    },
+    "smartCooker": {
+        "title": "Smart Cooker Suggestions",
+        "subtitle": "Ranked recipes based on your ingredients and diet goals.",
+        "actions": {
+            "refresh": "Refresh",
+            "refreshing": "Refreshing...",
+            "retry": "Retry",
+            "close": "Close",
+            "openRecipe": "Open Recipe",
+            "viewDetails": "View Details",
+            "backToPantry": "Edit Ingredients",
+            "switchToFlexible": "Switch to Flexible"
+        },
+        "sort": {
+            "best": "Best Match",
+            "quick": "Quickest",
+            "calories": "Lowest Calories"
+        },
+        "summary": {
+            "ingredients": "{{count}} ingredients",
+            "remaining": "{{calories}} kcal remaining",
+            "suggestions": "{{count}} suggestions",
+            "backendStats": "{{candidates}} candidates scanned, {{fetched}} recipes fetched."
+        },
+        "filters": {
+            "strictness": {
+                "exact": "Exact",
+                "flexible": "Flexible"
+            }
+        },
+        "card": {
+            "coverage": "ingredient coverage",
+            "matchScore": "Match score",
+            "minutes": "min",
+            "protein": "Protein",
+            "carbs": "Carbs",
+            "fats": "Fats",
+            "missingCount": "{{count}} missing ingredients",
+            "noMissingIngredients": "No missing ingredients",
+            "confidence": {
+                "high": "Nutrition confidence: high",
+                "medium": "Nutrition confidence: medium",
+                "low": "Nutrition confidence: low",
+                "unknown": "Nutrition confidence: unknown"
+            },
+            "placeholderTitle": "Recipe details coming soon",
+            "placeholderMessage": "\"{{title}}\" details will be available in Phase 3."
+        },
+        "empty": {
+            "title": "No suggestions found",
+            "message": "Try flexible mode or add more ingredients.",
+            "setupMissing": "Add ingredients and profile targets, then try again."
+        },
+        "error": {
+            "title": "Failed to load suggestions",
+            "generic": "Unable to fetch smart cooker suggestions.",
+            "noRecipeUrl": "This recipe does not include a valid source URL.",
+            "openRecipeFailed": "Could not open this recipe right now."
+        },
+        "dietFit": {
+            "fits": "Fits your goal",
+            "over": "Over limit"
+        }
     },
     "plans": {
         "title": "Goals & Plans",

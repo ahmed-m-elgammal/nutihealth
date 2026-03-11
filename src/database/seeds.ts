@@ -74,7 +74,7 @@ export async function seedExercises() {
 
     // Batch insert
     await database.write(async () => {
-        const batchSize = 100;
+        const batchSize = 300; // Increased from 100: fewer write transactions = less SQLite I/O pressure on first launch
         for (let i = 0; i < batchedExercises.length; i += batchSize) {
             const batch = batchedExercises.slice(i, i + batchSize);
             const promises = batch.map(exercise =>

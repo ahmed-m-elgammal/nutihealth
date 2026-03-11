@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { AppState } from 'react-native';
 import { storage } from '../utils/storage-adapter';
+import { EXPO_PUBLIC_SUPABASE_KEY, EXPO_PUBLIC_SUPABASE_URL } from '../constants/env';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
-const SUPABASE_ANON_OR_PUBLISHABLE_KEY =
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || '';
+const SUPABASE_URL = EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_OR_PUBLISHABLE_KEY = EXPO_PUBLIC_SUPABASE_KEY;
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_OR_PUBLISHABLE_KEY);
 
@@ -23,6 +24,23 @@ const createSupabase = () => {
 };
 
 export const supabase = createSupabase();
+
+/**
+ * AppState-driven token auto-refresh.
+ *
+ * When the app returns to the foreground, we immediately kick off a
+ * token refresh so the user never hits an expired-JWT error after
+ * the app has been backgrounded for a while.
+ */
+if (supabase) {
+    AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active') {
+            supabase.auth.startAutoRefresh();
+        } else {
+            supabase.auth.stopAutoRefresh();
+        }
+    });
+}
 
 export const requireSupabaseClient = () => {
     if (!supabase) {

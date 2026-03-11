@@ -10,7 +10,7 @@ type ThemeContextValue = {
     colorScheme: 'light' | 'dark';
     setMode: (mode: ThemeMode) => void;
     toggleMode: () => void;
-    theme: typeof designTokens;
+    theme: ReturnType<typeof buildTheme>;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -88,6 +88,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const colorScheme: 'light' | 'dark' = mode === 'system' ? (systemColorScheme === 'dark' ? 'dark' : 'light') : mode;
+
+    useEffect(() => {
+        if (Platform.OS !== 'web' || typeof document === 'undefined') {
+            return;
+        }
+
+        const root = document.documentElement;
+        if (colorScheme === 'dark') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+    }, [colorScheme]);
 
     const setMode = useCallback((nextMode: ThemeMode) => {
         setModeState(nextMode);

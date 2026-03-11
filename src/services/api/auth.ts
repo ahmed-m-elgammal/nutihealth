@@ -1,4 +1,4 @@
-import { ApiResponse } from './client';
+import type { ApiResponse } from './types';
 import { handleError } from '../../utils/errors';
 import {
     clearAuthData,
@@ -9,27 +9,22 @@ import {
 } from '../../utils/storage';
 import { requireSupabaseClient } from '../supabaseClient';
 
-// Secure storage keys used by existing hooks/services.
-const TOKEN_KEY = 'auth_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-const USER_ID_KEY = 'user_id';
-
 /**
  * Authentication request interfaces
  */
-export interface LoginRequest {
+interface LoginRequest {
     email: string;
     password: string;
 }
 
-export interface SignupRequest {
+interface SignupRequest {
     name: string;
     email: string;
     password: string;
     confirmPassword: string;
 }
 
-export interface AuthResponse {
+interface AuthResponse {
     user: {
         id: string;
         name: string;
@@ -38,21 +33,6 @@ export interface AuthResponse {
     token: string;
     refreshToken: string;
     expiresIn: number; // seconds
-}
-
-export interface RefreshTokenRequest {
-    refreshToken: string;
-}
-
-export interface VerifyEmailRequest {
-    email: string;
-    code: string;
-}
-
-export interface ResetPasswordRequest {
-    email: string;
-    code: string;
-    newPassword: string;
 }
 
 const toAuthResponse = (
@@ -221,7 +201,7 @@ export async function signup(data: SignupRequest): Promise<ApiResponse<AuthRespo
 export async function logout(): Promise<void> {
     try {
         const supabase = requireSupabaseClient();
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'global' });
     } catch (error) {
         handleError(error, 'auth.logout');
     } finally {
@@ -300,7 +280,10 @@ export async function requestPasswordReset(email: string): Promise<ApiResponse<v
         }
 
         const supabase = requireSupabaseClient();
-        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+            // Route password recovery links back into the native app.
+            redirectTo: 'nutrihealth://callback?type=recovery',
+        });
 
         if (error) {
             return {
@@ -326,66 +309,6 @@ export async function requestPasswordReset(email: string): Promise<ApiResponse<v
 }
 
 /**
- * Reset password with code from email
- */
-export async function resetPassword(data: ResetPasswordRequest): Promise<ApiResponse<void>> {
-    try {
-        const normalizedEmail = data.email.trim().toLowerCase();
-        const code = data.code.trim();
-        const newPassword = data.newPassword.trim();
-
-        if (!normalizedEmail || !code || !newPassword) {
-            return {
-                success: false,
-                error: {
-                    code: 'INVALID_RESET_DATA',
-                    message: 'Email, reset code, and new password are required',
-                },
-            };
-        }
-
-        const supabase = requireSupabaseClient();
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-            email: normalizedEmail,
-            token: code,
-            type: 'recovery',
-        });
-
-        if (verifyError) {
-            return {
-                success: false,
-                error: {
-                    code: verifyError.code || 'RESET_FAILED',
-                    message: verifyError.message,
-                },
-            };
-        }
-
-        const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-        if (updateError) {
-            return {
-                success: false,
-                error: {
-                    code: updateError.code || 'RESET_FAILED',
-                    message: updateError.message,
-                },
-            };
-        }
-
-        return { success: true };
-    } catch (error) {
-        handleError(error, 'auth.resetPassword');
-        return {
-            success: false,
-            error: {
-                code: 'RESET_FAILED',
-                message: 'Failed to reset password',
-            },
-        };
-    }
-}
-
-/**
  * Get current auth token
  */
 export async function getAuthToken(): Promise<string | null> {
@@ -402,40 +325,3 @@ export async function getAuthToken(): Promise<string | null> {
         return null;
     }
 }
-
-/**
- * Check if user is authenticated
- */
-export async function isAuthenticated(): Promise<boolean> {
-    try {
-        const supabase = requireSupabaseClient();
-        const {
-            data: { user },
-            error,
-        } = await supabase.auth.getUser();
-
-        return !error && Boolean(user);
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Store authentication tokens and user id for compatibility with existing storage lookups.
- */
-export async function storeAuthTokens(authData: AuthResponse): Promise<void> {
-    try {
-        await setAuthToken(authData.token);
-        await setRefreshToken(authData.refreshToken);
-        await setUserId(authData.user.id);
-    } catch (error) {
-        handleError(error, 'auth.storeAuthTokens');
-        throw new Error('Failed to store authentication tokens');
-    }
-}
-
-export const AUTH_STORAGE_KEYS = {
-    TOKEN_KEY,
-    REFRESH_TOKEN_KEY,
-    USER_ID_KEY,
-} as const;

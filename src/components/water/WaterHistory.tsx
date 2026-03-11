@@ -1,6 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { Droplets } from 'lucide-react-native';
 
 type WaterHistoryEntry = {
     id: string;
@@ -15,18 +16,23 @@ type WaterHistoryProps = {
 const HistoryRow = memo(({ item }: { item: WaterHistoryEntry }) => (
     <View
         style={{
-            borderRadius: 10,
-            backgroundColor: '#f8fafc',
+            borderRadius: 12,
+            backgroundColor: '#1e293b',
             borderWidth: 1,
-            borderColor: '#e2e8f0',
-            paddingHorizontal: 12,
-            paddingVertical: 10,
+            borderColor: '#334155',
+            paddingHorizontal: 14,
+            paddingVertical: 12,
             flexDirection: 'row',
             justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 8,
         }}
     >
-        <Text style={{ color: '#334155' }}>{item.time}</Text>
-        <Text style={{ color: '#0f172a', fontWeight: '700' }}>{item.amount} ml</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Droplets size={16} color="#10b748" />
+            <Text style={{ color: '#94a3b8', fontSize: 14 }}>{item.time}</Text>
+        </View>
+        <Text style={{ color: '#f8fafc', fontWeight: '700', fontSize: 14 }}>+{item.amount} ml</Text>
     </View>
 ));
 
@@ -36,13 +42,17 @@ function WaterHistory({ entries }: WaterHistoryProps) {
 
     return (
         <View style={{ marginTop: 16 }}>
-            <Text style={{ fontWeight: '700', color: '#0f172a', marginBottom: 8 }}>Today&apos;s History</Text>
+            <Text style={{ fontWeight: '700', color: '#94a3b8', marginBottom: 10, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                Today's History
+            </Text>
             <FlashList
                 data={entries}
                 scrollEnabled={false}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
-                ListEmptyComponent={<Text style={{ color: '#64748b' }}>No water logs yet today.</Text>}
+                ListEmptyComponent={
+                    <Text style={{ color: '#64748b', textAlign: 'center', paddingVertical: 16 }}>No water logs yet today.</Text>
+                }
             />
         </View>
     );

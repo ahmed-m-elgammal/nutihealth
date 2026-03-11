@@ -1,51 +1,37 @@
-import { useDatabase } from '@nozbe/watermelondb/hooks';
-import { Q } from '@nozbe/watermelondb';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Workout from '../../database/models/Workout';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { getWorkoutById, getWorkoutHistory } from '../../services/api/workouts';
 
-export const useWorkouts = () => {
-    const database = useDatabase();
-    const [workouts, setWorkouts] = useState<Workout[]>([]);
+export const useWorkouts = (userId?: string) => {
+    const { user } = useCurrentUser();
+    const activeUserId = userId || user?.id;
 
-    useEffect(() => {
-        const workoutsCollection = database.get<Workout>('workouts');
-        const query = workoutsCollection.query(
-            Q.sortBy('created_at', Q.desc)
-        );
+    const query = useQuery<Workout[], Error>({
+        queryKey: ['workouts', activeUserId || 'anonymous'],
+        enabled: Boolean(activeUserId),
+        queryFn: () => getWorkoutHistory(activeUserId || ''),
+        placeholderData: (previous) => previous ?? [],
+    });
 
-        const subscription = query.observe().subscribe(setWorkouts);
-
-        return () => subscription.unsubscribe();
-    }, [database]);
-
-    return { workouts };
+    return {
+        workouts: query.data || [],
+        isLoading: query.isLoading,
+        error: query.error ?? null,
+        refetch: query.refetch,
+    };
 };
 
 export const useWorkout = (id: string) => {
-    const database = useDatabase();
-    const [workout, setWorkout] = useState<Workout | null>(null);
-    const [loading, setLoading] = useState(true);
+    const query = useQuery<Workout | null, Error>({
+        queryKey: ['workouts', 'detail', id],
+        enabled: Boolean(id),
+        queryFn: () => getWorkoutById(id),
+    });
 
-    useEffect(() => {
-        if (!id) {
-            setLoading(false);
-            return;
-        }
-
-        const fetchWorkout = async () => {
-            try {
-                const w = await database.get<Workout>('workouts').find(id);
-                setWorkout(w);
-            } catch (error) {
-                console.log('Error fetching workout', error);
-                setWorkout(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchWorkout();
-    }, [database, id]);
-
-    return { workout, loading };
+    return {
+        workout: query.data ?? null,
+        loading: query.isLoading,
+        error: query.error ?? null,
+    };
 };

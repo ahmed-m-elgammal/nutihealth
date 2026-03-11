@@ -6,7 +6,7 @@ import { handleError } from '../../utils/errors';
 
 /**
  * Weekly Goal Plan Service
- * 
+ *
  * Provides functions to manage weekly goal plans, allowing users to set
  * different macro targets for each day of the week.
  */
@@ -70,54 +70,54 @@ export async function createWeeklyPlan(data: CreateWeeklyPlanData): Promise<Week
 
             // Create plan
             const plansCollection = database.get<WeeklyGoalPlan>('weekly_goal_plans');
-            return await plansCollection.create((plan) => {
-                plan.userId = userId;
-                plan.planName = data.planName;
-                plan.isActive = false; // Don't automatically activate
-                plan.startDate = data.startDate ? data.startDate.getTime() : Date.now();
-                plan.endDate = data.endDate?.getTime();
+            return await plansCollection.create((record) => {
+                record.userId = userId;
+                record.planName = data.planName;
+                record.isActive = false; // Don't automatically activate
+                record.startDate = data.startDate ? data.startDate.getTime() : Date.now();
+                record.endDate = data.endDate?.getTime();
 
                 // Monday
-                plan.mondayCalories = data.mondayCalories;
-                plan.mondayProtein = data.mondayProtein;
-                plan.mondayCarbs = data.mondayCarbs;
-                plan.mondayFats = data.mondayFats;
+                record.mondayCalories = data.mondayCalories;
+                record.mondayProtein = data.mondayProtein;
+                record.mondayCarbs = data.mondayCarbs;
+                record.mondayFats = data.mondayFats;
 
                 // Tuesday
-                plan.tuesdayCalories = data.tuesdayCalories;
-                plan.tuesdayProtein = data.tuesdayProtein;
-                plan.tuesdayCarbs = data.tuesdayCarbs;
-                plan.tuesdayFats = data.tuesdayFats;
+                record.tuesdayCalories = data.tuesdayCalories;
+                record.tuesdayProtein = data.tuesdayProtein;
+                record.tuesdayCarbs = data.tuesdayCarbs;
+                record.tuesdayFats = data.tuesdayFats;
 
                 // Wednesday
-                plan.wednesdayCalories = data.wednesdayCalories;
-                plan.wednesdayProtein = data.wednesdayProtein;
-                plan.wednesdayCarbs = data.wednesdayCarbs;
-                plan.wednesdayFats = data.wednesdayFats;
+                record.wednesdayCalories = data.wednesdayCalories;
+                record.wednesdayProtein = data.wednesdayProtein;
+                record.wednesdayCarbs = data.wednesdayCarbs;
+                record.wednesdayFats = data.wednesdayFats;
 
                 // Thursday
-                plan.thursdayCalories = data.thursdayCalories;
-                plan.thursdayProtein = data.thursdayProtein;
-                plan.thursdayCarbs = data.thursdayCarbs;
-                plan.thursdayFats = data.thursdayFats;
+                record.thursdayCalories = data.thursdayCalories;
+                record.thursdayProtein = data.thursdayProtein;
+                record.thursdayCarbs = data.thursdayCarbs;
+                record.thursdayFats = data.thursdayFats;
 
                 // Friday
-                plan.fridayCalories = data.fridayCalories;
-                plan.fridayProtein = data.fridayProtein;
-                plan.fridayCarbs = data.fridayCarbs;
-                plan.fridayFats = data.fridayFats;
+                record.fridayCalories = data.fridayCalories;
+                record.fridayProtein = data.fridayProtein;
+                record.fridayCarbs = data.fridayCarbs;
+                record.fridayFats = data.fridayFats;
 
                 // Saturday
-                plan.saturdayCalories = data.saturdayCalories;
-                plan.saturdayProtein = data.saturdayProtein;
-                plan.saturdayCarbs = data.saturdayCarbs;
-                plan.saturdayFats = data.saturdayFats;
+                record.saturdayCalories = data.saturdayCalories;
+                record.saturdayProtein = data.saturdayProtein;
+                record.saturdayCarbs = data.saturdayCarbs;
+                record.saturdayFats = data.saturdayFats;
 
                 // Sunday
-                plan.sundayCalories = data.sundayCalories;
-                plan.sundayProtein = data.sundayProtein;
-                plan.sundayCarbs = data.sundayCarbs;
-                plan.sundayFats = data.sundayFats;
+                record.sundayCalories = data.sundayCalories;
+                record.sundayProtein = data.sundayProtein;
+                record.sundayCarbs = data.sundayCarbs;
+                record.sundayFats = data.sundayFats;
             });
         });
 
@@ -131,12 +131,12 @@ export async function createWeeklyPlan(data: CreateWeeklyPlanData): Promise<Week
 /**
  * Get all weekly goal plans
  */
-export async function getAllWeeklyPlans(): Promise<WeeklyGoalPlan[]> {
+export async function getAllWeeklyPlans(userId?: string): Promise<WeeklyGoalPlan[]> {
     try {
         const plansCollection = database.get<WeeklyGoalPlan>('weekly_goal_plans');
-        const plans = await plansCollection
-            .query(Q.sortBy('created_at', Q.desc))
-            .fetch();
+        const plans = userId
+            ? await plansCollection.query(Q.where('user_id', userId), Q.sortBy('created_at', Q.desc)).fetch()
+            : await plansCollection.query(Q.sortBy('created_at', Q.desc)).fetch();
 
         return plans;
     } catch (error) {
@@ -148,12 +148,12 @@ export async function getAllWeeklyPlans(): Promise<WeeklyGoalPlan[]> {
 /**
  * Get the currently active weekly goal plan
  */
-export async function getActivePlan(): Promise<WeeklyGoalPlan | null> {
+export async function getActivePlan(userId?: string): Promise<WeeklyGoalPlan | null> {
     try {
         const plansCollection = database.get<WeeklyGoalPlan>('weekly_goal_plans');
-        const plans = await plansCollection
-            .query(Q.where('is_active', true))
-            .fetch();
+        const plans = userId
+            ? await plansCollection.query(Q.where('user_id', userId), Q.where('is_active', true)).fetch()
+            : await plansCollection.query(Q.where('is_active', true)).fetch();
 
         if (plans.length === 0) {
             return null;
@@ -168,28 +168,15 @@ export async function getActivePlan(): Promise<WeeklyGoalPlan | null> {
 }
 
 /**
- * Get today's macro targets from the active plan
- * Falls back to user's default targets if no active plan
+ * Get a weekly goal plan by ID
  */
-export async function getTodaysMacros(): Promise<DailyMacros | null> {
+export async function getWeeklyPlanById(planId: string): Promise<WeeklyGoalPlan | null> {
     try {
-        const activePlan = await getActivePlan();
-
-        if (!activePlan) {
-            return null;
-        }
-
-        const today = new Date();
-
-        // Check if plan is valid for today
-        if (!activePlan.isValidForDate(today)) {
-            return null;
-        }
-
-        return activePlan.getMacrosForDate(today);
+        const plansCollection = database.get<WeeklyGoalPlan>('weekly_goal_plans');
+        return await plansCollection.find(planId);
     } catch (error) {
-        handleError(error, 'weeklyGoals.getTodaysMacros');
-        throw error;
+        handleError(error, 'weeklyGoals.getWeeklyPlanById');
+        return null;
     }
 }
 
@@ -255,10 +242,7 @@ export async function deactivatePlan(planId: string): Promise<void> {
 /**
  * Update a weekly goal plan
  */
-export async function updateWeeklyPlan(
-    planId: string,
-    updates: Partial<CreateWeeklyPlanData>
-): Promise<void> {
+export async function updateWeeklyPlan(planId: string, updates: Partial<CreateWeeklyPlanData>): Promise<void> {
     try {
         await database.write(async () => {
             const plansCollection = database.get<WeeklyGoalPlan>('weekly_goal_plans');
@@ -328,47 +312,4 @@ export async function deleteWeeklyPlan(planId: string): Promise<void> {
         handleError(error, 'weeklyGoals.deleteWeeklyPlan');
         throw error;
     }
-}
-
-/**
- * Helper: Create a simple plan with same macros every day
- */
-export async function createUniformPlan(
-    planName: string,
-    calories: number,
-    protein: number,
-    carbs: number,
-    fats: number
-): Promise<WeeklyGoalPlan> {
-    return createWeeklyPlan({
-        planName,
-        mondayCalories: calories,
-        mondayProtein: protein,
-        mondayCarbs: carbs,
-        mondayFats: fats,
-        tuesdayCalories: calories,
-        tuesdayProtein: protein,
-        tuesdayCarbs: carbs,
-        tuesdayFats: fats,
-        wednesdayCalories: calories,
-        wednesdayProtein: protein,
-        wednesdayCarbs: carbs,
-        wednesdayFats: fats,
-        thursdayCalories: calories,
-        thursdayProtein: protein,
-        thursdayCarbs: carbs,
-        thursdayFats: fats,
-        fridayCalories: calories,
-        fridayProtein: protein,
-        fridayCarbs: carbs,
-        fridayFats: fats,
-        saturdayCalories: calories,
-        saturdayProtein: protein,
-        saturdayCarbs: carbs,
-        saturdayFats: fats,
-        sundayCalories: calories,
-        sundayProtein: protein,
-        sundayCarbs: carbs,
-        sundayFats: fats,
-    });
 }

@@ -2,13 +2,15 @@ import { NutritionData } from '../../types/food';
 import { database } from '../../database';
 import { Q } from '@nozbe/watermelondb';
 import Food from '../../database/models/Food';
+import { EXPO_PUBLIC_USDA_API_KEY } from '../../constants/env';
+import { logger } from '../../utils/logger';
 
 /**
  * USDA FoodData Central API Integration
  * Free API with comprehensive nutrition data
  * Get your API key at: https://fdc.nal.usda.gov/api-key-signup.html
  */
-const USDA_API_KEY = process.env.EXPO_PUBLIC_USDA_API_KEY;
+const USDA_API_KEY = EXPO_PUBLIC_USDA_API_KEY;
 const USDA_API_URL = 'https://api.nal.usda.gov/fdc/v1/foods/search';
 const USDA_TIMEOUT = 5000; // 5 second timeout for USDA API
 
@@ -110,16 +112,22 @@ async function fetchFromUSDA(foodName: string): Promise<Omit<NutritionData, 'sou
     }
 
     try {
+        const requestUrl = `${USDA_API_URL}?query=${encodeURIComponent(foodName)}&pageSize=1&api_key=${USDA_API_KEY}`;
+        logger.apiRequest({ method: 'GET', url: USDA_API_URL });
         // Add timeout to prevent hanging
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), USDA_TIMEOUT);
+        const requestStartedAt = Date.now();
 
-        const response = await fetch(
-            `${USDA_API_URL}?query=${encodeURIComponent(foodName)}&pageSize=1&api_key=${USDA_API_KEY}`,
-            { signal: controller.signal }
-        );
+        const response = await fetch(requestUrl, { signal: controller.signal });
 
         clearTimeout(timeoutId);
+        logger.apiResponse({
+            method: 'GET',
+            url: USDA_API_URL,
+            status: response.status,
+            durationMs: Date.now() - requestStartedAt,
+        });
 
         if (!response.ok) {
             throw new Error(`USDA API error: ${response.status}`);
@@ -151,6 +159,11 @@ async function fetchFromUSDA(foodName: string): Promise<Omit<NutritionData, 'sou
         };
     } catch (error) {
         console.error('USDA API error:', error);
+        logger.apiError({
+            method: 'GET',
+            url: USDA_API_URL,
+            error: (error as Error).message,
+        });
         return null;
     }
 }

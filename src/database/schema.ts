@@ -1,7 +1,8 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
+import { DATABASE_SCHEMA_VERSION } from './schemaVersion';
 
 export const schema = appSchema({
-    version: 8,
+    version: DATABASE_SCHEMA_VERSION,
     tables: [
         // User Profile
         tableSchema({
@@ -24,6 +25,7 @@ export const schema = appSchema({
                 { name: 'fats_target', type: 'number' },
                 { name: 'stats', type: 'string' }, // JSON: current_streak, total_workouts, etc.
                 { name: 'preferences', type: 'string' }, // JSON: allergies, dietary_restrictions, theme
+                { name: 'pantry_preferences', type: 'string', isOptional: true }, // JSON: pantry filters/preferences
                 { name: 'workout_preferences', type: 'string', isOptional: true }, // JSON: workout setup profile
                 { name: 'onboarding_completed', type: 'boolean' },
                 { name: 'created_at', type: 'number' },
@@ -44,7 +46,10 @@ export const schema = appSchema({
                 { name: 'total_protein', type: 'number' },
                 { name: 'total_carbs', type: 'number' },
                 { name: 'total_fats', type: 'number' },
+                { name: 'total_fiber', type: 'number' },
+                { name: 'total_sugar', type: 'number' },
                 { name: 'notes', type: 'string', isOptional: true },
+                { name: 'cooked_from_recipe_id', type: 'string', isOptional: true, isIndexed: true },
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
             ],
@@ -243,6 +248,7 @@ export const schema = appSchema({
                 { name: 'user_id', type: 'string', isIndexed: true },
                 { name: 'template_id', type: 'string', isIndexed: true },
                 { name: 'day_of_week', type: 'string', isIndexed: true }, // 'Monday', 'Tuesday', etc.
+                { name: 'intensity', type: 'string', isOptional: true }, // 'light', 'moderate', 'heavy'
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
             ],
@@ -267,7 +273,71 @@ export const schema = appSchema({
                 { name: 'fats_per_serving', type: 'number' },
                 { name: 'is_favorite', type: 'boolean' },
                 { name: 'tags', type: 'string', isOptional: true }, // JSON array
+                { name: 'source_platform', type: 'string', isOptional: true, isIndexed: true }, // cookpad, manual, etc.
+                { name: 'external_id', type: 'string', isOptional: true, isIndexed: true }, // provider-specific recipe id
+                { name: 'nutrition_confidence', type: 'number', isOptional: true }, // 0-1 confidence score
                 { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Pantry Items
+        tableSchema({
+            name: 'pantry_items',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'name', type: 'string', isIndexed: true },
+                { name: 'normalized_name', type: 'string', isOptional: true, isIndexed: true },
+                { name: 'quantity', type: 'number' },
+                { name: 'unit', type: 'string' },
+                { name: 'category', type: 'string', isOptional: true, isIndexed: true },
+                { name: 'expiry_date', type: 'number', isOptional: true, isIndexed: true },
+                { name: 'is_available', type: 'boolean', isIndexed: true },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Cookpad Recipe Cache
+        tableSchema({
+            name: 'cookpad_recipe_cache',
+            columns: [
+                { name: 'cookpad_id', type: 'string', isIndexed: true },
+                { name: 'source_url', type: 'string' },
+                { name: 'title', type: 'string' },
+                { name: 'title_ar', type: 'string', isOptional: true },
+                { name: 'author', type: 'string', isOptional: true },
+                { name: 'category', type: 'string', isOptional: true },
+                { name: 'tags', type: 'string', isOptional: true }, // JSON array
+                { name: 'image_url', type: 'string', isOptional: true },
+                { name: 'servings', type: 'number' },
+                { name: 'prep_time', type: 'number', isOptional: true },
+                { name: 'cook_time', type: 'number', isOptional: true },
+                { name: 'total_time', type: 'number', isOptional: true },
+                { name: 'ingredients', type: 'string' }, // JSON array
+                { name: 'instructions', type: 'string' }, // JSON array
+                { name: 'nutrition', type: 'string', isOptional: true }, // JSON object
+                { name: 'raw_payload', type: 'string', isOptional: true }, // JSON payload for debugging
+                { name: 'search_terms', type: 'string', isOptional: true }, // internal lookup terms
+                { name: 'fetched_at', type: 'number', isIndexed: true },
+                { name: 'expires_at', type: 'number', isIndexed: true },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Smart Cooker Suggestions
+        tableSchema({
+            name: 'smart_cooker_suggestions',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'pantry_item_ids', type: 'string' }, // JSON array
+                { name: 'suggested_recipe_ids', type: 'string' }, // JSON array
+                { name: 'source_platform', type: 'string' }, // cookpad, internal, hybrid
+                { name: 'confidence_score', type: 'number', isOptional: true },
+                { name: 'status', type: 'string', isOptional: true }, // pending, accepted, dismissed
+                { name: 'metadata', type: 'string', isOptional: true }, // JSON
+                { name: 'created_at', type: 'number', isIndexed: true },
                 { name: 'updated_at', type: 'number' },
             ],
         }),
@@ -436,6 +506,27 @@ export const schema = appSchema({
                 { name: 'is_active', type: 'boolean' },
                 { name: 'target_weight', type: 'number', isOptional: true },
                 { name: 'weekly_goal', type: 'number', isOptional: true },
+                { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        // Workout Sessions
+        tableSchema({
+            name: 'workout_sessions',
+            columns: [
+                { name: 'user_id', type: 'string', isIndexed: true },
+                { name: 'plan_id', type: 'string', isOptional: true },
+                { name: 'day_id', type: 'string', isOptional: true },
+                { name: 'template_id', type: 'string', isOptional: true },
+                { name: 'started_at', type: 'number', isIndexed: true },
+                { name: 'ended_at', type: 'number', isOptional: true },
+                { name: 'duration_minutes', type: 'number' },
+                { name: 'calories_burned', type: 'number', isOptional: true },
+                { name: 'total_volume_kg', type: 'number', isOptional: true },
+                { name: 'intensity', type: 'string', isOptional: true },
+                { name: 'notes', type: 'string', isOptional: true },
+                { name: 'exercises', type: 'string' }, // JSON
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
             ],

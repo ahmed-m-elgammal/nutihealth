@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Rect, Stop, Circle } from 'react-native-svg';
 import Animated, {
     createAnimatedComponent,
     interpolate,
@@ -10,6 +10,7 @@ import Animated, {
     withRepeat,
     withTiming,
 } from 'react-native-reanimated';
+import { Droplets } from 'lucide-react-native';
 
 const AnimatedPath = createAnimatedComponent(Path);
 
@@ -20,15 +21,10 @@ type WaterFillProps = {
     height: number;
 };
 
-type BubbleProps = {
-    left: number;
-    size: number;
-    delay: number;
-};
-
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
 function makeWavePath(width: number, height: number, levelY: number, phase: number, amplitude: number) {
+    'worklet';
     const step = 6;
     let d = `M 0 ${height} L 0 ${levelY}`;
 
@@ -39,36 +35,6 @@ function makeWavePath(width: number, height: number, levelY: number, phase: numb
 
     d += ` L ${width} ${height} Z`;
     return d;
-}
-
-function Bubble({ left, size, delay }: BubbleProps) {
-    const progress = useSharedValue(0);
-
-    React.useEffect(() => {
-        progress.value = withRepeat(withTiming(1, { duration: 2400 + delay }), -1, false);
-    }, [delay, progress]);
-
-    const style = useAnimatedStyle(() => ({
-        transform: [{ translateY: interpolate(progress.value, [0, 1], [0, -95]) }],
-        opacity: interpolate(progress.value, [0, 0.2, 0.8, 1], [0.1, 0.65, 0.45, 0]),
-    }));
-
-    return (
-        <Animated.View
-            style={[
-                {
-                    position: 'absolute',
-                    left,
-                    bottom: 22,
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                    backgroundColor: 'rgba(255,255,255,0.72)',
-                },
-                style,
-            ]}
-        />
-    );
 }
 
 export default function WaterFill({ currentAmount, goalAmount, width, height }: WaterFillProps) {
@@ -87,8 +53,8 @@ export default function WaterFill({ currentAmount, goalAmount, width, height }: 
     }, [fillProgress, fillRatio]);
 
     const animatedProps = useAnimatedProps(() => {
-        const levelY = interpolate(fillProgress.value, [0, 1], [height - 10, 20]);
-        const amplitude = interpolate(fillProgress.value, [0, 1], [2, 8]);
+        const levelY = interpolate(fillProgress.value, [0, 1], [height - 8, 18]);
+        const amplitude = interpolate(fillProgress.value, [0, 1], [2, 9]);
         return {
             d: makeWavePath(width, height, levelY, phase.value, amplitude),
         };
@@ -99,47 +65,37 @@ export default function WaterFill({ currentAmount, goalAmount, width, height }: 
         [currentAmount, goalAmount],
     );
 
-    const bubbles = useMemo(
-        () =>
-            Array.from({ length: 8 }).map((_, idx) => ({
-                id: idx,
-                left: ((idx * 37) % (width - 20)) + 10,
-                size: 4 + (idx % 3),
-                delay: idx * 260,
-            })),
-        [width],
-    );
+    const pct = Math.round(ratio * 100);
 
     return (
-        <View style={{ width, height, alignSelf: 'center' }}>
-            <Svg width={width} height={height}>
+        <View style={{ width, height, alignSelf: 'center', borderRadius: 999, overflow: 'hidden' }}>
+            {/* Background */}
+            <View style={{ position: 'absolute', width, height, borderRadius: 999, backgroundColor: '#1e293b', borderWidth: 2, borderColor: '#10b748' }} />
+
+            <Svg width={width} height={height} style={{ borderRadius: 999, overflow: 'hidden' }}>
                 <Defs>
-                    <LinearGradient id="waterGradient" x1="0" y1="0" x2="0" y2="1">
-                        <Stop offset="0%" stopColor="#5eead4" stopOpacity="0.95" />
-                        <Stop offset="100%" stopColor="#0f52ba" stopOpacity="0.98" />
-                    </LinearGradient>
+                    <SvgLinearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0%" stopColor="#10b748" stopOpacity="0.9" />
+                        <Stop offset="100%" stopColor="#059669" stopOpacity="0.98" />
+                    </SvgLinearGradient>
+                    <SvgLinearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0%" stopColor="#1e293b" stopOpacity="1" />
+                        <Stop offset="100%" stopColor="#0f172a" stopOpacity="1" />
+                    </SvgLinearGradient>
                 </Defs>
-                <Rect x={0} y={0} width={width} height={height} rx={26} ry={26} fill="#e6fffb" />
-                <AnimatedPath animatedProps={animatedProps} fill="url(#waterGradient)" />
-                <Rect
-                    x={0.5}
-                    y={0.5}
-                    width={width - 1}
-                    height={height - 1}
-                    rx={26}
-                    ry={26}
-                    fill="none"
-                    stroke="#bae6fd"
-                />
+                {/* BG circle */}
+                <Circle cx={width / 2} cy={height / 2} r={Math.min(width, height) / 2} fill="url(#bgGrad)" />
+                {/* Water wave */}
+                <AnimatedPath animatedProps={animatedProps} fill="url(#waterGrad)" clipPath="url(#clip)" />
+                {/* Outer border */}
+                <Circle cx={width / 2} cy={height / 2} r={Math.min(width, height) / 2 - 1} fill="none" stroke="#10b748" strokeWidth={2} />
             </Svg>
 
-            {bubbles.map((bubble) => (
-                <Bubble key={bubble.id} left={bubble.left} size={bubble.size} delay={bubble.delay} />
-            ))}
-
-            <View style={{ position: 'absolute', alignSelf: 'center', top: height / 2 - 28, alignItems: 'center' }}>
-                <Text style={{ color: '#0f52ba', fontSize: 38, fontWeight: '800' }}>{Math.round(ratio * 100)}%</Text>
-                <Text style={{ color: '#0f172a', fontWeight: '700', marginTop: 2 }}>{litersText}</Text>
+            {/* Center text */}
+            <View style={{ position: 'absolute', width, height, alignItems: 'center', justifyContent: 'center' }}>
+                <Droplets size={24} color="#10b748" />
+                <Text style={{ color: '#f8fafc', fontSize: 40, fontWeight: '800', marginTop: 4 }}>{pct}%</Text>
+                <Text style={{ color: '#94a3b8', fontWeight: '700', marginTop: 2, fontSize: 14 }}>{litersText}</Text>
             </View>
         </View>
     );

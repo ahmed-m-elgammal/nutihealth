@@ -38,7 +38,7 @@ export default function OfflineIndicator() {
         >
             <View className="flex-row items-center gap-2">
                 <WifiOff size={14} color="#ffffff" />
-                <Text className="text-xs font-semibold text-white">No internet connection</Text>
+                <Text className="text-xs font-semibold text-white">You are offline · Changes are saved locally</Text>
             </View>
         </Animated.View>
     );

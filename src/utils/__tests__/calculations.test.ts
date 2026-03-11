@@ -140,6 +140,18 @@ describe('Calculations Utility', () => {
             expect(result.carbs).toBe(200);
             expect(result.fats).toBe(71);
         });
+
+        it('normalizes macro percentages to 100 after rounding', () => {
+            const result = calculateMacros(2001, 'maintain', {
+                age: 33,
+                sex: 'male',
+                weightKg: 77,
+                heightCm: 178,
+            });
+
+            expect(result.totalPercent).toBeCloseTo(100, 8);
+            expect(result.proteinPercent + result.carbsPercent + result.fatsPercent).toBeCloseTo(100, 8);
+        });
     });
 
     describe('BMI Calculations', () => {

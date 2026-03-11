@@ -20,6 +20,13 @@ export interface CalorieDataPoint {
     target: number;
 }
 
+export interface MacroDataPoint {
+    date: Date;
+    protein: number;
+    carbs: number;
+    fats: number;
+}
+
 export interface ProgressInsights {
     averageProtein: number;
     averageCarbs: number;
@@ -138,6 +145,59 @@ export async function getCalorieHistory(userId: string, days: number = 7): Promi
         return result;
     } catch (error) {
         handleError(error, 'progressApi.getCalorieHistory');
+        throw error;
+    }
+}
+
+/**
+ * Get daily macro history for the last N days
+ */
+export async function getMacroHistory(userId: string, days: number = 7): Promise<MacroDataPoint[]> {
+    try {
+        const endDate = new Date();
+        const startDate = subDays(endDate, days - 1);
+
+        const mealsCollection = database.get<Meal>('meals');
+        const meals = await mealsCollection
+            .query(
+                Q.where('user_id', userId),
+                Q.where('consumed_at', Q.gte(startOfDay(startDate).getTime())),
+                Q.where('consumed_at', Q.lte(endOfDay(endDate).getTime())),
+            )
+            .fetch();
+
+        const dailyMap = new Map<string, { protein: number; carbs: number; fats: number }>();
+
+        for (let i = 0; i < days; i += 1) {
+            const d = subDays(endDate, i);
+            dailyMap.set(format(d, 'yyyy-MM-dd'), { protein: 0, carbs: 0, fats: 0 });
+        }
+
+        meals.forEach((meal) => {
+            const dayKey = format(new Date(meal.consumedAt), 'yyyy-MM-dd');
+            const current = dailyMap.get(dayKey) || { protein: 0, carbs: 0, fats: 0 };
+            current.protein += Number(meal.totalProtein) || 0;
+            current.carbs += Number(meal.totalCarbs) || 0;
+            current.fats += Number(meal.totalFats) || 0;
+            dailyMap.set(dayKey, current);
+        });
+
+        const result: MacroDataPoint[] = [];
+        const sortedKeys = Array.from(dailyMap.keys()).sort();
+
+        sortedKeys.forEach((key) => {
+            const day = dailyMap.get(key) || { protein: 0, carbs: 0, fats: 0 };
+            result.push({
+                date: new Date(key),
+                protein: day.protein,
+                carbs: day.carbs,
+                fats: day.fats,
+            });
+        });
+
+        return result;
+    } catch (error) {
+        handleError(error, 'progressApi.getMacroHistory');
         throw error;
     }
 }

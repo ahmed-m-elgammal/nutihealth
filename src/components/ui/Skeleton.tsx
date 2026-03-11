@@ -30,9 +30,11 @@ function useSkeletonAnimation() {
     return useContext(SkeletonContext);
 }
 
+import type { DimensionValue } from 'react-native';
+
 export interface SkeletonProps {
-    width?: number | string;
-    height?: number | string;
+    width?: DimensionValue;
+    height?: DimensionValue;
     borderRadius?: number;
     style?: ViewStyle;
     className?: string;

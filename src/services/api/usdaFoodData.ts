@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { EXPO_PUBLIC_USDA_API_KEY } from '../../constants/env';
+import { logger } from '../../utils/logger';
 
 export type UsdaFoodResult = {
     id: string;
@@ -37,17 +39,27 @@ export async function searchUsdaFoods(query: string, limit: number = 10): Promis
     const trimmed = query.trim();
     if (trimmed.length < 3) return [];
 
-    const apiKey = process.env.EXPO_PUBLIC_USDA_API_KEY || DEFAULT_API_KEY;
+    const apiKey = EXPO_PUBLIC_USDA_API_KEY || DEFAULT_API_KEY;
 
     try {
+        logger.apiRequest({ method: 'GET', url: USDA_SEARCH_API });
+        const requestStartedAt = Date.now();
         const response = await axios.get(USDA_SEARCH_API, {
             params: {
-                api_key: apiKey,
                 query: trimmed,
                 pageSize: limit,
                 dataType: ['Foundation', 'Survey (FNDDS)', 'Branded'],
             },
+            headers: {
+                'X-Api-Key': apiKey,
+            },
             timeout: 5000,
+        });
+        logger.apiResponse({
+            method: 'GET',
+            url: USDA_SEARCH_API,
+            status: response.status,
+            durationMs: Date.now() - requestStartedAt,
         });
 
         const foods: any[] = response.data?.foods || [];
@@ -68,6 +80,11 @@ export async function searchUsdaFoods(query: string, limit: number = 10): Promis
                 servingUnit: 'g',
             }));
     } catch {
+        logger.apiError({
+            method: 'GET',
+            url: USDA_SEARCH_API,
+            error: 'USDA search request failed',
+        });
         return [];
     }
 }

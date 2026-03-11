@@ -2,8 +2,8 @@ import React from 'react';
 import { Text, View } from 'react-native';
 
 type MacroSummaryBarProps = {
-    consumed: { protein: number; carbs: number; fats: number };
-    goals: { protein: number; carbs: number; fats: number };
+    consumed: { calories: number; protein: number; carbs: number; fats: number };
+    goals: { calories: number; protein: number; carbs: number; fats: number };
 };
 
 type MacroProgress = {
@@ -30,10 +30,19 @@ export const calculateMacroProgress = (consumedValue: number, goalValue: number)
 export default function MacroSummaryBar({ consumed, goals }: MacroSummaryBarProps) {
     const rows = [
         {
+            key: 'calories',
+            label: 'Calories',
+            shortLabel: 'Kcal',
+            color: '#16a34a',
+            unit: 'kcal',
+            progress: calculateMacroProgress(consumed.calories, goals.calories),
+        },
+        {
             key: 'protein',
             label: 'Protein',
             shortLabel: 'P',
             color: '#2563eb',
+            unit: 'g',
             progress: calculateMacroProgress(consumed.protein, goals.protein),
         },
         {
@@ -41,6 +50,7 @@ export default function MacroSummaryBar({ consumed, goals }: MacroSummaryBarProp
             label: 'Carbs',
             shortLabel: 'C',
             color: '#d97706',
+            unit: 'g',
             progress: calculateMacroProgress(consumed.carbs, goals.carbs),
         },
         {
@@ -48,6 +58,7 @@ export default function MacroSummaryBar({ consumed, goals }: MacroSummaryBarProp
             label: 'Fats',
             shortLabel: 'F',
             color: '#db2777',
+            unit: 'g',
             progress: calculateMacroProgress(consumed.fats, goals.fats),
         },
     ] as const;
@@ -69,7 +80,8 @@ export default function MacroSummaryBar({ consumed, goals }: MacroSummaryBarProp
                     <View key={row.key}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
                             <Text style={{ fontSize: 12, color: '#334155', fontWeight: '700' }}>
-                                {row.shortLabel} {Math.round(row.progress.consumed)}/{Math.round(row.progress.goal)}g
+                                {row.shortLabel} {Math.round(row.progress.consumed)}/{Math.round(row.progress.goal)}
+                                {row.unit}
                             </Text>
                             <Text style={{ fontSize: 12, color: '#64748b' }}>
                                 {Math.round(row.progress.ratio * 100)}%

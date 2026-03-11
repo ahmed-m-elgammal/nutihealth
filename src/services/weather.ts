@@ -25,6 +25,32 @@ let weatherCache: {
 
 const CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
+const toWeatherData = (response: any): WeatherData | null => {
+    const main = response?.main;
+    const weatherArr = response?.weather;
+    const firstWeather = Array.isArray(weatherArr) ? weatherArr[0] : null;
+
+    if (!main || !firstWeather) {
+        return null;
+    }
+
+    if (typeof main.temp !== 'number' || typeof main.feels_like !== 'number' || typeof main.humidity !== 'number') {
+        return null;
+    }
+
+    if (typeof firstWeather.description !== 'string' || typeof firstWeather.icon !== 'string') {
+        return null;
+    }
+
+    return {
+        temperature: Math.round(main.temp),
+        humidity: main.humidity,
+        description: firstWeather.description,
+        feelsLike: Math.round(main.feels_like),
+        icon: firstWeather.icon,
+    };
+};
+
 /**
  * Get current weather by coordinates
  */
@@ -47,13 +73,10 @@ export async function getCurrentWeather(
             suppressErrors: true,
         });
 
-        const data: WeatherData = {
-            temperature: Math.round(response.main.temp),
-            humidity: response.main.humidity,
-            description: response.weather[0].description,
-            feelsLike: Math.round(response.main.feels_like),
-            icon: response.weather[0].icon,
-        };
+        const data = toWeatherData(response);
+        if (!data) {
+            return null;
+        }
 
         // Update cache
         weatherCache = {
@@ -80,13 +103,10 @@ export async function getCurrentWeatherByCity(city: string): Promise<WeatherData
             suppressErrors: true,
         });
 
-        const data: WeatherData = {
-            temperature: Math.round(response.main.temp),
-            humidity: response.main.humidity,
-            description: response.weather[0].description,
-            feelsLike: Math.round(response.main.feels_like),
-            icon: response.weather[0].icon,
-        };
+        const data = toWeatherData(response);
+        if (!data) {
+            return null;
+        }
 
         // Update cache
         weatherCache = {

@@ -1,9 +1,13 @@
 import { API_BASE_URL } from './api';
+import {
+    EXPO_PUBLIC_SUPABASE_KEY,
+    EXPO_PUBLIC_SUPABASE_URL,
+    NODE_ENV,
+} from './env';
 
 // App configuration constants
 const isSupabaseConfigured = Boolean(
-    process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() &&
-    (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()),
+    EXPO_PUBLIC_SUPABASE_URL && EXPO_PUBLIC_SUPABASE_KEY,
 );
 
 export const config = {
@@ -29,7 +33,7 @@ export const config = {
     app: {
         name: 'NutriHealth',
         version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
+        environment: NODE_ENV,
     },
 
     // Database
@@ -47,7 +51,7 @@ export const config = {
 
     // Supabase
     supabase: {
-        url: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+        url: EXPO_PUBLIC_SUPABASE_URL,
         configured: isSupabaseConfigured,
     },
 

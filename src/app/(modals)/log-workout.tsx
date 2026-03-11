@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, Image } fro
 import { useRouter } from 'expo-router';
 import { X, Plus, Save, Trash2 } from 'lucide-react-native';
 import { useUserStore } from '../../store/userStore';
+import { useWaterStore } from '../../store/waterStore';
 import { logWorkout } from '../../services/api/workouts';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExerciseSelector } from '../../components/workout/ExerciseSelector';
@@ -23,6 +24,7 @@ type ExerciseLog = {
 export default function LogWorkoutModal() {
     const router = useRouter();
     const { user } = useUserStore();
+    const calculateDynamicTarget = useWaterStore((state) => state.calculateDynamicTarget);
     const [workoutName, setWorkoutName] = useState('Evening Workout');
     const [exercises, setExercises] = useState<ExerciseLog[]>([]);
 
@@ -48,7 +50,7 @@ export default function LogWorkoutModal() {
                 ...newExercises[editingExerciseIndex],
                 name: exercise.name,
                 exerciseId: exercise.id,
-                gifUrl: exercise.imageUrl // Store GIF URL for display
+                gifUrl: exercise.imageUrl, // Store GIF URL for display
             };
             setExercises(newExercises);
         } else {
@@ -58,7 +60,7 @@ export default function LogWorkoutModal() {
                 name: exercise.name,
                 exerciseId: exercise.id,
                 gifUrl: exercise.imageUrl,
-                sets: [{ reps: '10', weight: '0' }]
+                sets: [{ reps: '10', weight: '0' }],
             };
             setExercises([...exercises, newExercise]);
         }
@@ -66,31 +68,38 @@ export default function LogWorkoutModal() {
     };
 
     const handleAddSet = (exerciseId: string) => {
-        setExercises(exercises.map(ex => {
-            if (ex.id === exerciseId) {
-                // carry over previous set weight/reps
-                const lastSet = ex.sets[ex.sets.length - 1];
-                return {
-                    ...ex,
-                    sets: [...ex.sets, {
-                        reps: lastSet ? lastSet.reps : '10',
-                        weight: lastSet ? lastSet.weight : '0'
-                    }]
-                };
-            }
-            return ex;
-        }));
+        setExercises(
+            exercises.map((ex) => {
+                if (ex.id === exerciseId) {
+                    // carry over previous set weight/reps
+                    const lastSet = ex.sets[ex.sets.length - 1];
+                    return {
+                        ...ex,
+                        sets: [
+                            ...ex.sets,
+                            {
+                                reps: lastSet ? lastSet.reps : '10',
+                                weight: lastSet ? lastSet.weight : '0',
+                            },
+                        ],
+                    };
+                }
+                return ex;
+            }),
+        );
     };
 
     const handleUpdateSet = (exerciseId: string, setIndex: number, field: keyof Set, value: string) => {
-        setExercises(exercises.map(ex => {
-            if (ex.id === exerciseId) {
-                const newSets = [...ex.sets];
-                newSets[setIndex] = { ...newSets[setIndex], [field]: value };
-                return { ...ex, sets: newSets };
-            }
-            return ex;
-        }));
+        setExercises(
+            exercises.map((ex) => {
+                if (ex.id === exerciseId) {
+                    const newSets = [...ex.sets];
+                    newSets[setIndex] = { ...newSets[setIndex], [field]: value };
+                    return { ...ex, sets: newSets };
+                }
+                return ex;
+            }),
+        );
     };
 
     const handleSaveWorkout = async () => {
@@ -107,22 +116,26 @@ export default function LogWorkoutModal() {
         }
 
         try {
-            const formattedExercises = exercises.map(ex => ({
+            const endedAt = Date.now();
+            const startedAt = endedAt - 60 * 60 * 1000;
+            const formattedExercises = exercises.map((ex) => ({
                 exerciseId: ex.exerciseId as string,
                 name: ex.name,
-                sets: ex.sets.map(s => ({
+                sets: ex.sets.map((s) => ({
                     reps: parseInt(s.reps) || 0,
                     weight: parseFloat(s.weight) || 0,
-                }))
+                })),
             }));
 
             await logWorkout({
                 userId: user.id,
                 name: workoutName,
-                startedAt: Date.now() - 3600000,
-                endedAt: Date.now(),
-                exercises: formattedExercises
+                startedAt,
+                endedAt,
+                exercises: formattedExercises,
             });
+
+            await calculateDynamicTarget(undefined, Math.round((endedAt - startedAt) / 60000));
 
             router.back();
         } catch (error) {
@@ -134,17 +147,14 @@ export default function LogWorkoutModal() {
     if (isSelectorVisible) {
         return (
             <SafeAreaView className="flex-1 bg-white">
-                <ExerciseSelector
-                    onSelect={onSelectExercise}
-                    onClose={() => setIsSelectorVisible(false)}
-                />
+                <ExerciseSelector onSelect={onSelectExercise} onClose={() => setIsSelectorVisible(false)} />
             </SafeAreaView>
         );
     }
 
     return (
         <SafeAreaView className="flex-1 bg-white">
-            <View className="flex-row items-center justify-between px-6 py-4 border-b border-neutral-100">
+            <View className="flex-row items-center justify-between border-b border-neutral-100 px-6 py-4">
                 <Text className="text-xl font-bold">Log Workout</Text>
                 <TouchableOpacity onPress={() => router.back()}>
                     <X size={24} color="#525252" />
@@ -153,9 +163,9 @@ export default function LogWorkoutModal() {
 
             <ScrollView className="flex-1 p-6">
                 <View className="mb-6">
-                    <Text className="text-neutral-500 text-sm mb-1">Workout Name</Text>
+                    <Text className="mb-1 text-sm text-neutral-500">Workout Name</Text>
                     <TextInput
-                        className="text-2xl font-bold text-neutral-900 border-b border-neutral-200 pb-2"
+                        className="border-b border-neutral-200 pb-2 text-2xl font-bold text-neutral-900"
                         value={workoutName}
                         onChangeText={setWorkoutName}
                         placeholder="Workout Name"
@@ -163,16 +173,16 @@ export default function LogWorkoutModal() {
                 </View>
 
                 {exercises.map((exercise, index) => (
-                    <View key={exercise.id} className="mb-6 bg-neutral-50 rounded-2xl p-4 border border-neutral-100">
-                        <View className="flex-row items-center justify-between mb-4">
+                    <View key={exercise.id} className="mb-6 rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
+                        <View className="mb-4 flex-row items-center justify-between">
                             <TouchableOpacity
-                                className="flex-1 flex-row items-center mr-4"
+                                className="mr-4 flex-1 flex-row items-center"
                                 onPress={() => handleReplaceExercise(index)}
                             >
                                 {exercise.gifUrl && (
                                     <Image
                                         source={{ uri: exercise.gifUrl }}
-                                        className="w-12 h-12 rounded-md mr-3 bg-neutral-200"
+                                        className="mr-3 h-12 w-12 rounded-md bg-neutral-200"
                                         resizeMode="cover"
                                     />
                                 )}
@@ -180,38 +190,40 @@ export default function LogWorkoutModal() {
                                     <Text className="text-lg font-bold text-neutral-900" numberOfLines={1}>
                                         {exercise.name || 'Select Exercise'}
                                     </Text>
-                                    <Text className="text-xs text-primary-600 font-medium">Click to change</Text>
+                                    <Text className="text-xs font-medium text-primary-600">Click to change</Text>
                                 </View>
                             </TouchableOpacity>
 
-                            <TouchableOpacity onPress={() => {
-                                const newExercises = exercises.filter((_, i) => i !== index);
-                                setExercises(newExercises);
-                            }}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const newExercises = exercises.filter((_, i) => i !== index);
+                                    setExercises(newExercises);
+                                }}
+                            >
                                 <Trash2 size={20} color="#ef4444" />
                             </TouchableOpacity>
                         </View>
 
-                        <View className="flex-row mb-2 px-2">
-                            <Text className="w-8 text-xs font-semibold text-neutral-500 text-center">#</Text>
-                            <Text className="flex-1 text-xs font-semibold text-neutral-500 text-center">kg</Text>
-                            <Text className="flex-1 text-xs font-semibold text-neutral-500 text-center">Reps</Text>
+                        <View className="mb-2 flex-row px-2">
+                            <Text className="w-8 text-center text-xs font-semibold text-neutral-500">#</Text>
+                            <Text className="flex-1 text-center text-xs font-semibold text-neutral-500">kg</Text>
+                            <Text className="flex-1 text-center text-xs font-semibold text-neutral-500">Reps</Text>
                         </View>
 
                         {exercise.sets.map((set, setIndex) => (
-                            <View key={setIndex} className="flex-row items-center mb-2 gap-3">
+                            <View key={setIndex} className="mb-2 flex-row items-center gap-3">
                                 <View className="w-8 items-center justify-center">
-                                    <Text className="font-semibold text-neutral-400 text-xs">{setIndex + 1}</Text>
+                                    <Text className="text-xs font-semibold text-neutral-400">{setIndex + 1}</Text>
                                 </View>
                                 <TextInput
-                                    className="flex-1 bg-white h-10 rounded-lg border border-neutral-200 text-center font-medium shadow-sm"
+                                    className="h-10 flex-1 rounded-lg border border-neutral-200 bg-white text-center font-medium shadow-sm"
                                     value={set.weight}
                                     keyboardType="numeric"
                                     placeholder="0"
                                     onChangeText={(v) => handleUpdateSet(exercise.id, setIndex, 'weight', v)}
                                 />
                                 <TextInput
-                                    className="flex-1 bg-white h-10 rounded-lg border border-neutral-200 text-center font-medium shadow-sm"
+                                    className="h-10 flex-1 rounded-lg border border-neutral-200 bg-white text-center font-medium shadow-sm"
                                     value={set.reps}
                                     keyboardType="numeric"
                                     placeholder="0"
@@ -221,33 +233,33 @@ export default function LogWorkoutModal() {
                         ))}
 
                         <TouchableOpacity
-                            className="mt-3 flex-row items-center justify-center py-2 bg-white border border-neutral-200 rounded-lg"
+                            className="mt-3 flex-row items-center justify-center rounded-lg border border-neutral-200 bg-white py-2"
                             onPress={() => handleAddSet(exercise.id)}
                         >
                             <Plus size={16} color="#525252" />
-                            <Text className="ml-1 font-semibold text-neutral-600 text-sm">Add Set</Text>
+                            <Text className="ml-1 text-sm font-semibold text-neutral-600">Add Set</Text>
                         </TouchableOpacity>
                     </View>
                 ))}
 
                 <TouchableOpacity
-                    className="flex-row items-center justify-center py-5 bg-white rounded-2xl border-2 border-primary-100 dashed mb-8 active:bg-primary-50"
+                    className="dashed mb-8 flex-row items-center justify-center rounded-2xl border-2 border-primary-100 bg-white py-5 active:bg-primary-50"
                     onPress={handleAddExercise}
                 >
-                    <View className="bg-primary-100 p-2 rounded-full mr-3">
+                    <View className="mr-3 rounded-full bg-primary-100 p-2">
                         <Plus size={20} color="#059669" />
                     </View>
-                    <Text className="font-bold text-primary-700 text-lg">Add Exercise</Text>
+                    <Text className="text-lg font-bold text-primary-700">Add Exercise</Text>
                 </TouchableOpacity>
             </ScrollView>
 
-            <View className="p-6 border-t border-neutral-100 bg-white">
+            <View className="border-t border-neutral-100 bg-white p-6">
                 <TouchableOpacity
-                    className="bg-neutral-900 py-4 rounded-2xl flex-row items-center justify-center shadow-lg active:scale-95 transition-all"
+                    className="flex-row items-center justify-center rounded-2xl bg-neutral-900 py-4 shadow-lg transition-all active:scale-95"
                     onPress={handleSaveWorkout}
                 >
                     <Save size={20} color="white" />
-                    <Text className="ml-2 text-white font-bold text-lg">Finish Workout</Text>
+                    <Text className="ml-2 text-lg font-bold text-white">Finish Workout</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

@@ -36,9 +36,7 @@ export async function getCachedResult<T>(imageHash: string): Promise<T | null> {
         // Check if expired
         if (Date.now() - entry.timestamp > CACHE_EXPIRY) {
             // Delete asynchronously to avoid blocking
-            cleanupExpiredEntry(imageHash).catch(err =>
-                console.warn('Background cleanup failed:', err)
-            );
+            cleanupExpiredEntry(imageHash).catch((err) => console.warn('Background cleanup failed:', err));
             return null;
         }
 
@@ -55,9 +53,7 @@ export async function getCachedResult<T>(imageHash: string): Promise<T | null> {
  */
 export function setCachedResult<T>(imageHash: string, result: T): void {
     // Run cache write in background to avoid blocking UI
-    _setCachedResultAsync(imageHash, result).catch(err =>
-        console.warn('Background cache write failed:', err)
-    );
+    _setCachedResultAsync(imageHash, result).catch((err) => console.warn('Background cache write failed:', err));
 }
 
 /**
@@ -70,7 +66,7 @@ async function _setCachedResultAsync<T>(imageHash: string, result: T): Promise<v
 
         cache[imageHash] = {
             result,
-            timestamp: Date.now()
+            timestamp: Date.now(),
         };
 
         // Optimized trimming - only check count, don't sort unless needed
@@ -100,15 +96,4 @@ async function cleanupExpiredEntry(imageHash: string): Promise<void> {
     const cache = JSON.parse(cacheStr);
     delete cache[imageHash];
     await storage.setItem(CACHE_KEY, JSON.stringify(cache));
-}
-
-/**
- * Clears all cached AI detection results
- */
-export async function clearDetectionCache(): Promise<void> {
-    try {
-        await storage.removeItem(CACHE_KEY);
-    } catch (error) {
-        console.error('Failed to clear cache:', error);
-    }
 }

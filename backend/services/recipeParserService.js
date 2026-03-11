@@ -1,11 +1,21 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { Buffer } = require('node:buffer');
+const http = require('node:http');
+const https = require('node:https');
+const net = require('node:net');
 const {
     detectLanguageFromContent,
     parseIngredientLine,
     parseLocalizedNumber,
     parseServings,
 } = require('../utils/arabicRecipeParser');
+const { logger } = require('../utils/logger');
+
+const REQUEST_TIMEOUT_MS = 15000;
+const MAX_RECIPE_REDIRECTS = 5;
+const MAX_RECIPE_HTML_BYTES = 5 * 1024 * 1024;
+const ALLOWED_HTML_CONTENT_TYPES = new Set(['text/html', 'application/xhtml+xml']);
 
 let schemaScraper = null;
 try {
@@ -19,14 +29,14 @@ try {
  * Parse recipe data from a URL and normalize to NutriHealth's API contract.
  * Supports schema.org JSON-LD first, then HTML fallback extraction.
  */
-async function parseRecipeFromUrl(url) {
+async function parseRecipeFromUrl(url, options = {}) {
     if (!isValidHttpUrl(url)) {
         const invalidUrlError = new Error('Please enter a valid recipe URL');
         invalidUrlError.code = 'INVALID_URL';
         throw invalidUrlError;
     }
 
-    const html = await fetchRecipeHtml(url);
+    const html = await fetchRecipeHtml(url, options);
     const $ = cheerio.load(html);
 
     const titleText =
@@ -47,6 +57,15 @@ async function parseRecipeFromUrl(url) {
     if (!mergedRecipe.title || mergedRecipe.ingredients.length === 0) {
         const parseError = new Error("Couldn't find recipe data. Try another URL");
         parseError.code = 'NO_RECIPE';
+        logger.warn(
+            {
+                route: '/api/recipes/import',
+                errorCode: parseError.code,
+                errorMessage: parseError.message,
+                targetUrl: url,
+            },
+            'Recipe content could not be parsed',
+        );
         throw parseError;
     }
 
@@ -64,38 +83,172 @@ async function parseRecipeFromUrl(url) {
     };
 }
 
-async function fetchRecipeHtml(url) {
-    try {
-        const response = await axios.get(url, {
-            timeout: 15000,
-            headers: {
-                'User-Agent':
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 NutriHealthRecipeImporter/1.0',
-                Accept: 'text/html,application/xhtml+xml',
-            },
-            maxRedirects: 5,
-        });
+async function fetchRecipeHtml(url, options = {}) {
+    const resolveAddress = typeof options.resolveAddress === 'function' ? options.resolveAddress : null;
+    let currentUrl = new URL(url);
+    let resolvedAddress = options.resolvedAddress || null;
+    let redirectsFollowed = 0;
 
-        return response.data;
-    } catch (error) {
-        const status = error.response?.status;
+    while (redirectsFollowed <= MAX_RECIPE_REDIRECTS) {
+        try {
+            if (!resolvedAddress && resolveAddress) {
+                resolvedAddress = await resolveAddress(currentUrl);
+            }
 
-        if (status === 400 || status === 404) {
-            const invalidUrlError = new Error('Please enter a valid recipe URL');
-            invalidUrlError.code = 'INVALID_URL';
-            throw invalidUrlError;
+            const response = await axios.get(currentUrl.toString(), {
+                timeout: REQUEST_TIMEOUT_MS,
+                responseType: 'stream',
+                maxRedirects: 0,
+                validateStatus: () => true,
+                headers: {
+                    'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 NutriHealthRecipeImporter/1.0',
+                    Accept: 'text/html,application/xhtml+xml',
+                    Host: currentUrl.host,
+                },
+                httpAgent: createPinnedAgent(http.Agent, resolvedAddress),
+                httpsAgent: createPinnedAgent(https.Agent, resolvedAddress),
+            });
+
+            if (isRedirectStatus(response.status)) {
+                if (redirectsFollowed >= MAX_RECIPE_REDIRECTS) {
+                    destroyStream(response.data);
+                    const parseError = new Error("Couldn't parse this recipe. Too many redirects.");
+                    parseError.code = 'PARSE';
+                    throw parseError;
+                }
+
+                const nextLocation = response.headers?.location;
+                if (!nextLocation) {
+                    destroyStream(response.data);
+                    const parseError = new Error("Couldn't parse this recipe. Invalid redirect target.");
+                    parseError.code = 'PARSE';
+                    throw parseError;
+                }
+
+                const nextUrl = new URL(nextLocation, currentUrl);
+                if (!['http:', 'https:'].includes(nextUrl.protocol)) {
+                    destroyStream(response.data);
+                    const invalidUrlError = new Error('Please enter a valid recipe URL');
+                    invalidUrlError.code = 'INVALID_URL';
+                    throw invalidUrlError;
+                }
+
+                destroyStream(response.data);
+                currentUrl = nextUrl;
+                resolvedAddress = resolveAddress ? await resolveAddress(currentUrl) : null;
+                redirectsFollowed += 1;
+                continue;
+            }
+
+            if (response.status === 400 || response.status === 404) {
+                destroyStream(response.data);
+                const invalidUrlError = new Error('Please enter a valid recipe URL');
+                invalidUrlError.code = 'INVALID_URL';
+                throw invalidUrlError;
+            }
+
+            if (response.status === 401 || response.status === 403 || response.status === 429) {
+                destroyStream(response.data);
+                const parseError = new Error("Couldn't parse this recipe. Manual entry available");
+                parseError.code = 'PARSE';
+                throw parseError;
+            }
+
+            if (response.status < 200 || response.status >= 300) {
+                destroyStream(response.data);
+                const networkError = new Error('Connection failed. Check your internet');
+                networkError.code = 'NETWORK';
+                throw networkError;
+            }
+
+            assertHtmlContentType(response.headers?.['content-type']);
+            assertContentLengthWithinLimit(response.headers?.['content-length']);
+            const html = await readStreamWithMaxSize(response.data, MAX_RECIPE_HTML_BYTES);
+            return html;
+        } catch (error) {
+            if (error?.code === 'INVALID_URL' || error?.code === 'PARSE' || error?.code === 'SSRF_BLOCKED') {
+                logger.warn(
+                    {
+                        route: '/api/recipes/import',
+                        errorCode: error.code,
+                        errorMessage: error.message,
+                        targetUrl: currentUrl.toString(),
+                    },
+                    'Recipe fetch rejected',
+                );
+                throw error;
+            }
+
+            if (error?.response?.status) {
+                const status = error.response.status;
+
+                if (status === 400 || status === 404) {
+                    const invalidUrlError = new Error('Please enter a valid recipe URL');
+                    invalidUrlError.code = 'INVALID_URL';
+                    logger.warn(
+                        {
+                            route: '/api/recipes/import',
+                            errorCode: invalidUrlError.code,
+                            errorMessage: invalidUrlError.message,
+                            upstreamStatus: status,
+                            targetUrl: currentUrl.toString(),
+                        },
+                        'Recipe URL rejected by upstream',
+                    );
+                    throw invalidUrlError;
+                }
+
+                if (status === 401 || status === 403 || status === 429) {
+                    const parseError = new Error("Couldn't parse this recipe. Manual entry available");
+                    parseError.code = 'PARSE';
+                    logger.warn(
+                        {
+                            route: '/api/recipes/import',
+                            errorCode: parseError.code,
+                            errorMessage: parseError.message,
+                            upstreamStatus: status,
+                            targetUrl: currentUrl.toString(),
+                        },
+                        'Upstream blocked recipe fetch',
+                    );
+                    throw parseError;
+                }
+            }
+
+            if (error?.code === 'ERR_BAD_RESPONSE' || error?.code === 'ERR_BAD_REQUEST') {
+                const parseError = new Error("Couldn't parse this recipe. Manual entry available");
+                parseError.code = 'PARSE';
+                logger.warn(
+                    {
+                        route: '/api/recipes/import',
+                        errorCode: parseError.code,
+                        errorMessage: parseError.message,
+                        targetUrl: currentUrl.toString(),
+                    },
+                    'Recipe fetch received invalid upstream response',
+                );
+                throw parseError;
+            }
+
+            const networkError = new Error('Connection failed. Check your internet');
+            networkError.code = 'NETWORK';
+            logger.error(
+                {
+                    route: '/api/recipes/import',
+                    errorCode: networkError.code,
+                    errorMessage: error?.message || networkError.message,
+                    targetUrl: currentUrl.toString(),
+                },
+                'Recipe fetch network failure',
+            );
+            throw networkError;
         }
-
-        if (status === 401 || status === 403 || status === 429) {
-            const parseError = new Error("Couldn't parse this recipe. Manual entry available");
-            parseError.code = 'PARSE';
-            throw parseError;
-        }
-
-        const networkError = new Error('Connection failed. Check your internet');
-        networkError.code = 'NETWORK';
-        throw networkError;
     }
+
+    const parseError = new Error("Couldn't parse this recipe. Too many redirects.");
+    parseError.code = 'PARSE';
+    throw parseError;
 }
 
 async function extractFromSchema($, html, url) {
@@ -118,7 +271,7 @@ async function extractFromSchema($, html, url) {
 
     if (schemaScraper) {
         try {
-            const scraped = await trySchemaScraper(url, html);
+            const scraped = await trySchemaScraper(html);
             if (scraped) {
                 schemaNodes.push(scraped);
             }
@@ -138,30 +291,32 @@ async function extractFromSchema($, html, url) {
     return bestCandidate || emptyRecipe();
 }
 
-async function trySchemaScraper(url, html) {
+async function trySchemaScraper(html) {
     if (!schemaScraper) {
         return null;
     }
 
-    if (typeof schemaScraper === 'function') {
-        let result;
-
-        if (html && typeof html === 'string') {
-            result = await schemaScraper({ url, html, timeout: 15000, maxRedirects: 5 });
-        } else {
-            result = await schemaScraper(url, { timeout: 15000, maxRedirects: 5 });
-        }
-
-        return Array.isArray(result) ? result[0] : result;
+    if (typeof html !== 'string' || !html.trim()) {
+        return null;
     }
 
-    if (typeof schemaScraper.scrape === 'function') {
-        const result = await schemaScraper.scrape(url, html);
+    if (typeof schemaScraper === 'function') {
+        const result = await schemaScraper({
+            html,
+            timeout: REQUEST_TIMEOUT_MS,
+            maxRedirects: 0,
+        });
+
         return Array.isArray(result) ? result[0] : result;
     }
 
     if (typeof schemaScraper.parse === 'function') {
-        const result = await schemaScraper.parse(html, url);
+        const result = await schemaScraper.parse(html);
+        return Array.isArray(result) ? result[0] : result;
+    }
+
+    if (typeof schemaScraper.scrape === 'function') {
+        const result = await schemaScraper.scrape({ html, timeout: REQUEST_TIMEOUT_MS, maxRedirects: 0 });
         return Array.isArray(result) ? result[0] : result;
     }
 
@@ -230,7 +385,7 @@ function extractFromHtml($) {
             ...collectTexts($, '.recipe-ingredients li'),
             ...collectTexts($, '.ingredients li'),
             ...collectTexts($, '[class*="ingredient"] li'),
-        ].map((value) => cleanText(value))
+        ].map((value) => cleanText(value)),
     );
 
     const rawInstructions = uniqueNonEmpty(
@@ -240,7 +395,7 @@ function extractFromHtml($) {
             ...collectTexts($, '.instructions li'),
             ...collectTexts($, '[class*="instruction"] li'),
             ...collectTexts($, '[class*="direction"] li'),
-        ].map((value) => cleanText(value))
+        ].map((value) => cleanText(value)),
     );
 
     const servingsText =
@@ -249,10 +404,7 @@ function extractFromHtml($) {
         $('[class*="yield"]').first().text() ||
         '';
 
-    const nutritionBlock =
-        $('[class*="nutrition"]').first().text() ||
-        $('[itemprop="nutrition"]').first().text() ||
-        '';
+    const nutritionBlock = $('[class*="nutrition"]').first().text() || $('[itemprop="nutrition"]').first().text() || '';
 
     return {
         title: cleanText(title),
@@ -293,12 +445,12 @@ function normalizeIngredients(ingredients) {
     const normalized = normalizeIngredientSource(ingredients);
     return normalized.length > 0
         ? normalized.map((ingredient, index) => ({
-            id: `ingredient-${index}`,
-            name: ingredient.name,
-            amount: ingredient.amount,
-            unit: ingredient.unit,
-            nameAr: ingredient.nameAr,
-        }))
+              id: `ingredient-${index}`,
+              name: ingredient.name,
+              amount: ingredient.amount,
+              unit: ingredient.unit,
+              nameAr: ingredient.nameAr,
+          }))
         : [];
 }
 
@@ -332,7 +484,7 @@ function normalizeIngredientSource(source) {
                 name: cleanText(ingredient.name),
                 amount: Number.isFinite(ingredient.amount) ? ingredient.amount : 1,
                 unit: ingredient.unit || 'piece',
-            }))
+            })),
     );
 }
 
@@ -436,6 +588,107 @@ function extractImage(imageField) {
     return '';
 }
 
+function createPinnedAgent(AgentCtor, resolvedAddress) {
+    if (!resolvedAddress) {
+        return undefined;
+    }
+
+    const family = net.isIP(resolvedAddress) || 4;
+
+    return new AgentCtor({
+        keepAlive: false,
+        lookup: (_hostname, lookupOptions, callback) => {
+            let normalizedOptions = lookupOptions;
+            let normalizedCallback = callback;
+
+            if (typeof normalizedOptions === 'function') {
+                normalizedCallback = normalizedOptions;
+                normalizedOptions = {};
+            }
+
+            if (!normalizedCallback) {
+                return;
+            }
+
+            if (normalizedOptions && normalizedOptions.all) {
+                normalizedCallback(null, [{ address: resolvedAddress, family }]);
+                return;
+            }
+
+            normalizedCallback(null, resolvedAddress, family);
+        },
+    });
+}
+
+function isRedirectStatus(status) {
+    return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function destroyStream(stream) {
+    if (stream && typeof stream.destroy === 'function' && !stream.destroyed) {
+        stream.destroy();
+    }
+}
+
+function assertHtmlContentType(contentType) {
+    const rawContentType = Array.isArray(contentType) ? contentType[0] : contentType;
+    const normalized = String(rawContentType || '')
+        .split(';')[0]
+        .trim()
+        .toLowerCase();
+
+    if (!ALLOWED_HTML_CONTENT_TYPES.has(normalized)) {
+        const parseError = new Error("Couldn't parse this recipe. URL did not return an HTML page.");
+        parseError.code = 'PARSE';
+        throw parseError;
+    }
+}
+
+function assertContentLengthWithinLimit(contentLength) {
+    const rawContentLength = Array.isArray(contentLength) ? contentLength[0] : contentLength;
+    const parsed = Number.parseInt(String(rawContentLength || ''), 10);
+
+    if (Number.isFinite(parsed) && parsed > MAX_RECIPE_HTML_BYTES) {
+        const parseError = new Error("Couldn't parse this recipe. The page is larger than 5MB.");
+        parseError.code = 'PARSE';
+        throw parseError;
+    }
+}
+
+async function readStreamWithMaxSize(stream, maxBytes) {
+    return new Promise((resolve, reject) => {
+        let totalBytes = 0;
+        const chunks = [];
+
+        stream.on('data', (chunk) => {
+            totalBytes += chunk.length;
+            if (totalBytes > maxBytes) {
+                const parseError = new Error("Couldn't parse this recipe. The page is larger than 5MB.");
+                parseError.code = 'PARSE';
+                stream.destroy(parseError);
+                return;
+            }
+
+            chunks.push(chunk);
+        });
+
+        stream.on('error', (error) => {
+            if (error?.code === 'PARSE') {
+                reject(error);
+                return;
+            }
+
+            const networkError = new Error('Connection failed. Check your internet');
+            networkError.code = 'NETWORK';
+            reject(networkError);
+        });
+
+        stream.on('end', () => {
+            resolve(Buffer.concat(chunks).toString('utf8'));
+        });
+    });
+}
+
 function collectTexts($, selector) {
     return $(selector)
         .map((_, element) => $(element).text())
@@ -517,4 +770,5 @@ function isValidHttpUrl(value) {
 
 module.exports = {
     parseRecipeFromUrl,
+    mergeRecipeData,
 };

@@ -1,17 +1,28 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { WeeklyWorkoutPlan, WorkoutDay, WorkoutSession, UserStats } from '../types/workout';
+import { WeeklyWorkoutPlan, WorkoutDay, WorkoutSession as TrackedWorkoutSession, UserStats } from '../types/workout';
+import { database } from '../database';
+import WorkoutSession from '../database/models/WorkoutSession';
 import { storage } from '../utils/storage-adapter';
+import { getUserId } from '../utils/storage';
+
+type PersistableWorkoutSession = TrackedWorkoutSession & {
+    templateId?: string;
+    endedAt?: number;
+    caloriesBurned?: number;
+    totalVolume?: number;
+    intensity?: 'light' | 'moderate' | 'heavy';
+};
 
 interface WorkoutState {
     currentPlan: WeeklyWorkoutPlan | null;
     activeWorkout: WorkoutDay | null;
-    history: WorkoutSession[];
+    history: TrackedWorkoutSession[];
     stats: UserStats;
     setPlan: (plan: WeeklyWorkoutPlan) => void;
     setActiveWorkout: (day: WorkoutDay | null) => void;
     getWorkoutDay: (dayId: string) => WorkoutDay | undefined;
-    addSession: (session: WorkoutSession) => void;
+    addSession: (session: TrackedWorkoutSession) => void;
 }
 
 const DEFAULT_STATS: UserStats = {
@@ -36,24 +47,48 @@ export const useWorkoutStore = create<WorkoutState>()(
             },
             addSession: (session) => {
                 const { history, stats } = get();
-                const newHistory = [session, ...history];
+                const persistableSession = session as PersistableWorkoutSession;
 
-                // Update basic stats
+                // 1 — Persist to WatermelonDB so history survives reinstalls
+                const persistToDB = async () => {
+                    const userId = await getUserId();
+                    if (!userId) return;
+
+                    await database.write(async () => {
+                        await database.get<WorkoutSession>('workout_sessions').create((record) => {
+                            record.userId = userId;
+                            record.planId = session.planId;
+                            record.dayId = session.dayId;
+                            record.templateId = persistableSession.templateId;
+                            record.startedAt = session.date;
+                            record.endedAt = persistableSession.endedAt;
+                            record.durationMinutes = session.duration;
+                            record.caloriesBurned = persistableSession.caloriesBurned;
+                            record.totalVolumeKg = persistableSession.totalVolume;
+                            record.intensity = persistableSession.intensity;
+                            record.notes = session.notes;
+                            record.exercises = session.exercises;
+                        });
+                    });
+                };
+
+                persistToDB().catch((err) => console.warn('[WorkoutStore] Failed to persist session to DB:', err));
+
+                // 2 — Keep existing Zustand state for immediate UI updates
+                const newHistory = [session, ...history];
                 const newStats = {
                     ...stats,
                     totalWorkouts: stats.totalWorkouts + 1,
                     lastWorkoutDate: session.date,
-                    // Streak logic would go here (simplified for now)
                 };
 
-                // Personal Record Logic
+                // 3 — Personal Record logic (unchanged)
                 session.exercises.forEach((ex) => {
                     const maxWeight = Math.max(...ex.sets.map((s) => s.weight || 0));
                     if (maxWeight > 0) {
-                        const existingPR = stats.personalRecords.find((p) => p.exerciseId === ex.exerciseId);
+                        const prIndex = newStats.personalRecords.findIndex((p) => p.exerciseId === ex.exerciseId);
+                        const existingPR = newStats.personalRecords[prIndex];
                         if (!existingPR || maxWeight > existingPR.weight) {
-                            // Update PR
-                            const prIndex = newStats.personalRecords.findIndex((p) => p.exerciseId === ex.exerciseId);
                             const newPR = {
                                 exerciseId: ex.exerciseId,
                                 weight: maxWeight,

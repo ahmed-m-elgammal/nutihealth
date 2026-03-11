@@ -17,13 +17,68 @@ function dayNameForDate(date: Date): string {
     return date.toLocaleDateString('en-US', { weekday: 'long' });
 }
 
-function inferIntensity(schedule: WorkoutSchedule): 'light' | 'moderate' | 'heavy' {
+type WorkoutIntensity = 'light' | 'moderate' | 'heavy';
+
+function normalizeIntensity(value: unknown): WorkoutIntensity | null {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase();
+
+    if (normalized === 'heavy') return 'heavy';
+    if (normalized === 'moderate') return 'moderate';
+    if (normalized === 'light') return 'light';
+
+    return null;
+}
+
+function intensityFromWorkoutType(workoutType: unknown): WorkoutIntensity | null {
+    const normalized = String(workoutType || '')
+        .trim()
+        .toLowerCase();
+
+    if (!normalized) {
+        return null;
+    }
+
+    if (
+        normalized.includes('hiit') ||
+        normalized.includes('strength') ||
+        normalized.includes('power') ||
+        normalized.includes('crossfit') ||
+        normalized.includes('metcon')
+    ) {
+        return 'heavy';
+    }
+
+    if (
+        normalized.includes('cardio') ||
+        normalized.includes('conditioning') ||
+        normalized.includes('hypertrophy') ||
+        normalized.includes('full body')
+    ) {
+        return 'moderate';
+    }
+
+    return 'light';
+}
+
+async function inferIntensity(schedule: WorkoutSchedule): Promise<WorkoutIntensity> {
+    const directIntensity = normalizeIntensity(schedule.intensity);
+    if (directIntensity) {
+        return directIntensity;
+    }
+
+    const template = await schedule.template.fetch().catch(() => null);
+    const templateDerivedIntensity = intensityFromWorkoutType(template?.workoutType);
+    if (templateDerivedIntensity) {
+        return templateDerivedIntensity;
+    }
+
     const raw: any = schedule;
-    const intensity = String(raw.intensity ?? raw.workoutIntensity ?? '').toLowerCase();
     const estBurn = Number(raw.estimatedCaloriesBurned ?? raw.estimated_calories_burned ?? raw.caloriesBurned ?? 0);
 
-    if (intensity === 'heavy' || estBurn > 500) return 'heavy';
-    if (intensity === 'moderate' || (estBurn >= 200 && estBurn <= 500)) return 'moderate';
+    if (estBurn > 500) return 'heavy';
+    if (estBurn >= 200 && estBurn <= 500) return 'moderate';
     return 'light';
 }
 
@@ -52,7 +107,7 @@ export async function getAdjustedTargetsForDate(userId: string, date: Date): Pro
         };
     }
 
-    const intensity = inferIntensity(schedules[0]);
+    const intensity = await inferIntensity(schedules[0]);
 
     if (intensity === 'heavy') {
         return {

@@ -207,13 +207,13 @@ export function suggestMacroTargets(
  * Validate calorie target against user stats
  * @param calorieTarget - Proposed calorie target
  * @param tdee - Total Daily Energy Expenditure
- * @param goal - User's goal ("lose", "maintain", or "gain")
+ * @param goal - User's goal ("lose", "maintain", "gain", or "general_health")
  * @returns Object with isValid flag and suggested range
  */
 export function validateCalorieTarget(
     calorieTarget: number,
     tdee: number,
-    goal: 'lose' | 'maintain' | 'gain'
+    goal: 'lose' | 'maintain' | 'gain' | 'general_health'
 ): { isValid: boolean; suggestedMin: number; suggestedMax: number; warning?: string } {
     const minHealthy = tdee * 0.6; // Don't go below 60% of TDEE
     const maxHealthy = tdee * 1.4; // Don't go above 140% of TDEE
@@ -245,6 +245,7 @@ export function validateCalorieTarget(
             }
             break;
 
+        case 'general_health':
         case 'maintain':
         default:
             suggestedMin = tdee - 100;

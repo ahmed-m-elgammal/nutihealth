@@ -1,11 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as plansApi from '../../services/api/plans';
-
-const DIET_KEYS = {
-    all: ['diets'] as const,
-    templates: ['diets', 'templates'] as const,
-    active: (userId: string) => ['diets', 'active', userId] as const,
-};
+import { DIET_KEYS } from '../dietKeys';
 
 export const useDietMutations = () => {
     const queryClient = useQueryClient();

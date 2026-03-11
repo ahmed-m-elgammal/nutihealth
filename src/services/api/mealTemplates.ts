@@ -7,7 +7,7 @@ import { createMeal, MealData } from './meals';
 
 /**
  * Meal Template Service
- * 
+ *
  * Provides functions to manage meal templates, enabling users to save
  * frequently eaten meals for quick logging.
  */
@@ -38,28 +38,28 @@ export async function createMealTemplate(data: CreateTemplateData): Promise<Meal
             // Calculate nutrition totals
             const totals = data.foods.reduce(
                 (acc, food) => ({
-                    calories: acc.calories + (food.calories * food.quantity),
-                    protein: acc.protein + (food.protein * food.quantity),
-                    carbs: acc.carbs + (food.carbs * food.quantity),
-                    fats: acc.fats + (food.fats * food.quantity),
+                    calories: acc.calories + food.calories * food.quantity,
+                    protein: acc.protein + food.protein * food.quantity,
+                    carbs: acc.carbs + food.carbs * food.quantity,
+                    fats: acc.fats + food.fats * food.quantity,
                 }),
-                { calories: 0, protein: 0, carbs: 0, fats: 0 }
+                { calories: 0, protein: 0, carbs: 0, fats: 0 },
             );
 
             // Create template
             const templatesCollection = database.get<MealTemplate>('meal_templates');
-            return await templatesCollection.create((template) => {
-                template.userId = userId;
-                template.name = data.name;
-                template.description = data.description;
-                template.mealType = data.mealType;
-                template.foodsData = data.foods;
-                template.totalCalories = totals.calories;
-                template.totalProtein = totals.protein;
-                template.totalCarbs = totals.carbs;
-                template.totalFats = totals.fats;
-                template.isFavorite = false;
-                template.useCount = 0;
+            return await templatesCollection.create((record) => {
+                record.userId = userId;
+                record.name = data.name;
+                record.description = data.description;
+                record.mealType = data.mealType;
+                record.foodsData = data.foods;
+                record.totalCalories = totals.calories;
+                record.totalProtein = totals.protein;
+                record.totalCarbs = totals.carbs;
+                record.totalFats = totals.fats;
+                record.isFavorite = false;
+                record.useCount = 0;
             });
         });
 
@@ -76,9 +76,7 @@ export async function createMealTemplate(data: CreateTemplateData): Promise<Meal
 export async function getAllMealTemplates(): Promise<MealTemplate[]> {
     try {
         const templatesCollection = database.get<MealTemplate>('meal_templates');
-        const templates = await templatesCollection
-            .query(Q.sortBy('use_count', Q.desc))
-            .fetch();
+        const templates = await templatesCollection.query(Q.sortBy('use_count', Q.desc)).fetch();
 
         return templates;
     } catch (error) {
@@ -88,55 +86,10 @@ export async function getAllMealTemplates(): Promise<MealTemplate[]> {
 }
 
 /**
- * Get meal templates by meal type
- */
-export async function getTemplatesByMealType(
-    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'
-): Promise<MealTemplate[]> {
-    try {
-        const templatesCollection = database.get<MealTemplate>('meal_templates');
-        const templates = await templatesCollection
-            .query(
-                Q.where('meal_type', mealType),
-                Q.sortBy('use_count', Q.desc)
-            )
-            .fetch();
-
-        return templates;
-    } catch (error) {
-        handleError(error, 'mealTemplates.getTemplatesByMealType');
-        throw error;
-    }
-}
-
-/**
- * Get favorite meal templates
- */
-export async function getFavoriteTemplates(): Promise<MealTemplate[]> {
-    try {
-        const templatesCollection = database.get<MealTemplate>('meal_templates');
-        const templates = await templatesCollection
-            .query(
-                Q.where('is_favorite', true),
-                Q.sortBy('use_count', Q.desc)
-            )
-            .fetch();
-
-        return templates;
-    } catch (error) {
-        handleError(error, 'mealTemplates.getFavoriteTemplates');
-        throw error;
-    }
-}
-
-/**
  * Load a template and create a meal from it
  * This is the main "quick log" function
  */
-export async function loadTemplateAsMeal(
-    templateId: string,
-    consumedAt?: Date
-): Promise<any> {
+export async function loadTemplateAsMeal(templateId: string, consumedAt?: Date): Promise<any> {
     try {
         const templatesCollection = database.get<MealTemplate>('meal_templates');
         const template = await templatesCollection.find(templateId);
@@ -146,7 +99,7 @@ export async function loadTemplateAsMeal(
             name: template.name,
             mealType: template.mealType,
             consumedAt: consumedAt || new Date(),
-            foods: template.foodsData.map(food => ({
+            foods: template.foodsData.map((food) => ({
                 name: food.name,
                 brand: food.brand,
                 servingSize: food.servingSize,
@@ -170,38 +123,6 @@ export async function loadTemplateAsMeal(
         return meal;
     } catch (error) {
         handleError(error, 'mealTemplates.loadTemplateAsMeal');
-        throw error;
-    }
-}
-
-/**
- * Update a meal template
- */
-export async function updateMealTemplate(
-    templateId: string,
-    updates: Partial<CreateTemplateData>
-): Promise<void> {
-    try {
-        await database.write(async () => {
-            const templatesCollection = database.get<MealTemplate>('meal_templates');
-            const template = await templatesCollection.find(templateId);
-
-            await template.update((t) => {
-                if (updates.name) t.name = updates.name;
-                if (updates.description !== undefined) t.description = updates.description;
-                if (updates.mealType) t.mealType = updates.mealType;
-                if (updates.foods) {
-                    t.foodsData = updates.foods;
-                }
-            });
-
-            // Recalculate nutrition if foods were updated
-            if (updates.foods) {
-                await template.recalculateNutrition();
-            }
-        });
-    } catch (error) {
-        handleError(error, 'mealTemplates.updateMealTemplate');
         throw error;
     }
 }
@@ -232,48 +153,6 @@ export async function toggleTemplateFavorite(templateId: string): Promise<void> 
         await template.toggleFavorite();
     } catch (error) {
         handleError(error, 'mealTemplates.toggleTemplateFavorite');
-        throw error;
-    }
-}
-
-/**
- * Create a template from an existing meal
- * This allows users to save any logged meal as a template
- */
-export async function createTemplateFromMeal(
-    mealId: string,
-    templateName?: string
-): Promise<MealTemplate> {
-    try {
-        const mealsCollection = database.get<any>('meals');
-        const meal = await mealsCollection.find(mealId);
-
-        // Get all foods from the meal
-        const foods = await meal.foods.fetch();
-
-        // Convert to template food data
-        const templateFoods: TemplateFoodData[] = foods.map((food: any) => ({
-            name: food.name,
-            brand: food.brand,
-            servingSize: food.servingSize,
-            servingUnit: food.servingUnit,
-            quantity: food.quantity,
-            calories: food.calories,
-            protein: food.protein,
-            carbs: food.carbs,
-            fats: food.fats,
-            fiber: food.fiber,
-            sugar: food.sugar,
-        }));
-
-        // Create template
-        return await createMealTemplate({
-            name: templateName || meal.name,
-            mealType: meal.mealType,
-            foods: templateFoods,
-        });
-    } catch (error) {
-        handleError(error, 'mealTemplates.createTemplateFromMeal');
         throw error;
     }
 }

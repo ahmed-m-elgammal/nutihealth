@@ -6,19 +6,18 @@ import { Image } from 'expo-image';
 import { useDatabase } from '@nozbe/watermelondb/hooks';
 import { ActiveWorkoutTracker } from '../../components/workout/ActiveWorkoutTracker';
 import { useWorkoutStore } from '../../store/workoutStore';
+import { useWaterStore } from '../../store/waterStore';
 import { WorkoutDay } from '../../types/workout';
 import WorkoutSchedule from '../../database/models/WorkoutSchedule';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import {
-    buildWeeklyWorkoutPlanFromSchedules,
-    DEFAULT_WORKOUT_PROFILE,
-} from '../../services/workout/scheduleBuilder';
+import { buildWeeklyWorkoutPlanFromSchedules, DEFAULT_WORKOUT_PROFILE } from '../../services/workout/scheduleBuilder';
 
 export default function ActiveWorkoutScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const database = useDatabase();
     const { addSession } = useWorkoutStore();
+    const calculateDynamicTarget = useWaterStore((state) => state.calculateDynamicTarget);
     const { user } = useCurrentUser();
 
     const [isLoading, setIsLoading] = useState(true);
@@ -48,9 +47,10 @@ export default function ActiveWorkoutScreen() {
                     userProfileSnapshot: user?.workoutPreferences || DEFAULT_WORKOUT_PROFILE,
                 });
 
-                const resolvedDay = weeklyPlan.days.find(
-                    (item) => item.id === schedule.id && !item.isRestDay
-                ) || weeklyPlan.days.find((item) => !item.isRestDay) || null;
+                const resolvedDay =
+                    weeklyPlan.days.find((item) => item.id === schedule.id && !item.isRestDay) ||
+                    weeklyPlan.days.find((item) => !item.isRestDay) ||
+                    null;
 
                 if (!isMounted) {
                     return;
@@ -78,18 +78,22 @@ export default function ActiveWorkoutScreen() {
     }, [database, id, user?.id]);
 
     if (isLoading) {
-        return <View className="flex-1 items-center justify-center"><ActivityIndicator /></View>;
+        return (
+            <View className="flex-1 items-center justify-center">
+                <ActivityIndicator />
+            </View>
+        );
     }
 
     if (!day) {
         return (
             <View className="flex-1 items-center justify-center px-6">
-                <Text className="text-lg font-semibold text-neutral-900 mb-2">Workout not found</Text>
-                <Text className="text-neutral-500 text-center mb-4">
+                <Text className="mb-2 text-lg font-semibold text-neutral-900">Workout not found</Text>
+                <Text className="mb-4 text-center text-neutral-500">
                     This scheduled workout could not be loaded. Select a training program and try again.
                 </Text>
-                <TouchableOpacity onPress={() => router.back()} className="bg-indigo-600 rounded-xl px-5 py-3">
-                    <Text className="text-white font-semibold">Go Back</Text>
+                <TouchableOpacity onPress={() => router.back()} className="rounded-xl bg-indigo-600 px-5 py-3">
+                    <Text className="font-semibold text-white">Go Back</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -98,16 +102,16 @@ export default function ActiveWorkoutScreen() {
     if (!isTracking) {
         return (
             <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-                <View className="px-6 py-4 border-b border-neutral-200 bg-white">
+                <View className="border-b border-neutral-200 bg-white px-6 py-4">
                     <TouchableOpacity onPress={() => router.back()} className="mb-3">
-                        <Text className="text-indigo-600 font-semibold">Back</Text>
+                        <Text className="font-semibold text-indigo-600">Back</Text>
                     </TouchableOpacity>
                     <Text className="text-2xl font-bold text-neutral-900">{day.title}</Text>
-                    <Text className="text-neutral-500 mt-1">
+                    <Text className="mt-1 text-neutral-500">
                         {day.dayOfWeek} • {day.estimatedDuration} min • {day.mainWorkout.length} exercises
                     </Text>
                     {day.focus.length > 0 ? (
-                        <Text className="text-neutral-500 text-xs mt-1">Focus: {day.focus.join(', ')}</Text>
+                        <Text className="mt-1 text-xs text-neutral-500">Focus: {day.focus.join(', ')}</Text>
                     ) : null}
                 </View>
 
@@ -115,11 +119,14 @@ export default function ActiveWorkoutScreen() {
                     {day.mainWorkout.map((exercise, index) => {
                         const mediaUrl = exercise.thumbnailUrl || exercise.videoUrl;
                         return (
-                            <View key={`${exercise.id}_${index}`} className="bg-white border border-neutral-200 rounded-2xl p-4 mb-4">
-                                <Text className="text-base font-bold text-neutral-900 mb-1">
+                            <View
+                                key={`${exercise.id}_${index}`}
+                                className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4"
+                            >
+                                <Text className="mb-1 text-base font-bold text-neutral-900">
                                     {index + 1}. {exercise.name}
                                 </Text>
-                                <Text className="text-neutral-600 text-sm mb-2">
+                                <Text className="mb-2 text-sm text-neutral-600">
                                     {exercise.sets} x {exercise.reps} {exercise.repType} • {exercise.restPeriod}s rest
                                     {exercise.rpe ? ` • RPE ${exercise.rpe}` : ''}
                                 </Text>
@@ -135,9 +142,14 @@ export default function ActiveWorkoutScreen() {
 
                                 {exercise.instructions?.length ? (
                                     <View className="mb-2">
-                                        <Text className="text-neutral-900 font-semibold text-xs mb-1">Instructions</Text>
+                                        <Text className="mb-1 text-xs font-semibold text-neutral-900">
+                                            Instructions
+                                        </Text>
                                         {exercise.instructions.slice(0, 4).map((instruction, instructionIndex) => (
-                                            <Text key={`${exercise.id}_inst_${instructionIndex}`} className="text-neutral-600 text-xs mb-1">
+                                            <Text
+                                                key={`${exercise.id}_inst_${instructionIndex}`}
+                                                className="mb-1 text-xs text-neutral-600"
+                                            >
                                                 • {instruction}
                                             </Text>
                                         ))}
@@ -146,9 +158,12 @@ export default function ActiveWorkoutScreen() {
 
                                 {exercise.formTips?.length ? (
                                     <View>
-                                        <Text className="text-neutral-900 font-semibold text-xs mb-1">Form Tips</Text>
+                                        <Text className="mb-1 text-xs font-semibold text-neutral-900">Form Tips</Text>
                                         {exercise.formTips.slice(0, 3).map((tip, tipIndex) => (
-                                            <Text key={`${exercise.id}_tip_${tipIndex}`} className="text-neutral-600 text-xs mb-1">
+                                            <Text
+                                                key={`${exercise.id}_tip_${tipIndex}`}
+                                                className="mb-1 text-xs text-neutral-600"
+                                            >
                                                 • {tip}
                                             </Text>
                                         ))}
@@ -159,12 +174,12 @@ export default function ActiveWorkoutScreen() {
                     })}
                 </ScrollView>
 
-                <View className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-neutral-200">
+                <View className="absolute bottom-0 left-0 right-0 border-t border-neutral-200 bg-white p-4">
                     <TouchableOpacity
                         onPress={() => setIsTracking(true)}
-                        className="bg-indigo-600 rounded-2xl py-4 items-center"
+                        className="items-center rounded-2xl bg-indigo-600 py-4"
                     >
-                        <Text className="text-white font-bold text-base">Start Workout</Text>
+                        <Text className="text-base font-bold text-white">Start Workout</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -177,12 +192,11 @@ export default function ActiveWorkoutScreen() {
                 day={day}
                 onFinishWorkout={(session) => {
                     addSession(session);
+                    calculateDynamicTarget(undefined, session.duration).catch(() => undefined);
 
-                    Alert.alert(
-                        'Workout Complete',
-                        `Great work! Duration: ${session.duration} min`,
-                        [{ text: 'Done', onPress: () => router.back() }]
-                    );
+                    Alert.alert('Workout Complete', `Great work! Duration: ${session.duration} min`, [
+                        { text: 'Done', onPress: () => router.back() },
+                    ]);
                 }}
                 onCancel={() => setIsTracking(false)}
             />

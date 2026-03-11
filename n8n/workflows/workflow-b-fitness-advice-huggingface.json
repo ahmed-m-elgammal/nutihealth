@@ -1,0 +1,163 @@
+{
+  "name": "Workflow B - Fitness Advice (OpenRouter)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fitness-advice",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "FitnessWebhook",
+      "name": "Fitness Advice Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -760,
+        260
+      ],
+      "webhookId": "fitness-advice"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body ?? $json;\nconst query = String(payload.query ?? payload.text ?? '').trim();\nif (!query) {\n  throw new Error('query is required');\n}\n\nconst apiKey = String($env.OPENROUTER_API_KEY ?? $env.GROQ_API_KEY ?? '').trim();\nif (!apiKey) {\n  throw new Error('Missing OpenRouter key. Set OPENROUTER_API_KEY.');\n}\n\nconst chatEndpoint = String(\n  $env.OPENROUTER_CHAT_COMPLETIONS_URL ?? 'https://openrouter.ai/api/v1/chat/completions'\n).trim();\nif (!/^https?:\\/\\//i.test(chatEndpoint)) {\n  throw new Error('OPENROUTER_CHAT_COMPLETIONS_URL must be a valid http(s) URL');\n}\n\nconst model = String(\n  $env.OPENROUTER_FITNESS_MODEL ??\n    $env.OPENROUTER_CHAT_MODEL ??\n    $env.OPENROUTER_MODEL ??\n    'openai/gpt-4o-mini'\n).trim();\nif (!model) {\n  throw new Error('OPENROUTER_MODEL (or OPENROUTER_FITNESS_MODEL / OPENROUTER_CHAT_MODEL) is required.');\n}\n\nconst systemMessage = [\n  'You are a certified fitness coach.',\n  'Give concise and practical advice.',\n  'If the question is risky or medical, recommend seeing a professional.'\n].join('\\n');\n\nconst referer = String($env.OPENROUTER_SITE_URL ?? '').trim() || 'http://localhost:5678';\nconst appName = String($env.OPENROUTER_APP_NAME ?? 'NutriHealth n8n').trim();\n\nreturn [{\n  json: {\n    query,\n    model,\n    chatEndpoint,\n    authHeader: `Bearer ${apiKey}`,\n    referer,\n    appName,\n    messages: [\n      { role: 'system', content: systemMessage },\n      { role: 'user', content: query }\n    ]\n  }\n}];"
+      },
+      "id": "PrepareFitnessPrompt",
+      "name": "Prepare Fitness Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.chatEndpoint}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{$json.authHeader}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "={{$json.referer}}"
+            },
+            {
+              "name": "X-Title",
+              "value": "={{$json.appName}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.model, messages: $json.messages, temperature: 0.4, max_tokens: 320 }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "CallOpenRouter",
+      "name": "Call OpenRouter Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json;\nconst upstreamError = body?.error?.message ?? body?.error;\nif (upstreamError) {\n  throw new Error('OpenRouter error: ' + upstreamError);\n}\n\nconst advice = String(\n  body?.choices?.[0]?.message?.content ??\n    body?.choices?.[0]?.text ??\n    body?.output_text ??\n    ''\n).trim();\n\nif (!advice) {\n  throw new Error('OpenRouter returned an empty response');\n}\n\nreturn [{ json: { ok: true, advice } }];"
+      },
+      "id": "ParseFitnessAnswer",
+      "name": "Parse Fitness Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "FitnessWebhookResponse",
+      "name": "Fitness Advice Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        120,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Fitness Advice Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fitness Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fitness Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call OpenRouter Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Fitness Answer": {
+      "main": [
+        [
+          {
+            "node": "Fitness Advice Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenRouter Chat": {
+      "main": [
+        [
+          {
+            "node": "Parse Fitness Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "aa0f40ea-3e68-425f-8f8d-d56e44f2dce7",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "workflow-b-fitness-advice",
+  "tags": []
+}

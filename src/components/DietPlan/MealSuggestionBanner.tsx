@@ -7,6 +7,7 @@ import { Skeleton } from '../ui/Skeleton';
 import { storage } from '../../utils/storage-adapter';
 import { SuggestedMeal, getSuggestedMealsForToday } from '../../services/dietPlan/mealSuggestionService';
 import { getActiveDietPlan } from '../../services/dietPlan/helpers';
+import { useMealSuggestionActions } from '../../hooks/useMealSuggestionActions';
 
 interface MealSuggestionBannerProps {
     userId?: string;
@@ -88,6 +89,14 @@ export default function MealSuggestionBanner({ userId, date = new Date() }: Meal
         setSuggestion(null);
     };
 
+    const { handleDismiss: handleDismissPress, handleLogMeal } = useMealSuggestionActions({
+        onLogMeal: () => {
+            if (!suggestion) return;
+            router.push({ pathname: '/(modals)/add-meal', params: { mealType: suggestion.mealType } });
+        },
+        onDismiss: handleDismiss,
+    });
+
     if (!userId) {
         return null;
     }
@@ -153,15 +162,13 @@ export default function MealSuggestionBanner({ userId, date = new Date() }: Meal
                 <View className="mt-4 flex-row gap-2">
                     <Pressable
                         className="flex-1 items-center rounded-lg bg-primary py-2"
-                        onPress={() =>
-                            router.push({ pathname: '/(modals)/add-meal', params: { mealType: suggestion.mealType } })
-                        }
+                        onPress={handleLogMeal}
                     >
                         <Text className="font-semibold text-primary-foreground">{t('mealSuggestion.logThisMeal')}</Text>
                     </Pressable>
                     <Pressable
                         className="rounded-lg border border-border px-4 py-2"
-                        onPress={() => void handleDismiss()}
+                        onPress={handleDismissPress}
                     >
                         <Text className="font-medium text-muted-foreground">{t('mealSuggestion.dismiss')}</Text>
                     </Pressable>

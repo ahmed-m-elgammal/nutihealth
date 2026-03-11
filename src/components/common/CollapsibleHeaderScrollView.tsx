@@ -10,6 +10,7 @@ type CollapsibleHeaderScrollViewProps = {
     refreshing?: boolean;
     onRefresh?: () => void;
     contentContainerStyle?: StyleProp<ViewStyle>;
+    scrollRef?: React.RefObject<any>;
 };
 
 export default function CollapsibleHeaderScrollView({
@@ -19,6 +20,7 @@ export default function CollapsibleHeaderScrollView({
     refreshing = false,
     onRefresh,
     contentContainerStyle,
+    scrollRef,
 }: CollapsibleHeaderScrollViewProps) {
     const scrollY = useSharedValue(0);
     const colors = useColors();
@@ -41,6 +43,7 @@ export default function CollapsibleHeaderScrollView({
 
     return (
         <Animated.ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[styles.content, contentContainerStyle]}
             onScroll={(event) => {
