@@ -39,6 +39,7 @@ import { useUIStore } from '../store/uiStore';
 import { PostHogProvider } from 'posthog-react-native';
 import { posthog } from '../config/posthog';
 import { supabase } from '../services/supabaseClient';
+import { config } from '../constants/config';
 
 // Keep the splash screen visible until we explicitly hide it after initialization
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -472,10 +473,12 @@ function RootNavigation() {
                 name="(modals)/barcode-scanner"
                 options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
             />
-            <Stack.Screen
-                name="(modals)/ai-food-detect"
-                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
-            />
+            {config.features.enableAI ? (
+                <Stack.Screen
+                    name="(modals)/ai-food-detect"
+                    options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+                />
+            ) : null}
             <Stack.Screen
                 name="(modals)/recipe-import"
                 options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
