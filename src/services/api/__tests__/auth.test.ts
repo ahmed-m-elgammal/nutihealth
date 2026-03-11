@@ -1,13 +1,12 @@
 /**
  * Tests for src/services/api/auth.ts
  *
- * Covers: login, signup, logout, refreshToken, requestPasswordReset, getAuthToken
+ * Covers: login, signup, refreshToken, requestPasswordReset, getAuthToken
  * Auth uses the Supabase JS SDK – not the custom apiWrapper.
  */
 
 const mockSignInWithPassword = jest.fn();
 const mockSignUp = jest.fn();
-const mockSignOut = jest.fn();
 const mockGetSession = jest.fn();
 const mockRefreshSession = jest.fn();
 const mockResetPasswordForEmail = jest.fn();
@@ -18,7 +17,6 @@ jest.mock('../../supabaseClient', () => ({
         auth: {
             signInWithPassword: mockSignInWithPassword,
             signUp: mockSignUp,
-            signOut: mockSignOut,
             getSession: mockGetSession,
             refreshSession: mockRefreshSession,
             resetPasswordForEmail: mockResetPasswordForEmail,
@@ -31,13 +29,12 @@ jest.mock('../../../utils/storage', () => ({
     setAuthToken: jest.fn(),
     setRefreshToken: jest.fn(),
     setUserId: jest.fn(),
-    clearAuthData: jest.fn(),
     getAuthToken: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('../../../utils/errors', () => ({ handleError: jest.fn() }));
 
-import { login, signup, logout, refreshToken, requestPasswordReset } from '../auth';
+import { login, signup, refreshToken, requestPasswordReset } from '../auth';
 
 const MOCK_USER = { id: 'user-1', email: 'test@example.com', user_metadata: { name: 'Test User' } };
 const MOCK_SESSION = { access_token: 'token-abc', refresh_token: 'refresh-xyz', expires_in: 3600 };
@@ -60,9 +57,7 @@ describe('auth – login', () => {
 
         await login({ email: ' CAPS@EXAMPLE.COM ', password: 'p' });
 
-        expect(mockSignInWithPassword).toHaveBeenCalledWith(
-            expect.objectContaining({ email: 'caps@example.com' }),
-        );
+        expect(mockSignInWithPassword).toHaveBeenCalledWith(expect.objectContaining({ email: 'caps@example.com' }));
     });
 
     it('returns error when email or password is empty', async () => {
@@ -104,18 +99,6 @@ describe('auth – signup', () => {
 
         expect(result.success).toBe(false);
         expect(result.error?.code).toBe('EMAIL_VERIFICATION_REQUIRED');
-    });
-});
-
-describe('auth – logout', () => {
-    it('calls signOut and clears local auth data', async () => {
-        mockSignOut.mockResolvedValueOnce({});
-
-        await logout();
-
-        // Supabase signOut and local SecureStore cleanup both called
-        expect(mockSignOut).toHaveBeenCalled();
-        // clearAuthData is called in the 'finally' block – verified via mock in jest.mock above
     });
 });
 

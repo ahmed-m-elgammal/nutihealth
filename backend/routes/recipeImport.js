@@ -18,6 +18,11 @@ const PRIVATE_IPV4_RANGES = [
 ];
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'metadata.google.internal']);
+const RECIPE_IMPORT_ALLOWLIST_ENABLED = process.env.RECIPE_IMPORT_ALLOWLIST === 'true';
+const RECIPE_IMPORT_ALLOWED_DOMAINS = (process.env.RECIPE_IMPORT_ALLOWED_DOMAINS || '')
+    .split(',')
+    .map((domain) => domain.trim().toLowerCase())
+    .filter(Boolean);
 
 function normalizeRecipeUrl(value) {
     if (typeof value !== 'string') {
@@ -54,6 +59,13 @@ function isInCidr(ip, network, maskBits) {
     return (ipv4ToInt(ip) & mask) === (ipv4ToInt(network) & mask);
 }
 
+function isIpv6LinkLocal(address) {
+    const expanded = address.toLowerCase();
+    const firstSegment = expanded.split(':')[0];
+    const firstValue = Number.parseInt(firstSegment || '0', 16);
+    return Number.isFinite(firstValue) && (firstValue & 0xffc0) === 0xfe80;
+}
+
 function isPrivateIp(address) {
     const version = net.isIP(address);
 
@@ -67,10 +79,11 @@ function isPrivateIp(address) {
             normalized === '::1' ||
             normalized.startsWith('fc') ||
             normalized.startsWith('fd') ||
-            normalized.startsWith('fe80') ||
+            isIpv6LinkLocal(normalized) ||
             normalized.startsWith('::ffff:127.') ||
             normalized.startsWith('::ffff:10.') ||
             normalized.startsWith('::ffff:192.168.') ||
+            normalized.startsWith('::ffff:169.254.') ||
             /^::ffff:172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
         );
     }
@@ -78,10 +91,26 @@ function isPrivateIp(address) {
     return true;
 }
 
+function isHostAllowedByDomainAllowlist(hostname) {
+    if (!RECIPE_IMPORT_ALLOWLIST_ENABLED) {
+        return true;
+    }
+
+    return RECIPE_IMPORT_ALLOWED_DOMAINS.some((allowedDomain) => {
+        return hostname === allowedDomain || hostname.endsWith(`.${allowedDomain}`);
+    });
+}
+
 async function assertPublicRecipeHost(url) {
     const host = url.hostname.toLowerCase();
     if (BLOCKED_HOSTNAMES.has(host) || host.endsWith('.local')) {
         const error = new Error('Blocked internal hostname');
+        error.code = 'SSRF_BLOCKED';
+        throw error;
+    }
+
+    if (!isHostAllowedByDomainAllowlist(host)) {
+        const error = new Error('Blocked non-allowlisted hostname');
         error.code = 'SSRF_BLOCKED';
         throw error;
     }
