@@ -249,7 +249,9 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     logout: async () => {
         try {
-            await supabase.auth.signOut({ scope: 'global' });
+            if (supabase) {
+                await supabase.auth.signOut({ scope: 'global' });
+            }
             await clearAuthData();
             set({ user: null, error: null });
             await database.unsafeResetDatabase();
