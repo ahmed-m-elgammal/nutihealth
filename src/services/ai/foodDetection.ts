@@ -1,5 +1,6 @@
 import { apiCall } from '../apiWrapper';
 import { formatImageForAI } from '../../utils/image';
+import { config } from '../../constants/config';
 import { getCachedResult, setCachedResult, hashBase64 } from '../../utils/detectionCache';
 import { findNutritionData } from '../api/nutrition';
 import { DetectedFood, HFClassificationResult } from '../../types/food';
@@ -89,6 +90,10 @@ async function detectFoodWithRetry(formattedImage: string): Promise<HFClassifica
  * @returns DetectedFood object with nutrition data and confidence score
  */
 export async function identifyFoodFromImage(base64Image: string): Promise<DetectedFood> {
+    if (!config.features.enableAI) {
+        throw new Error('AI food detection is disabled in this environment.');
+    }
+
     const imageHash = hashBase64(base64Image);
 
     // Check cache first

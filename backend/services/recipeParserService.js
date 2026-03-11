@@ -12,7 +12,7 @@ const {
 } = require('../utils/arabicRecipeParser');
 const { logger } = require('../utils/logger');
 
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = 5000;
 const MAX_RECIPE_REDIRECTS = 5;
 const MAX_RECIPE_HTML_BYTES = 5 * 1024 * 1024;
 const ALLOWED_HTML_CONTENT_TYPES = new Set(['text/html', 'application/xhtml+xml']);

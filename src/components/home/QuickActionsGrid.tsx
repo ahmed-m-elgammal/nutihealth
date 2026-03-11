@@ -18,6 +18,7 @@ type QuickActionsGridProps = {
     onSearchFood: () => void;
     onDetectAi: () => void;
     onSmartCooker?: () => void;
+    isAiEnabled?: boolean;
 };
 
 export default function QuickActionsGrid({
@@ -26,6 +27,7 @@ export default function QuickActionsGrid({
     onSearchFood,
     onDetectAi,
     onSmartCooker,
+    isAiEnabled = true,
 }: QuickActionsGridProps) {
     const actions: Action[] = [
         {
@@ -49,13 +51,17 @@ export default function QuickActionsGrid({
             icon: <Search size={18} color="#f59e0b" />,
             onPress: onSearchFood,
         },
-        {
-            id: 'ai',
-            label: 'AI Detect',
-            subtitle: 'Photo detect',
-            icon: <Camera size={18} color="#a855f7" />,
-            onPress: onDetectAi,
-        },
+        ...(isAiEnabled
+            ? [
+                  {
+                      id: 'ai',
+                      label: 'AI Detect',
+                      subtitle: 'Photo detect',
+                      icon: <Camera size={18} color="#a855f7" />,
+                      onPress: onDetectAi,
+                  },
+              ]
+            : []),
     ];
 
     if (onSmartCooker) {

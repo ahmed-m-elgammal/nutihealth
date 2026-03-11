@@ -17,6 +17,7 @@ import { syncQueueManager } from '../sync/queueManager';
 
 const SYNC_LAST_SYNC_STORAGE_KEY = 'sync_last_sync_v2';
 const SUPABASE_PULL_LIMIT = 1000;
+const SUPABASE_PULL_MAX_BATCHES = 50;
 const SYNC_RETRY_BASE_DELAY_MS = 1000;
 const SYNC_RETRY_MAX_DELAY_MS = 30000;
 const CONFLICT_TOAST_COOLDOWN_MS = 5 * 60 * 1000;
@@ -341,6 +342,16 @@ class SyncService {
             await syncQueueManager.enqueue(errorMessage);
             this.queuedItemsCount = await syncQueueManager.getCount();
 
+            if (errorMessage.includes('exceeded') && errorMessage.includes('batches')) {
+                useUIStore
+                    .getState()
+                    .showToast(
+                        'warning',
+                        'Sync dataset is too large for incremental pull. Please run a full re-sync.',
+                        5000,
+                    );
+            }
+
             if (isRetriableSyncError(errorMessage)) {
                 this.scheduleRetry();
             }
@@ -432,10 +443,7 @@ class SyncService {
             return;
         }
 
-        const delay = Math.min(
-            SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, this.retryAttempt),
-            SYNC_RETRY_MAX_DELAY_MS,
-        );
+        const delay = Math.min(SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, this.retryAttempt), SYNC_RETRY_MAX_DELAY_MS);
 
         this.retryTimer = setTimeout(() => {
             this.retryTimer = null;
@@ -472,10 +480,7 @@ class SyncService {
                     throw error;
                 }
 
-                const delay = Math.min(
-                    SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, attempt),
-                    SYNC_RETRY_MAX_DELAY_MS,
-                );
+                const delay = Math.min(SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, attempt), SYNC_RETRY_MAX_DELAY_MS);
 
                 console.warn(`[sync] retrying ${operation} in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
                 await new Promise((resolve) => setTimeout(resolve, delay));
@@ -488,6 +493,7 @@ class SyncService {
         const pulledChanges: SyncDatabaseChangeSet = {};
         const changesRecord = pulledChanges as Record<string, SyncTableChangeSet>;
         let serverOverwriteConflicts = 0;
+        let localPreservedConflicts = 0;
 
         for (const table of SYNCABLE_TABLES) {
             const records = await this.fetchRemoteRows(table, lastPulledAt, userId);
@@ -510,6 +516,10 @@ class SyncService {
                     serverOverwriteConflicts += 1;
                 }
 
+                if (decision.localWonConflict) {
+                    localPreservedConflicts += 1;
+                }
+
                 const createdAt = toTimestamp(normalized.created_at);
 
                 if (lastPulledAt === 0 || (createdAt > 0 && createdAt > lastPulledAt)) {
@@ -522,10 +532,15 @@ class SyncService {
             changesRecord[table] = tableChanges;
         }
 
-        if (
-            serverOverwriteConflicts > 0 &&
-            Date.now() - this.lastConflictToastAt > CONFLICT_TOAST_COOLDOWN_MS
-        ) {
+        const totalResolvedConflicts = serverOverwriteConflicts + localPreservedConflicts;
+        if (totalResolvedConflicts > 0) {
+            console.info('[sync] conflict resolution summary', {
+                serverWins: serverOverwriteConflicts,
+                localWins: localPreservedConflicts,
+            });
+        }
+
+        if (serverOverwriteConflicts > 0 && Date.now() - this.lastConflictToastAt > CONFLICT_TOAST_COOLDOWN_MS) {
             this.lastConflictToastAt = Date.now();
             useUIStore
                 .getState()
@@ -596,12 +611,13 @@ class SyncService {
     private async fetchRemoteRows(table: SyncableTable, lastPulledAt: number, userId: string): Promise<RecordShape[]> {
         const supabase = requireSupabaseClient();
 
-        const runQuery = async (useIsoDateForFilter: boolean) => {
+        const runQuery = async (useIsoDateForFilter: boolean, offset: number) => {
             let query = supabase
                 .from(table)
                 .select('*')
                 .order('updated_at', { ascending: true })
-                .limit(SUPABASE_PULL_LIMIT);
+                .order('id', { ascending: true })
+                .range(offset, offset + SUPABASE_PULL_LIMIT - 1);
 
             if (USER_SCOPED_TABLES.has(table)) {
                 query = query.eq('user_id', userId);
@@ -617,23 +633,45 @@ class SyncService {
             return await query;
         };
 
-        const numericFilterResult = await runQuery(false);
-        if (!numericFilterResult.error) {
-            return (numericFilterResult.data || []) as RecordShape[];
-        }
+        const fetchAllBatches = async (useIsoDateForFilter: boolean): Promise<RecordShape[]> => {
+            const allRows: RecordShape[] = [];
 
-        if (lastPulledAt <= 0) {
-            throw new Error(`Failed to pull ${table}: ${numericFilterResult.error.message}`);
-        }
+            for (let batchIndex = 0; batchIndex < SUPABASE_PULL_MAX_BATCHES; batchIndex += 1) {
+                const offset = batchIndex * SUPABASE_PULL_LIMIT;
+                const result = await runQuery(useIsoDateForFilter, offset);
 
-        const isoFilterResult = await runQuery(true);
-        if (!isoFilterResult.error) {
-            return (isoFilterResult.data || []) as RecordShape[];
-        }
+                if (result.error) {
+                    throw result.error;
+                }
 
-        throw new Error(
-            `Failed to pull ${table}: ${isoFilterResult.error.message} (numeric filter error: ${numericFilterResult.error.message})`,
-        );
+                const rows = (result.data || []) as RecordShape[];
+                allRows.push(...rows);
+
+                if (rows.length < SUPABASE_PULL_LIMIT) {
+                    return allRows;
+                }
+            }
+
+            throw new Error(
+                `Sync pull aborted for ${table}: exceeded ${SUPABASE_PULL_MAX_BATCHES} batches. Please run a full re-sync.`,
+            );
+        };
+
+        try {
+            return await fetchAllBatches(false);
+        } catch (numericFilterError) {
+            if (lastPulledAt <= 0) {
+                throw new Error(`Failed to pull ${table}: ${(numericFilterError as Error).message}`);
+            }
+
+            try {
+                return await fetchAllBatches(true);
+            } catch (isoFilterError) {
+                throw new Error(
+                    `Failed to pull ${table}: ${(isoFilterError as Error).message} (numeric filter error: ${(numericFilterError as Error).message})`,
+                );
+            }
+        }
     }
 
     private countChanges(changes: SyncDatabaseChangeSet): number {

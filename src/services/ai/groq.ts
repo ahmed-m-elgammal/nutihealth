@@ -181,6 +181,10 @@ function buildFallbackMealPlan(preferences: string, parsed: ParsedMealPreference
 }
 
 export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
+    if (!config.features.enableAI) {
+        return 'AI coach is currently disabled in this environment.';
+    }
+
     try {
         const sanitizedMessages = sanitizeAndWindowMessages(messages);
 
@@ -216,6 +220,10 @@ export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
 
 export async function generateMealPlan(preferences: string): Promise<any> {
     const parsedPreferences = parseMealPreferences(preferences);
+
+    if (!config.features.enableAI) {
+        return buildFallbackMealPlan(preferences, parsedPreferences);
+    }
 
     if (hasN8nMealPlannerWebhook()) {
         try {

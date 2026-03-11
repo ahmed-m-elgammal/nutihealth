@@ -9,7 +9,7 @@ import { UserWorkoutProfile } from '../types/workout';
 import { supabase } from '../services/supabaseClient';
 import { deleteAccountAndWipeLocalData } from '../services/accountDeletion';
 import { withOnboardingPreferenceDefaults } from '../constants/onboarding';
-import { logout as logoutUserSession } from '../services/api/auth';
+import { clearAuthData } from '../utils/storage';
 
 interface UserState {
     user: User | null;
@@ -64,7 +64,7 @@ const findUserById = async (userId: string): Promise<User | null> => {
 };
 
 export const useUserStore = create<UserState>((set, get) => ({
-    user: null, // @deprecated - components should observe DB
+    user: null,
     isLoading: false,
     error: null,
 
@@ -249,8 +249,12 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     logout: async () => {
         try {
-            await logoutUserSession();
+            if (supabase) {
+                await supabase.auth.signOut({ scope: 'global' });
+            }
+            await clearAuthData();
             set({ user: null, error: null });
+            await database.unsafeResetDatabase();
         } catch (error) {
             handleError(error, 'userStore.logout');
             set({ error: (error as Error).message });

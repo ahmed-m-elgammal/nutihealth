@@ -196,20 +196,6 @@ export async function signup(data: SignupRequest): Promise<ApiResponse<AuthRespo
 }
 
 /**
- * Logout current user
- */
-export async function logout(): Promise<void> {
-    try {
-        const supabase = requireSupabaseClient();
-        await supabase.auth.signOut({ scope: 'global' });
-    } catch (error) {
-        handleError(error, 'auth.logout');
-    } finally {
-        await clearAuthData();
-    }
-}
-
-/**
  * Refresh authentication token
  */
 export async function refreshToken(): Promise<ApiResponse<AuthResponse>> {

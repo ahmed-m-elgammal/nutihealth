@@ -17,6 +17,7 @@ import { useActiveDiet } from '../../query/queries/useDiets';
 import { useDailyTotals } from '../../hooks/useDailyTotals';
 import { useAIChat, type UIChatMessage } from '../../hooks/useAIChat';
 import { usePostHog } from 'posthog-react-native';
+import { config } from '../../constants/config';
 
 export default function AIChatModal() {
     const router = useRouter();
@@ -116,6 +117,18 @@ export default function AIChatModal() {
         const timeoutId = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         return () => clearTimeout(timeoutId);
     }, [messages, isLoading]);
+
+    if (!config.features.enableAI) {
+        return (
+            <SafeAreaView className="flex-1 items-center justify-center bg-white p-6">
+                <Text className="mb-3 text-lg font-bold text-neutral-900">AI feature unavailable</Text>
+                <Text className="mb-4 text-center text-neutral-500">AI coach is disabled in this environment.</Text>
+                <TouchableOpacity className="rounded-xl bg-neutral-900 px-4 py-3" onPress={() => router.back()}>
+                    <Text className="font-semibold text-white">Go Back</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView className="flex-1 bg-white">
