@@ -3,14 +3,20 @@ import { Alert, Platform, ScrollView, View } from 'react-native';
 import EmptyState from '../../components/common/EmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Bell, Download, Globe, LogOut, Moon, Trash2, User as UserIcon } from 'lucide-react-native';
+import { Bell, Download, Globe, LogOut, Moon, Shield, Trash2, User as UserIcon } from 'lucide-react-native';
 import ScreenErrorBoundary from '../../components/errors/ScreenErrorBoundary';
 import CollapsibleHeaderScrollView from '../../components/common/CollapsibleHeaderScrollView';
 import ProfileHeader from '../../components/profile/ProfileHeader';
 import SettingsList from '../../components/profile/SettingsList';
 import { useUserStore } from '../../store/userStore';
 import { useUIStore } from '../../store/uiStore';
-import { exportBackupAndShare, restoreBackupFromFilePicker } from '../../services/export/dataExport';
+import {
+    exportBackupAndShare,
+    exportUserDataAndShare,
+    restoreBackupFromFilePicker,
+    type DataExportFormat,
+    type DataExportRange,
+} from '../../services/export/dataExport';
 import { clearScheduledReminders, scheduleAdaptiveReminders } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
 import { ProfileSkeleton } from '../../components/skeletons/ScreenSkeletons';
@@ -56,6 +62,25 @@ const confirmWithAlert = (title: string, message: string, confirmText: string): 
         );
     });
 
+const chooseDataExportFormat = (): Promise<DataExportFormat | null> =>
+    new Promise((resolve) => {
+        Alert.alert('Export format', 'Choose a file format', [
+            { text: 'CSV', onPress: () => resolve('csv') },
+            { text: 'JSON', onPress: () => resolve('json') },
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+        ]);
+    });
+
+const chooseDataExportRange = (): Promise<DataExportRange | null> =>
+    new Promise((resolve) => {
+        Alert.alert('Date range', 'Select the period to include', [
+            { text: 'Last 30 days', onPress: () => resolve('30d') },
+            { text: 'Last 90 days', onPress: () => resolve('90d') },
+            { text: 'All time', onPress: () => resolve('all') },
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+        ]);
+    });
+
 export default function ProfileScreen() {
     const { section } = useLocalSearchParams<{ section?: string }>();
     const router = useRouter();
@@ -66,9 +91,10 @@ export default function ProfileScreen() {
     const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
     const [isDeletingAccount, setIsDeletingAccount] = useState(false);
     const [isExportingBackup, setIsExportingBackup] = useState(false);
+    const [isExportingData, setIsExportingData] = useState(false);
     const [isRestoringBackup, setIsRestoringBackup] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const notificationsRef = useRef<View>(null);
+    const notificationsRef = useRef<View>(null!);
     const scrollRef = useRef<ScrollView>(null);
 
     useEffect(() => {
@@ -308,6 +334,43 @@ export default function ProfileScreen() {
         }
     }, [isRestoringBackup, showToast]);
 
+    const handleExportMyData = useCallback(async () => {
+        if (isExportingData || !user?.id) {
+            return;
+        }
+
+        const format = await chooseDataExportFormat();
+        if (!format) {
+            return;
+        }
+
+        const range = await chooseDataExportRange();
+        if (!range) {
+            return;
+        }
+
+        const confirmed = await requestConfirmation(
+            'Export My Data',
+            'This export includes meals, water logs, weight logs, and workout sessions.',
+            'Export',
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setIsExportingData(true);
+        try {
+            const result = await exportUserDataAndShare({ userId: user.id, format, range });
+            showToast('success', `Export ready: ${result.recordCount} records.`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to export data.';
+            showToast('error', message);
+        } finally {
+            setIsExportingData(false);
+        }
+    }, [isExportingData, requestConfirmation, showToast, user?.id]);
+
     const handleLogout = useCallback(async () => {
         if (isLoggingOut) {
             return;
@@ -391,6 +454,23 @@ export default function ProfileScreen() {
                 ],
             },
             {
+                title: 'Privacy & Data',
+                items: [
+                    {
+                        type: 'navigation' as const,
+                        key: 'export-my-data',
+                        icon: <Shield size={17} color={ICON_COLOR} />,
+                        label: 'Export My Data',
+                        subtitle: isExportingData
+                            ? 'Preparing export...'
+                            : 'Meals, water logs, weight logs, and workouts',
+                        onPress: () => {
+                            handleExportMyData().catch(() => undefined);
+                        },
+                    },
+                ],
+            },
+            {
                 title: 'Data & Session',
                 items: [
                     {
@@ -459,10 +539,12 @@ export default function ProfileScreen() {
             isDark,
             isDeletingAccount,
             isExportingBackup,
+            isExportingData,
             isLoggingOut,
             isRestoringBackup,
             isSwitchingLanguage,
             handleExportBackup,
+            handleExportMyData,
             handleLogout,
             router,
             setThemeMode,

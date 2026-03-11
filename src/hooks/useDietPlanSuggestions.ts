@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { AppState } from 'react-native';
 import {
     AdaptationSuggestion,
     DayCalorieAdjustment,
@@ -31,17 +32,23 @@ interface UseDietPlanSuggestionsResult {
     applyAdaptation: (suggestion: AdaptationSuggestion) => Promise<void>;
 }
 
-const todayDateString = () => new Date().toISOString().slice(0, 10);
 const dismissedKey = (mealId: string, day: string) => `dismissed_suggestion_${mealId}_${day}`;
 
 export function useDietPlanSuggestions(userId: string | undefined): UseDietPlanSuggestionsResult {
     const queryClient = useQueryClient();
-    const dateKey = todayDateString();
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const lastActiveDateRef = useRef(dateKey);
 
     const query = useQuery({
         queryKey: ['diet-suggestions', userId, dateKey],
         staleTime: 10 * 60 * 1000,
         enabled: Boolean(userId),
+        refetchInterval: () => {
+            const now = new Date();
+            const nextMidnight = new Date(now);
+            nextMidnight.setHours(24, 0, 0, 0);
+            return Math.max(60_000, nextMidnight.getTime() - now.getTime());
+        },
         queryFn: async () => {
             if (!userId) {
                 return {
@@ -88,6 +95,24 @@ export function useDietPlanSuggestions(userId: string | undefined): UseDietPlanS
             };
         },
     });
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            if (nextState !== 'active') {
+                return;
+            }
+
+            const currentDateKey = new Date().toISOString().slice(0, 10);
+            if (currentDateKey !== lastActiveDateRef.current) {
+                lastActiveDateRef.current = currentDateKey;
+                void queryClient.invalidateQueries({ queryKey: ['diet-suggestions'] });
+            }
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [queryClient]);
 
     const refresh = () => {
         void queryClient.invalidateQueries({ queryKey: ['diet-suggestions', userId, dateKey] });

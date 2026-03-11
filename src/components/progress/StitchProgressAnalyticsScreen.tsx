@@ -9,6 +9,7 @@ import { useWeightHistory, useCalorieHistory, useMacroHistory } from '../../quer
 import { useProgressAggregates } from '../../query/queries/useProgressAggregates';
 import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
 import { useRouter } from 'expo-router';
+import BodyMeasurements from './BodyMeasurements';
 
 type Period = 'Week' | 'Month' | 'Year';
 
@@ -157,15 +158,29 @@ export default function ProgressAnalyticsScreen() {
     const { data: weightHistory = [], isLoading: isLoadingWeight } = useWeightHistory(user?.id, size);
     const { data: calorieHistory = [], isLoading: isLoadingCalories } = useCalorieHistory(user?.id, size);
     const { data: macroHistory = [], isLoading: isLoadingMacros } = useMacroHistory(user?.id, size);
-    const { data: aggregates, isLoading: isLoadingAggregates } = useProgressAggregates(user?.id);
+    const { data: aggregates, isLoading: isLoadingAggregates } = useProgressAggregates(
+        user?.id,
+        user?.createdAt ? new Date(user.createdAt).getTime() : undefined,
+    );
 
     const isLoading = isLoadingWeight || isLoadingCalories || isLoadingMacros || isLoadingAggregates;
 
+    const statsFromUser = user?.stats || { current_streak: 0, total_meals_logged: 0, total_workouts: 0 };
+    const bodyMeasurementEntries = useMemo(
+        () =>
+            [...weightHistory]
+                .sort(
+                    (a, b) => new Date((b as WeightPoint).date).getTime() - new Date((a as WeightPoint).date).getTime(),
+                )
+                .map((entry, index) => ({
+                    id: `${(entry as WeightPoint).date}-${index}`,
+                    date: new Date((entry as WeightPoint).date),
+                    weight: Number((entry as WeightPoint).weight) || 0,
+                })),
+        [weightHistory],
+    );
+
     const calorieGoal = user?.calorieTarget || DEFAULT_TARGETS.calories;
-    const goalProgress =
-        calorieGoal > 0
-            ? Math.min(100, Math.round(((aggregates?.averageCaloriesLast7Days ?? 0) / calorieGoal) * 100))
-            : 0;
 
     const calorieChartData = useMemo((): BarPoint[] => {
         if (!calorieHistory.length) return [];
@@ -469,35 +484,72 @@ export default function ProgressAnalyticsScreen() {
 
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                             <StatCard
-                                icon={<Flame color="#f59e0b" size={20} />}
-                                iconBg="#f59e0b20"
-                                label="Avg Calories"
-                                value={`${aggregates?.averageCaloriesLast7Days ?? 0}`}
-                                unit="kcal / day"
+                                icon={<TrendingUp color="#10b981" size={20} />}
+                                iconBg="#10b98120"
+                                label="Current Streak"
+                                value={`${statsFromUser.current_streak || 0}`}
+                                unit={`day${(statsFromUser.current_streak || 0) === 1 ? '' : 's'}`}
                             />
                             <StatCard
                                 icon={<Activity color="#3b82f6" size={20} />}
                                 iconBg="#3b82f620"
-                                label="Meals This Week"
-                                value={`${aggregates?.mealsThisWeek ?? 0}`}
-                                unit="meals"
-                            />
-                            <StatCard
-                                icon={<TrendingUp color="#10b981" size={20} />}
-                                iconBg="#10b98120"
-                                label="Current Streak"
-                                value={`${aggregates?.currentStreak ?? 0}`}
-                                unit={`day${(aggregates?.currentStreak ?? 0) === 1 ? '' : 's'}`}
+                                label="Total Meals"
+                                value={`${statsFromUser.total_meals_logged || 0}`}
+                                unit="logged"
                             />
                             <StatCard
                                 icon={<Award color="#10b981" size={20} />}
                                 iconBg="#10b98120"
-                                label="Goal Progress"
-                                value={`${goalProgress}%`}
-                                unit="of calorie goal"
-                                progress={goalProgress / 100}
+                                label="Total Workouts"
+                                value={`${statsFromUser.total_workouts || 0}`}
+                                unit="completed"
+                            />
+                            <StatCard
+                                icon={<Flame color="#f59e0b" size={20} />}
+                                iconBg="#f59e0b20"
+                                label="Adherence"
+                                value={`${aggregates?.adherencePercentage ?? 0}%`}
+                                unit={`${aggregates?.daysWithCalorieLogs ?? 0}/${aggregates?.daysSinceOnboarding ?? 0} days logged`}
+                                progress={(aggregates?.adherencePercentage ?? 0) / 100}
                             />
                         </View>
+
+                        {bodyMeasurementEntries.length >= 2 ? (
+                            <BodyMeasurements
+                                entries={bodyMeasurementEntries}
+                                heightCm={user?.height}
+                                onAddMeasurement={() => router.push('/(modals)/log-weight' as any)}
+                            />
+                        ) : (
+                            <View
+                                style={{
+                                    marginTop: 12,
+                                    borderRadius: 16,
+                                    borderWidth: 1,
+                                    borderColor: '#334155',
+                                    backgroundColor: '#1e293b',
+                                    padding: 16,
+                                }}
+                            >
+                                <Text style={{ color: '#f8fafc', fontWeight: '700' }}>Body measurements</Text>
+                                <Text style={{ color: '#94a3b8', marginTop: 6 }}>
+                                    Log at least two weight entries to unlock body trend insights.
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => router.push('/(modals)/log-weight' as any)}
+                                    style={{
+                                        marginTop: 10,
+                                        alignSelf: 'flex-start',
+                                        borderRadius: 10,
+                                        backgroundColor: '#10b981',
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 8,
+                                    }}
+                                >
+                                    <Text style={{ color: '#052e16', fontWeight: '700' }}>Log weight</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </>
                 )}
             </ScrollView>

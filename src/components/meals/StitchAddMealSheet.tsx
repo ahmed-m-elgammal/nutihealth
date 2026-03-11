@@ -11,6 +11,7 @@ type StitchAddMealSheetProps = {
     onOpenAiDetect: () => void;
     onOpenCookpadSearch: () => void;
     onSaveMeal: () => void;
+    isAiEnabled?: boolean;
 };
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -21,6 +22,7 @@ export default function StitchAddMealSheet({
     onOpenAiDetect,
     onOpenCookpadSearch,
     onSaveMeal,
+    isAiEnabled = true,
 }: StitchAddMealSheetProps) {
     const mealType = useAddMealDraftStore((state) => state.mealType);
     const setMealType = useAddMealDraftStore((state) => state.setMealType);
@@ -82,14 +84,16 @@ export default function StitchAddMealSheet({
                     <ChefHat size={18} color={stitchModalColors.primary} />
                     <Text style={styles.methodText}>Smart Cooker</Text>
                 </Pressable>
-                <Pressable
-                    onPress={onOpenAiDetect}
-                    android_ripple={{ color: 'rgba(16,183,127,0.18)' }}
-                    style={styles.methodCard}
-                >
-                    <Camera size={18} color={stitchModalColors.primary} />
-                    <Text style={styles.methodText}>AI Photo Detect</Text>
-                </Pressable>
+                {isAiEnabled ? (
+                    <Pressable
+                        onPress={onOpenAiDetect}
+                        android_ripple={{ color: 'rgba(16,183,127,0.18)' }}
+                        style={styles.methodCard}
+                    >
+                        <Camera size={18} color={stitchModalColors.primary} />
+                        <Text style={styles.methodText}>AI Photo Detect</Text>
+                    </Pressable>
+                ) : null}
             </View>
 
             <Text style={styles.stepLabel}>Step 3 · Selected foods</Text>

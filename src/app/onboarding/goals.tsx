@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Activity, Heart, Trophy, TrendingDown, TrendingUp } from 'lucide-react-native';
@@ -9,8 +9,18 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { cn } from '../../utils/cn';
 import { useOnboardingNutritionPreview } from '../../hooks/useOnboardingNutritionPreview';
 import { useOnboarding } from '../../hooks/useOnboarding';
+import { useOnboardingStore } from '../../store/onboardingStore';
 
-const GOALS: { id: string; value: Goal; label: string; description: string; icon: any; colorClass: string; bgClass: string; activeStroke: string }[] = [
+const GOALS: {
+    id: string;
+    value: Goal;
+    label: string;
+    description: string;
+    icon: any;
+    colorClass: string;
+    bgClass: string;
+    activeStroke: string;
+}[] = [
     {
         id: 'lose_weight',
         value: 'lose',
@@ -55,14 +65,13 @@ const GOALS: { id: string; value: Goal; label: string; description: string; icon
 
 export default function GoalsScreen() {
     const router = useRouter();
+    const setCurrentStep = useOnboardingStore((state) => state.setCurrentStep);
     const { data, saveGoal } = useOnboarding();
 
-    const initialGoal = GOALS.some(goal => goal.value === data.goal)
-        ? (data.goal as Goal)
-        : 'maintain';
+    const initialGoal = GOALS.some((goal) => goal.value === data.goal) ? (data.goal as Goal) : 'maintain';
     const [selectedGoal, setSelectedGoal] = useState<Goal>(initialGoal);
     const [selectedId, setSelectedId] = useState<string>(
-        GOALS.find(goal => goal.value === initialGoal)?.id || 'maintain'
+        GOALS.find((goal) => goal.value === initialGoal)?.id || 'maintain',
     );
 
     const { preview: nutritionPreview } = useOnboardingNutritionPreview(data, {
@@ -74,11 +83,15 @@ export default function GoalsScreen() {
         router.push('/onboarding/activity-level');
     };
 
+    useEffect(() => {
+        setCurrentStep(3);
+    }, [setCurrentStep]);
+
     return (
         <OnboardingStepScreen
-            stepLabel="Step 2 of 5"
-            currentStep={2}
-            totalSteps={5}
+            stepLabel="Step 3 of 6"
+            currentStep={3}
+            totalSteps={6}
             title="What is your main goal?"
             description="Goal changes your calorie multipliers and protein targets immediately."
             actionLabel="Continue"
@@ -101,10 +114,10 @@ export default function GoalsScreen() {
                         >
                             <Card
                                 className={cn(
-                                    'border-2 overflow-hidden shadow-sm transition-colors',
+                                    'overflow-hidden border-2 shadow-sm transition-colors',
                                     isSelected
                                         ? 'border-primary bg-primary/10 shadow-primary/10'
-                                        : 'border-border/50 bg-card/80 shadow-black/5'
+                                        : 'border-border/50 bg-card/80 shadow-black/5',
                                 )}
                             >
                                 <CardContent className="flex-row items-center p-4">
@@ -120,12 +133,12 @@ export default function GoalsScreen() {
                                         <Subheading
                                             className={cn(
                                                 'text-lg font-bold',
-                                                isSelected ? 'text-primary' : 'text-foreground'
+                                                isSelected ? 'text-primary' : 'text-foreground',
                                             )}
                                         >
                                             {goal.label}
                                         </Subheading>
-                                        <Body className="text-sm text-muted-foreground mt-0.5">{goal.description}</Body>
+                                        <Body className="mt-0.5 text-sm text-muted-foreground">{goal.description}</Body>
                                     </View>
 
                                     {isSelected && (
@@ -142,29 +155,38 @@ export default function GoalsScreen() {
 
             <Card className="mt-8 border-border/50 bg-card/80 shadow-sm shadow-black/5">
                 <CardContent className="p-5">
-                    <View className="flex-row items-center justify-between mb-4">
+                    <View className="mb-4 flex-row items-center justify-between">
                         <Subheading className="text-base font-bold">Live Equation Preview</Subheading>
-                        <View className="bg-primary/20 px-2 py-1 rounded">
-                            <Body className="text-[10px] font-bold text-primary uppercase tracking-wider">Updates Live</Body>
+                        <View className="rounded bg-primary/20 px-2 py-1">
+                            <Body className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                                Updates Live
+                            </Body>
                         </View>
                     </View>
                     <View className="flex-row gap-3">
-                        <View className="flex-1 rounded-xl bg-background/50 border border-border/30 p-3 items-center">
-                            <Body className="text-xs text-muted-foreground mb-1">BMR</Body>
-                            <Subheading className="text-base font-bold">{nutritionPreview.bmr} <Body className="text-xs font-normal">kcal</Body></Subheading>
+                        <View className="flex-1 items-center rounded-xl border border-border/30 bg-background/50 p-3">
+                            <Body className="mb-1 text-xs text-muted-foreground">BMR</Body>
+                            <Subheading className="text-base font-bold">
+                                {nutritionPreview.bmr} <Body className="text-xs font-normal">kcal</Body>
+                            </Subheading>
                         </View>
-                        <View className="flex-1 rounded-xl bg-background/50 border border-border/30 p-3 items-center">
-                            <Body className="text-xs text-muted-foreground mb-1">TDEE</Body>
-                            <Subheading className="text-base font-bold">{nutritionPreview.tdee} <Body className="text-xs font-normal">kcal</Body></Subheading>
+                        <View className="flex-1 items-center rounded-xl border border-border/30 bg-background/50 p-3">
+                            <Body className="mb-1 text-xs text-muted-foreground">TDEE</Body>
+                            <Subheading className="text-base font-bold">
+                                {nutritionPreview.tdee} <Body className="text-xs font-normal">kcal</Body>
+                            </Subheading>
                         </View>
-                        <View className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 items-center">
-                            <Body className="text-xs text-primary/80 font-medium mb-1">Calories</Body>
-                            <Subheading className="text-base font-bold text-primary">{nutritionPreview.calorieTarget}</Subheading>
+                        <View className="flex-1 items-center rounded-xl border border-primary/20 bg-primary/10 p-3">
+                            <Body className="mb-1 text-xs font-medium text-primary/80">Calories</Body>
+                            <Subheading className="text-base font-bold text-primary">
+                                {nutritionPreview.calorieTarget}
+                            </Subheading>
                         </View>
                     </View>
                     {selectedGoal === 'general_health' && (
                         <Body className="mt-4 text-xs text-muted-foreground">
-                            General health keeps calories near maintenance and nudges macros toward a more fiber-forward balance.
+                            General health keeps calories near maintenance and nudges macros toward a more fiber-forward
+                            balance.
                         </Body>
                     )}
                 </CardContent>
