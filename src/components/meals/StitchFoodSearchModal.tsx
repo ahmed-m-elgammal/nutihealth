@@ -10,7 +10,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { searchFoods, SearchResult, SearchResults } from '../../services/api/foodSearch';
 import { useAddMealDraftStore } from '../../store/addMealDraftStore';
 import { useUIStore } from '../../store/uiStore';
-import { useUserStore } from '../../store/userStore';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import EmptyState from '../common/EmptyState';
 import { NoResultsIllustration } from '../illustrations/EmptyStateIllustrations';
 import { FoodSearchSkeleton } from '../skeletons/ScreenSkeletons';
@@ -77,7 +77,8 @@ function StitchFoodSearchModal({ onClose }: StitchFoodSearchModalProps) {
     const [activeTab, setActiveTab] = useState<TabKey>('database');
     const debouncedQuery = useDebounce(query, 300);
     const requestIdRef = useRef(0);
-    const userId = useUserStore((state) => state.user?.id);
+    const { user } = useCurrentUser();
+    const userId = user?.id;
     const [myFoods, setMyFoods] = useState<CustomFood[]>([]);
     const [myFoodsLoading, setMyFoodsLoading] = useState(false);
     const [myRecipes, setMyRecipes] = useState<Recipe[]>([]);

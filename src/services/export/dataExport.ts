@@ -518,3 +518,159 @@ export async function restoreBackupFromFilePicker(): Promise<RestoreBackupResult
         throw error;
     }
 }
+
+export type DataExportFormat = 'csv' | 'json';
+export type DataExportRange = '30d' | '90d' | 'all';
+
+const USER_EXPORT_TABLES = ['meals', 'water_logs', 'weight_logs', 'workouts'] as const;
+type UserExportTable = (typeof USER_EXPORT_TABLES)[number];
+
+const TABLE_TIME_FIELD: Record<UserExportTable, string> = {
+    meals: 'consumed_at',
+    water_logs: 'logged_at',
+    weight_logs: 'logged_at',
+    workouts: 'started_at',
+};
+
+const rangeToStartTimestamp = (range: DataExportRange): number | null => {
+    if (range === 'all') {
+        return null;
+    }
+
+    const days = range === '30d' ? 30 : 90;
+    return Date.now() - days * 24 * 60 * 60 * 1000;
+};
+
+const getRawRowsForTable = async (table: UserExportTable, userId: string): Promise<RawRecord[]> => {
+    const collection = database.get<Model>(table);
+    const records = await collection.query().fetch();
+
+    return records.reduce<RawRecord[]>((acc, record) => {
+        const rawRecord = (record as unknown as { _raw?: RawRecord })._raw;
+        if (rawRecord && String(rawRecord.user_id || '') === userId) {
+            acc.push(rawRecord);
+        }
+        return acc;
+    }, []);
+};
+
+const filterRowsByRange = (rows: RawRecord[], table: UserExportTable, range: DataExportRange): RawRecord[] => {
+    const startTimestamp = rangeToStartTimestamp(range);
+    if (!startTimestamp) {
+        return rows;
+    }
+
+    const timeField = TABLE_TIME_FIELD[table];
+    return rows.filter((row) => {
+        const rawTime = row[timeField];
+        const timestamp = typeof rawTime === 'number' ? rawTime : Number(rawTime || 0);
+        return Number.isFinite(timestamp) && timestamp >= startTimestamp;
+    });
+};
+
+const toCsv = (rows: Array<Record<string, unknown>>): string => {
+    if (!rows.length) {
+        return '';
+    }
+
+    const headers = Array.from(
+        rows.reduce((acc, row) => {
+            Object.keys(row).forEach((key) => acc.add(key));
+            return acc;
+        }, new Set<string>()),
+    );
+
+    const escape = (value: unknown) => {
+        const stringified = typeof value === 'string' ? value : JSON.stringify(value ?? '');
+        const normalized = stringified == null ? '' : String(stringified);
+        if (normalized.includes(',') || normalized.includes('"') || normalized.includes('\n')) {
+            return `"${normalized.replace(/"/g, '""')}"`;
+        }
+        return normalized;
+    };
+
+    const lines = [headers.join(',')];
+    for (const row of rows) {
+        lines.push(headers.map((header) => escape(row[header])).join(','));
+    }
+
+    return lines.join('\n');
+};
+
+export async function exportUserDataAndShare(options: {
+    userId: string;
+    format: DataExportFormat;
+    range: DataExportRange;
+}): Promise<{ fileUri: string; fileName: string; recordCount: number }> {
+    const { userId, format, range } = options;
+
+    try {
+        const tableEntries = await Promise.all(
+            USER_EXPORT_TABLES.map(async (table) => {
+                const rows = await getRawRowsForTable(table, userId);
+                return [table, filterRowsByRange(rows, table, range)] as const;
+            }),
+        );
+
+        const payload = tableEntries.reduce<Record<UserExportTable, RawRecord[]>>(
+            (acc, [table, rows]) => {
+                acc[table] = rows;
+                return acc;
+            },
+            {} as Record<UserExportTable, RawRecord[]>,
+        );
+
+        const recordCount = Object.values(payload).reduce((sum, rows) => sum + rows.length, 0);
+
+        const writableDirectory = getWritableDirectory();
+        if (!writableDirectory.exists) {
+            writableDirectory.create({ idempotent: true, intermediates: true });
+        }
+
+        const extension = format === 'json' ? 'json' : 'csv';
+        const fileName = `nutrihealth-data-export-${range}-${getFileTimestamp()}.${extension}`;
+        const outputFile = new File(writableDirectory, fileName);
+
+        if (format === 'json') {
+            outputFile.write(
+                JSON.stringify(
+                    {
+                        exportedAt: new Date().toISOString(),
+                        range,
+                        includedData: ['meals', 'water_logs', 'weight_logs', 'workouts'],
+                        tables: payload,
+                    },
+                    null,
+                    2,
+                ),
+            );
+        } else {
+            const rows: Array<Record<string, unknown>> = [];
+            for (const table of USER_EXPORT_TABLES) {
+                for (const row of payload[table]) {
+                    rows.push({ table, ...row });
+                }
+            }
+            outputFile.write(toCsv(rows));
+        }
+
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+            await Sharing.shareAsync(outputFile.uri, {
+                dialogTitle: 'Export NutriHealth data',
+                mimeType: format === 'json' ? 'application/json' : 'text/csv',
+            });
+        } else {
+            Alert.alert('Data exported', `Sharing is unavailable on this device.\nSaved to:\n${outputFile.uri}`);
+        }
+
+        return {
+            fileUri: outputFile.uri,
+            fileName,
+            recordCount,
+        };
+    } catch (error) {
+        handleError(error, 'dataExport.exportUserDataAndShare');
+        throw error;
+    }
+}

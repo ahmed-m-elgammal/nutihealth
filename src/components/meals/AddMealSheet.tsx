@@ -10,6 +10,7 @@ type AddMealSheetProps = {
     onOpenAiDetect: () => void;
     onOpenCookpadSearch: () => void;
     onSaveMeal: () => void;
+    isAiEnabled?: boolean;
 };
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -20,6 +21,7 @@ export default function AddMealSheet({
     onOpenAiDetect,
     onOpenCookpadSearch,
     onSaveMeal,
+    isAiEnabled = true,
 }: AddMealSheetProps) {
     const mealType = useAddMealDraftStore((state) => state.mealType);
     const setMealType = useAddMealDraftStore((state) => state.setMealType);
@@ -120,23 +122,25 @@ export default function AddMealSheet({
                     <ChefHat size={18} color="#ea580c" />
                     <Text style={{ fontWeight: '700', color: '#0f172a' }}>Smart Cooker</Text>
                 </Pressable>
-                <Pressable
-                    onPress={onOpenAiDetect}
-                    android_ripple={{ color: '#f3e8ff' }}
-                    style={{
-                        borderRadius: 14,
-                        borderWidth: 1,
-                        borderColor: '#e2e8f0',
-                        padding: 14,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                        overflow: 'hidden',
-                    }}
-                >
-                    <Camera size={18} color="#9333ea" />
-                    <Text style={{ fontWeight: '700', color: '#0f172a' }}>AI Photo Detect</Text>
-                </Pressable>
+                {isAiEnabled ? (
+                    <Pressable
+                        onPress={onOpenAiDetect}
+                        android_ripple={{ color: '#f3e8ff' }}
+                        style={{
+                            borderRadius: 14,
+                            borderWidth: 1,
+                            borderColor: '#e2e8f0',
+                            padding: 14,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 10,
+                            overflow: 'hidden',
+                        }}
+                    >
+                        <Camera size={18} color="#9333ea" />
+                        <Text style={{ fontWeight: '700', color: '#0f172a' }}>AI Photo Detect</Text>
+                    </Pressable>
+                ) : null}
             </View>
 
             <Text style={{ color: '#64748b', marginTop: 18 }}>Step 3 · Selected foods</Text>

@@ -1,41 +1,47 @@
 import { useEffect, useState } from 'react';
+import { Q } from '@nozbe/watermelondb';
 import { database } from '../database';
 import User from '../database/models/User';
-import { useUserStore } from '../store/userStore';
+import { useAuthSessionStore } from '../store/authSessionStore';
+import { getUserId } from '../utils/storage';
 
-/**
- * Reactive hook to get the current user from WatermelonDB
- * Updates automatically when User record changes.
- */
 export function useCurrentUser() {
-    const activeUserId = useUserStore((state) => state.user?.id || null);
-    const isUserStoreLoading = useUserStore((state) => state.isLoading);
+    const sessionUserId = useAuthSessionStore((state) => state.userId);
+    const [resolvedUserId, setResolvedUserId] = useState<string | null>(sessionUserId);
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (isUserStoreLoading && !activeUserId) {
-            setIsLoading(true);
+        if (sessionUserId) {
+            setResolvedUserId(sessionUserId);
             return;
         }
 
-        if (!activeUserId) {
+        getUserId()
+            .then((storedUserId) => {
+                setResolvedUserId(storedUserId || null);
+            })
+            .finally(() => setIsLoading(false));
+    }, [sessionUserId]);
+
+    useEffect(() => {
+        if (!resolvedUserId) {
             setUser(null);
             setIsLoading(false);
             return;
         }
 
         const usersCollection = database.get<User>('users');
-        const query = usersCollection.query();
-
-        const subscription = query.observe().subscribe((users) => {
-            const matchedUser = users.find((entry) => entry.id === activeUserId) || null;
-            setUser(matchedUser);
-            setIsLoading(false);
-        });
+        const subscription = usersCollection
+            .query(Q.where('id', resolvedUserId))
+            .observe()
+            .subscribe((users) => {
+                setUser(users[0] ?? null);
+                setIsLoading(false);
+            });
 
         return () => subscription.unsubscribe();
-    }, [activeUserId, isUserStoreLoading]);
+    }, [resolvedUserId]);
 
     return { user, isLoading };
 }

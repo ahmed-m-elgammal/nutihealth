@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { chatWithCoach, type ChatMessage } from '../services/ai/groq';
+import { AIChatServiceError, chatWithCoach, type ChatMessage } from '../services/ai/groq';
 import { handleError } from '../utils/errors';
-import { useToast } from './useToast';
 
 export type UIChatMessage = ChatMessage & {
     id: string;
@@ -21,7 +20,7 @@ export function useAIChat(initialMessages: UIChatMessage[] = []) {
     const messagesRef = useRef<UIChatMessage[]>(initialMessages);
     const isLoadingRef = useRef(false);
     const messageIdCounterRef = useRef(0);
-    const { error: showErrorToast } = useToast();
+    const [chatError, setChatError] = useState<string | null>(null);
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -58,6 +57,7 @@ export function useAIChat(initialMessages: UIChatMessage[] = []) {
                 return;
             }
 
+            setChatError(null);
             const userMsg = createMessage('user', trimmedMessage);
             setMessages((prev) => {
                 const nextMessages = [...prev, userMsg];
@@ -82,19 +82,17 @@ export function useAIChat(initialMessages: UIChatMessage[] = []) {
                 });
             } catch (error) {
                 handleError(error, 'useAIChat.sendMessage');
-                showErrorToast('AI coach is currently unavailable. Please try again.');
-                const fallbackMessage = createMessage('assistant', "Sorry, I'm having trouble connecting right now.");
-                setMessages((prev) => {
-                    const nextMessages = [...prev, fallbackMessage];
-                    messagesRef.current = nextMessages;
-                    return nextMessages;
-                });
+                const message =
+                    error instanceof AIChatServiceError
+                        ? error.message
+                        : "Something went wrong on our end. We've been notified and are looking into it.";
+                setChatError(message);
             } finally {
                 isLoadingRef.current = false;
                 setIsLoading(false);
             }
         },
-        [buildChatRequestMessages, createMessage, showErrorToast],
+        [buildChatRequestMessages, createMessage],
     );
 
     const handleSend = useCallback(async () => {
@@ -117,6 +115,7 @@ export function useAIChat(initialMessages: UIChatMessage[] = []) {
         createMessage,
         handleSend,
         sendQuickAction,
+        chatError,
     };
 }
 

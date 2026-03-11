@@ -5,14 +5,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { X, Plus, Radio, Trash2, Calendar, Pencil } from 'lucide-react-native';
 import { getAllWeeklyPlans, activatePlan, deleteWeeklyPlan, getActivePlan } from '../../services/api/weeklyGoals';
 import { useUIStore } from '../../store/uiStore';
-import { useUserStore } from '../../store/userStore';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import WeeklyGoalPlan from '../../database/models/WeeklyGoalPlan';
 
 export default function WeeklyPlansScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const showToast = useUIStore((state) => state.showToast);
-    const user = useUserStore((state) => state.user);
+    const { user } = useCurrentUser();
     const [plans, setPlans] = useState<WeeklyGoalPlan[]>([]);
     const [activePlanId, setActivePlanId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);

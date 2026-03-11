@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Dumbbell } from 'lucide-react-native';
+import { ChevronLeft, Dumbbell, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { Q } from '@nozbe/watermelondb';
 import { useDatabase } from '@nozbe/watermelondb/hooks';
+import { usePostHog } from 'posthog-react-native';
 import { seedWorkoutPrograms } from '../../database/seeds';
 import TrainingProgram from '../../database/models/TrainingProgram';
 import WorkoutTemplate from '../../database/models/WorkoutTemplate';
@@ -13,25 +14,34 @@ import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { applyTemplateScheduleForUser, getSchedulePreferencesFromUser } from '../../services/workout/schedulePlanner';
 import { buildProgramInsight, getProgramByTitle } from '../../services/workout/programCatalog';
 import { recommendProgramsForUser } from '../../services/workout/recommendations';
+import { config } from '../../constants/config';
 
-const LEVEL_FILTERS: Array<'all' | 'beginner' | 'intermediate' | 'advanced'> = [
-    'all',
-    'beginner',
-    'intermediate',
-    'advanced',
-];
+type ProgramLevel = 'all' | 'beginner' | 'intermediate' | 'advanced';
+type EquipmentFilter = 'all' | 'home' | 'gym';
+type DaysFilter = 'all' | 3 | 4 | 5 | 6;
+type StartDayFilter = 'all' | 'monday' | 'saturday' | 'sunday';
+
+const LEVEL_FILTERS: ProgramLevel[] = ['all', 'beginner', 'intermediate', 'advanced'];
+const EQUIPMENT_FILTERS: EquipmentFilter[] = ['all', 'home', 'gym'];
+const DAYS_FILTERS: DaysFilter[] = ['all', 3, 4, 5, 6];
+const START_DAY_FILTERS: StartDayFilter[] = ['all', 'monday', 'saturday', 'sunday'];
 
 export default function BrowseProgramsScreen() {
     const router = useRouter();
     const database = useDatabase();
     const { user } = useCurrentUser();
-    const [filterLevel, setFilterLevel] = useState<'all' | 'beginner' | 'intermediate' | 'advanced'>('all');
+    const posthog = usePostHog();
+    const [filterLevel, setFilterLevel] = useState<ProgramLevel>('all');
+    const [equipmentFilter, setEquipmentFilter] = useState<EquipmentFilter>('all');
+    const [daysFilter, setDaysFilter] = useState<DaysFilter>('all');
+    const [startDayFilter, setStartDayFilter] = useState<StartDayFilter>('all');
     const [isInitializing, setIsInitializing] = useState(true);
     const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
     const [selectingProgramId, setSelectingProgramId] = useState<string | null>(null);
     const [programs, setPrograms] = useState<TrainingProgram[]>([]);
     const [templateCountByProgram, setTemplateCountByProgram] = useState<Record<string, number>>({});
     const [recentWorkouts, setRecentWorkouts] = useState<Workout[]>([]);
+    const [feedbackByProgram, setFeedbackByProgram] = useState<Record<string, 'up' | 'down'>>({});
 
     useEffect(() => {
         let isMounted = true;
@@ -204,6 +214,44 @@ export default function BrowseProgramsScreen() {
         return items;
     }, [programs, recommendationsByProgramId]);
 
+    const filteredPrograms = useMemo(() => {
+        return orderedPrograms.filter((program) => {
+            const metadata = getProgramByTitle(program.name);
+            const dayCount = metadata?.daysPerWeek || templateCountByProgram[program.id] || 3;
+
+            if (daysFilter !== 'all' && dayCount !== daysFilter) return false;
+            if (startDayFilter !== 'all' && user?.workoutPreferences?.startDay !== startDayFilter) return false;
+
+            if (equipmentFilter !== 'all') {
+                const equipment = metadata?.equipment || [];
+                const hasGym = equipment.some((item) => ['barbell', 'dumbbell', 'machine', 'cable'].includes(item));
+                const isHomeFriendly = equipment.every((item) =>
+                    ['bodyweight', 'resistance_bands', 'dumbbell'].includes(item),
+                );
+
+                if (equipmentFilter === 'gym' && !hasGym) return false;
+                if (equipmentFilter === 'home' && !isHomeFriendly) return false;
+            }
+
+            return true;
+        });
+    }, [
+        daysFilter,
+        equipmentFilter,
+        orderedPrograms,
+        startDayFilter,
+        templateCountByProgram,
+        user?.workoutPreferences?.startDay,
+    ]);
+
+    const aiSuggestedPrograms = useMemo(
+        () =>
+            config.features.enableAI
+                ? filteredPrograms.filter((p) => recommendationsByProgramId[p.id]).slice(0, 3)
+                : [],
+        [filteredPrograms, recommendationsByProgramId],
+    );
+
     const handleSelectProgram = async (program: TrainingProgram) => {
         if (selectingProgramId) {
             return;
@@ -249,9 +297,148 @@ export default function BrowseProgramsScreen() {
         }
     };
 
+    const trackFeedback = (programId: string, feedback: 'up' | 'down') => {
+        setFeedbackByProgram((prev) => ({ ...prev, [programId]: feedback }));
+        posthog.capture('ai_program_feedback_submitted', {
+            program_id: programId,
+            feedback,
+            goal: user?.goal || null,
+            activity_level: user?.activityLevel || null,
+        });
+    };
+
+    const renderProgramCard = (program: TrainingProgram, showAiBadge: boolean = false) => {
+        const isSelecting = selectingProgramId === program.id;
+        const isApplyingSelection = selectingProgramId !== null;
+        const dayCount = templateCountByProgram[program.id] || 0;
+        const metadata = getProgramByTitle(program.name);
+        const insights = metadata ? buildProgramInsight(metadata) : null;
+        const recommendation = recommendationsByProgramId[program.id];
+        const isTopRecommendation = recommendation?.rank === 1;
+
+        return (
+            <View
+                key={program.id}
+                className={`mb-6 overflow-hidden rounded-3xl border bg-white shadow-sm ${
+                    isTopRecommendation ? 'border-indigo-300' : 'border-neutral-100'
+                }`}
+            >
+                <View className="h-32 items-center justify-center bg-neutral-100">
+                    <Dumbbell size={48} color="#9CA3AF" />
+                </View>
+                <View className="p-5">
+                    {showAiBadge ? (
+                        <View className="mb-2 flex-row items-center self-start rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1">
+                            <Sparkles size={12} color="#4f46e5" />
+                            <Text className="ml-1 text-xs font-semibold text-indigo-700">Powered by AI</Text>
+                        </View>
+                    ) : null}
+
+                    <View className="mb-1 flex-row items-center">
+                        <View
+                            className={`mr-2 rounded px-2 py-0.5 ${
+                                program.level === 'beginner'
+                                    ? 'bg-green-100'
+                                    : program.level === 'intermediate'
+                                      ? 'bg-yellow-100'
+                                      : 'bg-red-100'
+                            }`}
+                        >
+                            <Text
+                                className={`text-xs font-medium capitalize ${
+                                    program.level === 'beginner'
+                                        ? 'text-green-700'
+                                        : program.level === 'intermediate'
+                                          ? 'text-yellow-700'
+                                          : 'text-red-700'
+                                }`}
+                            >
+                                {program.level}
+                            </Text>
+                        </View>
+                        <Text className="text-xs text-neutral-500">{program.durationWeeks} Weeks</Text>
+                        <Text className="ml-2 text-xs text-neutral-400">• {dayCount} Days/Week</Text>
+                    </View>
+
+                    {recommendation ? (
+                        <View className="mb-2 flex-row items-center">
+                            <View
+                                className={`mr-2 rounded px-2 py-1 ${isTopRecommendation ? 'bg-indigo-100' : 'bg-neutral-100'}`}
+                            >
+                                <Text
+                                    className={`text-xs font-semibold ${isTopRecommendation ? 'text-indigo-700' : 'text-neutral-700'}`}
+                                >
+                                    {isTopRecommendation ? 'Best Match' : 'Recommended'}
+                                </Text>
+                            </View>
+                            <Text className="text-xs text-neutral-600">
+                                Score {recommendation.score}/100 • {recommendation.confidence} confidence
+                            </Text>
+                        </View>
+                    ) : null}
+
+                    <Text className="mb-2 text-xl font-bold text-neutral-900">{program.name}</Text>
+                    <Text className="mb-4 leading-relaxed text-neutral-500" numberOfLines={2}>
+                        {program.description || 'Structured weekly program from the workout library.'}
+                    </Text>
+
+                    {recommendation?.reasons?.length ? (
+                        <View className="mb-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
+                            {recommendation.reasons.slice(0, 2).map((reason) => (
+                                <Text key={`${program.id}_${reason}`} className="mb-1 text-xs text-neutral-600">
+                                    • {reason}
+                                </Text>
+                            ))}
+                        </View>
+                    ) : null}
+
+                    {insights ? (
+                        <View className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                            <Text className="mb-1 text-xs font-semibold text-indigo-900">
+                                Avg {insights.averageSessionDuration} min/session • {insights.totalSetsPerWeek}{' '}
+                                sets/week
+                            </Text>
+                            {insights.samplePrescriptions.slice(0, 2).map((line) => (
+                                <Text key={`${program.id}_${line}`} className="text-xs text-indigo-700">
+                                    {line}
+                                </Text>
+                            ))}
+                        </View>
+                    ) : null}
+
+                    {showAiBadge ? (
+                        <View className="mb-3 flex-row items-center justify-end gap-3">
+                            <TouchableOpacity onPress={() => trackFeedback(program.id, 'up')}>
+                                <ThumbsUp
+                                    size={18}
+                                    color={feedbackByProgram[program.id] === 'up' ? '#16a34a' : '#64748b'}
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => trackFeedback(program.id, 'down')}>
+                                <ThumbsDown
+                                    size={18}
+                                    color={feedbackByProgram[program.id] === 'down' ? '#dc2626' : '#64748b'}
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+
+                    <TouchableOpacity
+                        className={`items-center rounded-2xl py-3 ${isApplyingSelection ? 'bg-neutral-300' : 'bg-indigo-600'}`}
+                        onPress={() => void handleSelectProgram(program)}
+                        disabled={isApplyingSelection}
+                    >
+                        <Text className="font-semibold text-white">
+                            {isSelecting ? 'Applying Program...' : 'Select Program'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    };
+
     return (
         <SafeAreaView className="flex-1 bg-white">
-            {/* Header */}
             <View className="flex-row items-center justify-between border-b border-neutral-100 px-6 py-4">
                 <TouchableOpacity onPress={() => router.back()} className="-ml-2 p-2">
                     <ChevronLeft size={24} color="#171717" />
@@ -260,8 +447,7 @@ export default function BrowseProgramsScreen() {
                 <View style={{ width: 24 }} />
             </View>
 
-            {/* Filters */}
-            <View className="px-6 py-4">
+            <View className="px-6 py-4" style={{ gap: 10 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
                     {LEVEL_FILTERS.map((lvl) => (
                         <TouchableOpacity
@@ -277,9 +463,64 @@ export default function BrowseProgramsScreen() {
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                    {EQUIPMENT_FILTERS.map((value) => (
+                        <TouchableOpacity
+                            key={value}
+                            onPress={() => setEquipmentFilter(value)}
+                            className={`mr-3 rounded-full border px-4 py-2 ${
+                                equipmentFilter === value
+                                    ? 'border-emerald-600 bg-emerald-600'
+                                    : 'border-neutral-200 bg-white'
+                            }`}
+                        >
+                            <Text
+                                className={`capitalize ${equipmentFilter === value ? 'text-white' : 'text-neutral-600'}`}
+                            >
+                                {value === 'all' ? 'All Equipment' : value}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                    {DAYS_FILTERS.map((value) => (
+                        <TouchableOpacity
+                            key={String(value)}
+                            onPress={() => setDaysFilter(value)}
+                            className={`mr-3 rounded-full border px-4 py-2 ${
+                                daysFilter === value ? 'border-sky-600 bg-sky-600' : 'border-neutral-200 bg-white'
+                            }`}
+                        >
+                            <Text className={daysFilter === value ? 'text-white' : 'text-neutral-600'}>
+                                {value === 'all' ? 'All Days' : `${value} Days/Week`}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                    {START_DAY_FILTERS.map((value) => (
+                        <TouchableOpacity
+                            key={value}
+                            onPress={() => setStartDayFilter(value)}
+                            className={`mr-3 rounded-full border px-4 py-2 ${
+                                startDayFilter === value
+                                    ? 'border-violet-600 bg-violet-600'
+                                    : 'border-neutral-200 bg-white'
+                            }`}
+                        >
+                            <Text
+                                className={`capitalize ${startDayFilter === value ? 'text-white' : 'text-neutral-600'}`}
+                            >
+                                {value === 'all' ? 'Any Start Day' : `Start ${value}`}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
-            {/* Program List */}
             <ScrollView className="flex-1 px-6">
                 {isInitializing || isLoadingPrograms ? (
                     <View className="items-center py-12">
@@ -288,125 +529,15 @@ export default function BrowseProgramsScreen() {
                     </View>
                 ) : (
                     <>
-                        <Text className="mb-4 text-neutral-500">{orderedPrograms.length} Programs Found</Text>
+                        {aiSuggestedPrograms.length > 0 ? (
+                            <View>
+                                <Text className="mb-2 text-sm font-semibold text-indigo-700">AI-Suggested</Text>
+                                {aiSuggestedPrograms.map((program) => renderProgramCard(program, true))}
+                            </View>
+                        ) : null}
 
-                        {orderedPrograms.map((program) => {
-                            const isSelecting = selectingProgramId === program.id;
-                            const isApplyingSelection = selectingProgramId !== null;
-                            const dayCount = templateCountByProgram[program.id] || 0;
-                            const metadata = getProgramByTitle(program.name);
-                            const insights = metadata ? buildProgramInsight(metadata) : null;
-                            const recommendation = recommendationsByProgramId[program.id];
-                            const isTopRecommendation = recommendation?.rank === 1;
-
-                            return (
-                                <View
-                                    key={program.id}
-                                    className={`mb-6 overflow-hidden rounded-3xl border bg-white shadow-sm ${
-                                        isTopRecommendation ? 'border-indigo-300' : 'border-neutral-100'
-                                    }`}
-                                >
-                                    <View className="h-32 items-center justify-center bg-neutral-100">
-                                        <Dumbbell size={48} color="#9CA3AF" />
-                                    </View>
-                                    <View className="p-5">
-                                        <View className="mb-1 flex-row items-center">
-                                            <View
-                                                className={`mr-2 rounded px-2 py-0.5 ${
-                                                    program.level === 'beginner'
-                                                        ? 'bg-green-100'
-                                                        : program.level === 'intermediate'
-                                                          ? 'bg-yellow-100'
-                                                          : 'bg-red-100'
-                                                }`}
-                                            >
-                                                <Text
-                                                    className={`text-xs font-medium capitalize ${
-                                                        program.level === 'beginner'
-                                                            ? 'text-green-700'
-                                                            : program.level === 'intermediate'
-                                                              ? 'text-yellow-700'
-                                                              : 'text-red-700'
-                                                    }`}
-                                                >
-                                                    {program.level}
-                                                </Text>
-                                            </View>
-                                            <Text className="text-xs text-neutral-500">
-                                                {program.durationWeeks} Weeks
-                                            </Text>
-                                            <Text className="ml-2 text-xs text-neutral-400">
-                                                • {dayCount} Days/Week
-                                            </Text>
-                                        </View>
-
-                                        {recommendation ? (
-                                            <View className="mb-2 flex-row items-center">
-                                                <View
-                                                    className={`mr-2 rounded px-2 py-1 ${isTopRecommendation ? 'bg-indigo-100' : 'bg-neutral-100'}`}
-                                                >
-                                                    <Text
-                                                        className={`text-xs font-semibold ${isTopRecommendation ? 'text-indigo-700' : 'text-neutral-700'}`}
-                                                    >
-                                                        {isTopRecommendation ? 'Best Match' : 'Recommended'}
-                                                    </Text>
-                                                </View>
-                                                <Text className="text-xs text-neutral-600">
-                                                    Score {recommendation.score}/100 • {recommendation.confidence}{' '}
-                                                    confidence
-                                                </Text>
-                                            </View>
-                                        ) : null}
-
-                                        <Text className="mb-2 text-xl font-bold text-neutral-900">{program.name}</Text>
-                                        <Text className="mb-4 leading-relaxed text-neutral-500" numberOfLines={2}>
-                                            {program.description ||
-                                                'Structured weekly program from the workout library.'}
-                                        </Text>
-
-                                        {recommendation?.reasons?.length ? (
-                                            <View className="mb-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
-                                                {recommendation.reasons.slice(0, 2).map((reason) => (
-                                                    <Text
-                                                        key={`${program.id}_${reason}`}
-                                                        className="mb-1 text-xs text-neutral-600"
-                                                    >
-                                                        • {reason}
-                                                    </Text>
-                                                ))}
-                                            </View>
-                                        ) : null}
-
-                                        {insights ? (
-                                            <View className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-                                                <Text className="mb-1 text-xs font-semibold text-indigo-900">
-                                                    Avg {insights.averageSessionDuration} min/session •{' '}
-                                                    {insights.totalSetsPerWeek} sets/week
-                                                </Text>
-                                                {insights.samplePrescriptions.slice(0, 2).map((line) => (
-                                                    <Text
-                                                        key={`${program.id}_${line}`}
-                                                        className="text-xs text-indigo-700"
-                                                    >
-                                                        {line}
-                                                    </Text>
-                                                ))}
-                                            </View>
-                                        ) : null}
-
-                                        <TouchableOpacity
-                                            className={`items-center rounded-2xl py-3 ${isApplyingSelection ? 'bg-neutral-300' : 'bg-indigo-600'}`}
-                                            onPress={() => void handleSelectProgram(program)}
-                                            disabled={isApplyingSelection}
-                                        >
-                                            <Text className="font-semibold text-white">
-                                                {isSelecting ? 'Applying Program...' : 'Select Program'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            );
-                        })}
+                        <Text className="mb-4 text-neutral-500">{filteredPrograms.length} Programs Found</Text>
+                        {filteredPrograms.map((program) => renderProgramCard(program, false))}
                     </>
                 )}
             </ScrollView>

@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Modal, FlatList, TextInput } from 'react-native';
-import { EquipmentType, MuscleGroup, WorkoutDay, WorkoutExercise, WorkoutSession, TrackedExercise } from '../../types/workout';
+import ConfirmationSheet from '../common/ConfirmationSheet';
+import {
+    EquipmentType,
+    MuscleGroup,
+    WorkoutDay,
+    WorkoutExercise,
+    WorkoutSession,
+    TrackedExercise,
+} from '../../types/workout';
 import { ExerciseCard } from './ExerciseCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useWorkoutMutations } from '../../query/mutations/useWorkoutMutations';
@@ -57,7 +65,7 @@ const MUSCLE_GROUPS: MuscleGroup[] = [
 const resolveExerciseCategory = (value?: string): WorkoutExercise['category'] => {
     const normalized = value?.toLowerCase() || '';
     return EXERCISE_CATEGORIES.includes(normalized as WorkoutExercise['category'])
-        ? normalized as WorkoutExercise['category']
+        ? (normalized as WorkoutExercise['category'])
         : 'strength';
 };
 
@@ -71,15 +79,10 @@ const resolveEquipment = (value?: string): EquipmentType => {
 
 const resolveMuscleGroup = (value?: string): MuscleGroup => {
     const normalized = value?.toLowerCase() || '';
-    return MUSCLE_GROUPS.includes(normalized as MuscleGroup)
-        ? normalized as MuscleGroup
-        : 'full_body';
+    return MUSCLE_GROUPS.includes(normalized as MuscleGroup) ? (normalized as MuscleGroup) : 'full_body';
 };
 
-const mapLibraryExerciseToWorkoutExercise = (
-    exercise: Exercise,
-    order: number
-): WorkoutExercise => ({
+const mapLibraryExerciseToWorkoutExercise = (exercise: Exercise, order: number): WorkoutExercise => ({
     id: exercise.id,
     name: exercise.name,
     category: resolveExerciseCategory(exercise.category),
@@ -100,14 +103,11 @@ const mapLibraryExerciseToWorkoutExercise = (
     order,
 });
 
-export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
-    day,
-    onFinishWorkout,
-    onCancel
-}) => {
+export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({ day, onFinishWorkout, onCancel }) => {
     const [startTime] = useState(Date.now());
     const [isSaving, setIsSaving] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [removeExerciseIndex, setRemoveExerciseIndex] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     const { createWorkout } = useWorkoutMutations();
@@ -116,11 +116,11 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
 
     const [plannedExercises, setPlannedExercises] = useState<WorkoutExercise[]>(day.mainWorkout);
     const [trackedExercises, setTrackedExercises] = useState<TrackedExercise[]>(() =>
-        day.mainWorkout.map(ex => ({
+        day.mainWorkout.map((ex) => ({
             exerciseId: ex.id,
             exerciseName: ex.name,
-            sets: []
-        }))
+            sets: [],
+        })),
     );
 
     // Timer State
@@ -135,7 +135,7 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
                 exerciseId: exercise.id,
                 exerciseName: exercise.name,
                 sets: [],
-            }))
+            })),
         );
         setElapsedSeconds(0);
         setRestTimer(0);
@@ -144,9 +144,9 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
 
     useEffect(() => {
         const timer = setInterval(() => {
-            setElapsedSeconds(prev => prev + 1);
+            setElapsedSeconds((prev) => prev + 1);
             if (isResting && restTimer > 0) {
-                setRestTimer(prev => {
+                setRestTimer((prev) => {
                     if (prev <= 1) {
                         setIsResting(false);
                         return 0;
@@ -163,16 +163,14 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
         setIndex: number,
         reps: number,
         weight?: number,
-        rpe?: number
+        rpe?: number,
     ) => {
         const exercise = plannedExercises[exerciseIndex];
         if (!exercise) {
             return;
         }
 
-        const targetReps = typeof exercise.reps === 'string'
-            ? parseInt(exercise.reps, 10) || 0
-            : exercise.reps;
+        const targetReps = typeof exercise.reps === 'string' ? parseInt(exercise.reps, 10) || 0 : exercise.reps;
 
         setTrackedExercises((previous) => {
             const nextTracked = [...previous];
@@ -212,9 +210,9 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
         const totalSets = trackedExercises.reduce((acc, ex) => acc + ex.sets.length, 0);
 
         if (totalSets === 0) {
-            Alert.alert('Empty Workout', 'You haven\'t logged any sets yet. Are you sure?', [
+            Alert.alert('Empty Workout', "You haven't logged any sets yet. Are you sure?", [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Finish Anyway', onPress: submitWorkout }
+                { text: 'Finish Anyway', onPress: submitWorkout },
             ]);
         } else {
             submitWorkout();
@@ -231,7 +229,7 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
             date: Date.now(),
             duration,
             exercises: trackedExercises,
-            feeling: 'good' // could ask user
+            feeling: 'good', // could ask user
         };
 
         try {
@@ -253,22 +251,14 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
             {
                 exerciseId: mappedExercise.id,
                 exerciseName: mappedExercise.name,
-                sets: []
-            }
+                sets: [],
+            },
         ]);
         setShowAddModal(false);
     };
 
     const handleRemoveExercise = (index: number) => {
-        Alert.alert('Remove Exercise', 'Are you sure?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Remove', style: 'destructive', onPress: () => {
-                    setPlannedExercises((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
-                    setTrackedExercises((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
-                }
-            }
-        ]);
+        setRemoveExerciseIndex(index);
     };
 
     const formatTime = (seconds: number) => {
@@ -295,7 +285,9 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
                         <Text style={styles.timer}>{formatTime(elapsedSeconds)}</Text>
                     </View>
                     <TouchableOpacity onPress={handleFinish} disabled={isSaving}>
-                        <Text style={[styles.finishLink, isSaving && { opacity: 0.5 }]}>{isSaving ? 'Saving...' : 'Finish'}</Text>
+                        <Text style={[styles.finishLink, isSaving && { opacity: 0.5 }]}>
+                            {isSaving ? 'Saving...' : 'Finish'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
@@ -313,7 +305,9 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
                                 exercise={plannedExercise}
                                 isActive={activeExerciseIndex === -1 || activeExerciseIndex === index}
                                 completedSets={tracked.sets}
-                                onCompleteSet={(setIndex, reps, weight, rpe) => handleCompleteSet(index, setIndex, reps, weight, rpe)}
+                                onCompleteSet={(setIndex, reps, weight, rpe) =>
+                                    handleCompleteSet(index, setIndex, reps, weight, rpe)
+                                }
                                 onRemove={() => handleRemoveExercise(index)}
                             />
                         );
@@ -341,6 +335,23 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
                 )}
             </View>
 
+            <ConfirmationSheet
+                visible={removeExerciseIndex !== null}
+                title="Remove exercise"
+                message="This exercise and its logged sets will be removed from this workout."
+                confirmLabel="Remove"
+                cancelLabel="Cancel"
+                onCancel={() => setRemoveExerciseIndex(null)}
+                onConfirm={() => {
+                    if (removeExerciseIndex == null) return;
+                    const index = removeExerciseIndex;
+                    setRemoveExerciseIndex(null);
+                    setPlannedExercises((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
+                    setTrackedExercises((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
+                }}
+                destructive
+            />
+
             <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
                 <View style={styles.modalContainer}>
                     <View style={styles.modalHeader}>
@@ -358,10 +369,13 @@ export const ActiveWorkoutTracker: React.FC<ActiveWorkoutTrackerProps> = ({
                     />
 
                     <FlatList
-                        data={exercises.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))}
-                        keyExtractor={item => item.id}
+                        data={exercises.filter((e) => e.name.toLowerCase().includes(searchQuery.toLowerCase()))}
+                        keyExtractor={(item) => item.id}
                         renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.exerciseItem} onPress={() => handleAddExercise(item as Exercise)}>
+                            <TouchableOpacity
+                                style={styles.exerciseItem}
+                                onPress={() => handleAddExercise(item as Exercise)}
+                            >
                                 <Text style={styles.exerciseName}>{item.name}</Text>
                                 <Text style={styles.exerciseCategory}>{item.category}</Text>
                             </TouchableOpacity>
@@ -389,7 +403,7 @@ const styles = StyleSheet.create({
         paddingTop: 50, // Safe area top
     },
     headerTitle: {
-        alignItems: 'center'
+        alignItems: 'center',
     },
     title: {
         fontSize: 16,
@@ -399,7 +413,7 @@ const styles = StyleSheet.create({
     timer: {
         fontSize: 14,
         color: '#4F46E5',
-        fontVariant: ['tabular-nums']
+        fontVariant: ['tabular-nums'],
     },
     finishLink: {
         color: '#10B981',
@@ -419,7 +433,7 @@ const styles = StyleSheet.create({
     finishButtonText: {
         color: 'white',
         fontWeight: 'bold',
-        fontSize: 18
+        fontSize: 18,
     },
     restOverlay: {
         position: 'absolute',
@@ -436,7 +450,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
-        elevation: 8
+        elevation: 8,
     },
     restLabel: {
         color: '#9CA3AF',
@@ -446,18 +460,18 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 24,
         fontWeight: 'bold',
-        fontVariant: ['tabular-nums']
+        fontVariant: ['tabular-nums'],
     },
     skipButton: {
         backgroundColor: '#374151',
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 8
+        borderRadius: 8,
     },
     skipText: {
         color: 'white',
         fontSize: 12,
-        fontWeight: '600'
+        fontWeight: '600',
     },
     addButton: {
         flexDirection: 'row',
@@ -474,18 +488,18 @@ const styles = StyleSheet.create({
     addButtonText: {
         marginLeft: 8,
         color: '#4F46E5',
-        fontWeight: '600'
+        fontWeight: '600',
     },
     modalContainer: {
         flex: 1,
         backgroundColor: '#F9FAFB',
-        padding: 16
+        padding: 16,
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16
+        marginBottom: 16,
     },
     modalTitle: { fontSize: 20, fontWeight: 'bold' },
     closeText: { color: '#EF4444', fontSize: 16 },
@@ -495,9 +509,9 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#E5E7EB'
+        borderColor: '#E5E7EB',
     },
     exerciseItem: { padding: 16, backgroundColor: 'white', marginBottom: 8, borderRadius: 8 },
     exerciseName: { fontWeight: 'bold', fontSize: 16 },
-    exerciseCategory: { color: '#6B7280', fontSize: 14 }
+    exerciseCategory: { color: '#6B7280', fontSize: 14 },
 });

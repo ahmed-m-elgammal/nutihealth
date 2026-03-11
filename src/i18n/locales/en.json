@@ -310,6 +310,30 @@
     },
     "plans": {
         "title": "Goals & Plans",
-        "subtitle": "Goal-based diet plans, carb cycling, prep, and templates"
+        "subtitle": "Goal-based diet plans, carb cycling, prep, and templates",
+        "tabs": {
+            "meals": "Meals",
+            "carbCycle": "Carb Cycle",
+            "prep": "Prep"
+        },
+        "smartInsight": {
+            "title": "Smart Plan Insight",
+            "apply": "Apply Insight",
+            "appliedSuccess": "Adaptive optimization applied",
+            "appliedError": "Failed to apply adaptive optimization"
+        },
+        "foodPrefillReady": "{{foodName}} is ready to prefill add-meal",
+        "confirmation": {
+            "deactivateTitle": "Deactivate plan",
+            "deactivateMessage": "Do you want to deactivate this {{planKind}}?",
+            "deactivateConfirm": "Deactivate"
+        },
+        "labels": {
+            "weeklyPlan": "weekly plan",
+            "template": "template"
+        },
+        "actions": {
+            "cancel": "Cancel"
+        }
     }
 }

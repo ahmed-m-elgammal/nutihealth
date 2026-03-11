@@ -19,6 +19,19 @@ module.exports = {
                 'react-native/no-raw-text': 'off',
             },
         },
+
+        {
+            files: ['src/app/(tabs)/plans.tsx', 'src/components/plans/**/*.tsx'],
+            rules: {
+                'no-restricted-syntax': [
+                    'warn',
+                    {
+                        selector: 'JSXText[value=/\S+/]',
+                        message: 'Wrap visible JSX text in i18n translation calls.',
+                    },
+                ],
+            },
+        },
         {
             files: ['**/__tests__/**/*.{js,ts,tsx}', 'jest.setup.js'],
             env: {

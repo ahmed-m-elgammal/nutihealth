@@ -8,6 +8,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type ProgressAggregates = {
     totalMealsLogged: number;
+    adherencePercentage: number;
+    daysWithCalorieLogs: number;
+    daysSinceOnboarding: number;
     mealsThisWeek: number;
     currentStreak: number;
     averageCaloriesLast7Days: number;
@@ -21,6 +24,9 @@ export type ProgressAggregates = {
 
 const EMPTY_AGGREGATES: ProgressAggregates = {
     totalMealsLogged: 0,
+    adherencePercentage: 0,
+    daysWithCalorieLogs: 0,
+    daysSinceOnboarding: 0,
     mealsThisWeek: 0,
     currentStreak: 0,
     averageCaloriesLast7Days: 0,
@@ -32,6 +38,28 @@ const getDayKey = (timestamp: number) => {
     const day = new Date(timestamp);
     day.setHours(0, 0, 0, 0);
     return day.getTime();
+};
+
+const calculateAdherence = (mealLogs: Meal[], onboardingTimestamp?: number) => {
+    if (!onboardingTimestamp) {
+        return { adherencePercentage: 0, daysWithCalorieLogs: 0, daysSinceOnboarding: 0 };
+    }
+
+    const onboardingDay = getDayKey(onboardingTimestamp);
+    const todayDay = getDayKey(Date.now());
+    const daysSinceOnboarding = Math.max(1, Math.floor((todayDay - onboardingDay) / DAY_MS) + 1);
+
+    const daysWithLogs = new Set(
+        mealLogs.filter((meal) => (Number(meal.totalCalories) || 0) > 0).map((meal) => getDayKey(meal.consumedAt)),
+    ).size;
+
+    const adherencePercentage = Math.round((daysWithLogs / daysSinceOnboarding) * 100);
+
+    return {
+        adherencePercentage: Math.max(0, Math.min(100, adherencePercentage)),
+        daysWithCalorieLogs: daysWithLogs,
+        daysSinceOnboarding,
+    };
 };
 
 const getCurrentStreak = (timestamps: number[]) => {
@@ -62,7 +90,11 @@ const getCurrentStreak = (timestamps: number[]) => {
     return streak;
 };
 
-export const calculateProgressAggregates = (mealLogs: Meal[], waterLogs: WaterLog[]): ProgressAggregates => {
+export const calculateProgressAggregates = (
+    mealLogs: Meal[],
+    waterLogs: WaterLog[],
+    onboardingTimestamp?: number,
+): ProgressAggregates => {
     if (!mealLogs.length && !waterLogs.length) {
         return EMPTY_AGGREGATES;
     }
@@ -111,8 +143,13 @@ export const calculateProgressAggregates = (mealLogs: Meal[], waterLogs: WaterLo
 
     const waterSum = Array.from(waterByDay.values()).reduce((sum, amount) => sum + amount, 0);
 
+    const adherence = calculateAdherence(mealLogs, onboardingTimestamp);
+
     return {
         totalMealsLogged: mealLogs.length,
+        adherencePercentage: adherence.adherencePercentage,
+        daysWithCalorieLogs: adherence.daysWithCalorieLogs,
+        daysSinceOnboarding: adherence.daysSinceOnboarding,
         mealsThisWeek: mealsLast7Days.length,
         currentStreak: getCurrentStreak(mealLogs.map((meal) => meal.consumedAt)),
         averageCaloriesLast7Days: mealDaysCount ? Math.round(macroSums.calories / mealDaysCount) : 0,
@@ -125,7 +162,7 @@ export const calculateProgressAggregates = (mealLogs: Meal[], waterLogs: WaterLo
     };
 };
 
-export function useProgressAggregates(userId?: string) {
+export function useProgressAggregates(userId?: string, onboardingTimestamp?: number) {
     const [meals, setMeals] = useState<Meal[] | undefined>(undefined);
     const [waterLogs, setWaterLogs] = useState<WaterLog[] | undefined>(undefined);
     const [error, setError] = useState<Error | null>(null);
@@ -156,7 +193,10 @@ export function useProgressAggregates(userId?: string) {
         };
     }, [userId]);
 
-    const aggregates = useMemo(() => calculateProgressAggregates(meals || [], waterLogs || []), [meals, waterLogs]);
+    const aggregates = useMemo(
+        () => calculateProgressAggregates(meals || [], waterLogs || [], onboardingTimestamp),
+        [meals, onboardingTimestamp, waterLogs],
+    );
 
     return {
         data: aggregates,

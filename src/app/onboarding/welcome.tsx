@@ -8,10 +8,16 @@ import { Body, Heading, Subheading } from '../../components/ui/Typography';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { storage } from '../../utils/storage-adapter';
+import { useOnboardingStore } from '../../store/onboardingStore';
 
 export default function WelcomeScreen() {
     const router = useRouter();
     const [consentGiven, setConsentGiven] = useState(false);
+    const setCurrentStep = useOnboardingStore((state) => state.setCurrentStep);
+
+    React.useEffect(() => {
+        setCurrentStep(1);
+    }, [setCurrentStep]);
 
     return (
         <ScreenLayout className="bg-background" edges={['top', 'bottom']} noPadding>
@@ -77,7 +83,7 @@ export default function WelcomeScreen() {
 
                     <View className="mt-auto pt-10">
                         <Body className="mb-4 text-center text-sm font-medium text-muted-foreground">
-                            Setup takes about 1 minute.
+                            Takes about 2 minutes.
                         </Body>
                         <View
                             style={{

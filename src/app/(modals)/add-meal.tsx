@@ -6,6 +6,7 @@ import { createMeal, type MealData } from '../../services/api/meals';
 import { useAddMealDraftStore, type DraftMealType } from '../../store/addMealDraftStore';
 import { useUIStore } from '../../store/uiStore';
 import { usePostHog } from 'posthog-react-native';
+import { config } from '../../constants/config';
 
 export default function AddMealModalScreen() {
     const router = useRouter();
@@ -92,6 +93,7 @@ export default function AddMealModalScreen() {
                 onOpenSearch={() => router.push('/(modals)/food-search')}
                 onOpenScan={() => router.push('/(modals)/barcode-scanner')}
                 onOpenAiDetect={() => router.push('/(modals)/ai-food-detect')}
+                isAiEnabled={config.features.enableAI}
                 onOpenCookpadSearch={() => router.push('/(modals)/smart-cooker')}
                 onSaveMeal={handleSaveMeal}
             />

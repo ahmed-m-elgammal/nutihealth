@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { cn } from '../../utils/cn';
 import { withOnboardingPreferenceDefaults } from '../../constants/onboarding';
 import { useOnboardingNutritionPreview } from '../../hooks/useOnboardingNutritionPreview';
 import { useOnboarding } from '../../hooks/useOnboarding';
+import { useOnboardingStore } from '../../store/onboardingStore';
 
 const DIETARY_OPTIONS = [
     'Vegetarian',
@@ -85,6 +86,11 @@ function ToggleRow({ label, description, value, onValueChange }: ToggleRowProps)
 
 export default function DietaryPreferencesScreen() {
     const router = useRouter();
+    const setCurrentStep = useOnboardingStore((state) => state.setCurrentStep);
+
+    useEffect(() => {
+        setCurrentStep(5);
+    }, [setCurrentStep]);
     const { data, savePreferences } = useOnboarding();
 
     const initialPrefs = useMemo(() => withOnboardingPreferenceDefaults(data.preferences), [data.preferences]);
@@ -145,9 +151,9 @@ export default function DietaryPreferencesScreen() {
 
     return (
         <OnboardingStepScreen
-            stepLabel="Step 4 of 5"
-            currentStep={4}
-            totalSteps={5}
+            stepLabel="Step 5 of 6"
+            currentStep={5}
+            totalSteps={6}
             title="Preferences and metabolic options"
             description="Optional inputs here can adjust macro rules and calorie floors in your formulas."
             actionLabel="Review Plan"

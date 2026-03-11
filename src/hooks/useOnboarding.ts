@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { withOnboardingPreferenceDefaults } from '../constants/onboarding';
+import { getUserId } from '../utils/storage';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { type UserData, useUserStore } from '../store/userStore';
 import { DEFAULT_PROFILE_VALUES } from '../utils/profileCompletion';
@@ -42,15 +43,15 @@ const validatePersonalInfo = ({
 }): ValidationResult => {
     const baseValid = Boolean(
         name.trim() &&
-            Number.isFinite(parsedAge) &&
-            parsedAge >= 6 &&
-            parsedAge <= 100 &&
-            Number.isFinite(parsedHeight) &&
-            parsedHeight >= 100 &&
-            parsedHeight <= 250 &&
-            Number.isFinite(parsedWeight) &&
-            parsedWeight >= 25 &&
-            parsedWeight <= 350,
+        Number.isFinite(parsedAge) &&
+        parsedAge >= 6 &&
+        parsedAge <= 100 &&
+        Number.isFinite(parsedHeight) &&
+        parsedHeight >= 100 &&
+        parsedHeight <= 250 &&
+        Number.isFinite(parsedWeight) &&
+        parsedWeight >= 25 &&
+        parsedWeight <= 350,
     );
 
     if (!baseValid) {
@@ -174,7 +175,8 @@ export function useOnboarding() {
 
         await createUser(finalUserData);
 
-        if (!useUserStore.getState().user) {
+        const createdUserId = await getUserId();
+        if (!createdUserId) {
             throw new Error('Failed to create user profile. Please try again.');
         }
 
@@ -188,9 +190,7 @@ export function useOnboarding() {
         heightInput: String(data.height || DEFAULT_PROFILE_VALUES.height),
         weightInput: String(data.weight || DEFAULT_PROFILE_VALUES.weight),
         bodyFatInput:
-            typeof data.preferences?.bodyFatPercentage === 'number'
-                ? String(data.preferences.bodyFatPercentage)
-                : '',
+            typeof data.preferences?.bodyFatPercentage === 'number' ? String(data.preferences.bodyFatPercentage) : '',
         sex: data.gender || DEFAULT_PROFILE_VALUES.gender,
     };
 
