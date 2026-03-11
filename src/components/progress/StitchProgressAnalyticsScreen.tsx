@@ -7,6 +7,7 @@ import { format, startOfWeek } from 'date-fns';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useWeightHistory, useCalorieHistory, useMacroHistory } from '../../query/queries/useProgress';
 import { useProgressAggregates } from '../../query/queries/useProgressAggregates';
+import { useConsistencyMetrics } from '../../query/queries/useConsistencyMetrics';
 import { DEFAULT_TARGETS } from '../../constants/nutritionDefaults';
 import { useRouter } from 'expo-router';
 import BodyMeasurements from './BodyMeasurements';
@@ -162,8 +163,13 @@ export default function ProgressAnalyticsScreen() {
         user?.id,
         user?.createdAt ? new Date(user.createdAt).getTime() : undefined,
     );
+    const { data: consistencyMetrics, isLoading: isLoadingConsistency } = useConsistencyMetrics(
+        user?.id,
+        user?.calorieTarget || DEFAULT_TARGETS.calories,
+    );
 
-    const isLoading = isLoadingWeight || isLoadingCalories || isLoadingMacros || isLoadingAggregates;
+    const isLoading =
+        isLoadingWeight || isLoadingCalories || isLoadingMacros || isLoadingAggregates || isLoadingConsistency;
 
     const statsFromUser = user?.stats || { current_streak: 0, total_meals_logged: 0, total_workouts: 0 };
     const bodyMeasurementEntries = useMemo(
@@ -179,8 +185,6 @@ export default function ProgressAnalyticsScreen() {
                 })),
         [weightHistory],
     );
-
-    const calorieGoal = user?.calorieTarget || DEFAULT_TARGETS.calories;
 
     const calorieChartData = useMemo((): BarPoint[] => {
         if (!calorieHistory.length) return [];
@@ -486,9 +490,9 @@ export default function ProgressAnalyticsScreen() {
                             <StatCard
                                 icon={<TrendingUp color="#10b981" size={20} />}
                                 iconBg="#10b98120"
-                                label="Current Streak"
-                                value={`${statsFromUser.current_streak || 0}`}
-                                unit={`day${(statsFromUser.current_streak || 0) === 1 ? '' : 's'}`}
+                                label="Current 30-Day Streak"
+                                value={`${consistencyMetrics?.current30DayMealStreak ?? 0}`}
+                                unit={`day${(consistencyMetrics?.current30DayMealStreak ?? 0) === 1 ? '' : 's'}`}
                             />
                             <StatCard
                                 icon={<Activity color="#3b82f6" size={20} />}
@@ -507,10 +511,10 @@ export default function ProgressAnalyticsScreen() {
                             <StatCard
                                 icon={<Flame color="#f59e0b" size={20} />}
                                 iconBg="#f59e0b20"
-                                label="Adherence"
-                                value={`${aggregates?.adherencePercentage ?? 0}%`}
-                                unit={`${aggregates?.daysWithCalorieLogs ?? 0}/${aggregates?.daysSinceOnboarding ?? 0} days logged`}
-                                progress={(aggregates?.adherencePercentage ?? 0) / 100}
+                                label="Weekly On-Target"
+                                value={`${consistencyMetrics?.weeklyOnTargetPercentage ?? 0}%`}
+                                unit={`${consistencyMetrics?.daysOnTarget ?? 0}/${consistencyMetrics?.weeklyDaysConsidered ?? 7} days within ±10%`}
+                                progress={(consistencyMetrics?.weeklyOnTargetPercentage ?? 0) / 100}
                             />
                         </View>
 
