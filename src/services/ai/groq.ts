@@ -1,3 +1,4 @@
+import { env } from '../../constants/env';
 import { handleError } from '../../utils/errors';
 import { api } from '../apiWrapper';
 import { callN8nMealPlannerWebhook, hasN8nMealPlannerWebhook } from '../api/n8n';
@@ -16,6 +17,41 @@ interface ParsedMealPreferences {
 const MAX_HISTORY_PAIRS = 20;
 const MAX_NON_SYSTEM_MESSAGES = MAX_HISTORY_PAIRS * 2;
 const DEFAULT_MEAL_PLAN_CALORIES = 2000;
+
+const isAiEnabled = (): boolean => {
+    const flag = (env as { enableAI?: boolean } | undefined)?.enableAI;
+    return typeof flag === 'boolean' ? flag : true;
+};
+
+export type AIChatErrorKind = 'offline' | 'unreachable' | 'timeout' | 'server';
+
+export class AIChatServiceError extends Error {
+    kind: AIChatErrorKind;
+    constructor(kind: AIChatErrorKind, message: string) {
+        super(message);
+        this.kind = kind;
+    }
+}
+
+const classifyChatError = (error: any): AIChatServiceError => {
+    const message = String(error?.message || '').toLowerCase();
+    if (message.includes('offline') || message.includes('network request failed')) {
+        return new AIChatServiceError('offline', "You're offline. AI chat requires an internet connection.");
+    }
+    if (message.includes('timeout')) {
+        return new AIChatServiceError('timeout', 'The request took too long. Check your connection and try again.');
+    }
+    if (message.includes('500') || message.includes('503') || message.includes('server')) {
+        return new AIChatServiceError(
+            'server',
+            "Something went wrong on our end. We've been notified and are looking into it.",
+        );
+    }
+    return new AIChatServiceError(
+        'unreachable',
+        'The AI service is temporarily unavailable. Try again in a few minutes.',
+    );
+};
 
 const DIET_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
     { pattern: /\bvegan\b/i, value: 'vegan' },
@@ -181,6 +217,10 @@ function buildFallbackMealPlan(preferences: string, parsed: ParsedMealPreference
 }
 
 export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
+    if (!isAiEnabled()) {
+        return 'AI coach is currently disabled in this environment.';
+    }
+
     try {
         const sanitizedMessages = sanitizeAndWindowMessages(messages);
 
@@ -205,17 +245,16 @@ export async function chatWithCoach(messages: ChatMessage[]): Promise<string> {
         return content;
     } catch (error: any) {
         handleError(error, 'groqService.chatWithCoach');
-        const errorMessage = String(error?.message || '').toLowerCase();
-        // Return a safe fallback so the app doesn't crash
-        if (errorMessage.includes('500') || errorMessage.includes('network') || errorMessage.includes('timeout')) {
-            return "I'm having trouble connecting to the server. Please ensure the backend is running.";
-        }
-        return "I'm having trouble thinking right now. Please try again.";
+        throw classifyChatError(error);
     }
 }
 
 export async function generateMealPlan(preferences: string): Promise<any> {
     const parsedPreferences = parseMealPreferences(preferences);
+
+    if (!isAiEnabled()) {
+        return buildFallbackMealPlan(preferences, parsedPreferences);
+    }
 
     if (hasN8nMealPlannerWebhook()) {
         try {

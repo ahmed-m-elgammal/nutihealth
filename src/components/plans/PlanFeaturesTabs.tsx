@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LayoutChangeEvent, Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { triggerHaptic } from '../../utils/haptics';
 
 type PlanFeaturesTabsProps = {
@@ -14,6 +15,7 @@ export default function PlanFeaturesTabs({
     activeTab,
     onTabChange,
 }: PlanFeaturesTabsProps) {
+    const { t } = useTranslation();
     const [layouts, setLayouts] = useState<Record<string, { x: number; width: number }>>({});
     const indicatorX = useSharedValue(0);
     const indicatorW = useSharedValue(0);
@@ -35,6 +37,13 @@ export default function PlanFeaturesTabs({
         setLayouts((prev) => ({ ...prev, [tab]: { x, width } }));
     };
 
+    const getTabLabel = (tab: string) => {
+        if (tab === 'Meals') return t('plans.tabs.meals');
+        if (tab === 'Carb Cycle') return t('plans.tabs.carbCycle');
+        if (tab === 'Prep') return t('plans.tabs.prep');
+        return tab;
+    };
+
     return (
         <View style={{ marginTop: 14, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
             <View style={{ flexDirection: 'row' }}>
@@ -50,7 +59,7 @@ export default function PlanFeaturesTabs({
                         style={{ paddingVertical: 12, paddingHorizontal: 14 }}
                     >
                         <Text style={{ color: activeTab === tab ? '#0f172a' : '#64748b', fontWeight: '700' }}>
-                            {tab}
+                            {getTabLabel(tab)}
                         </Text>
                     </Pressable>
                 ))}

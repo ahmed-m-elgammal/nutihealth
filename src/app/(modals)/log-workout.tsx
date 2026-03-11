@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { X, Plus, Save, Trash2 } from 'lucide-react-native';
-import { useUserStore } from '../../store/userStore';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useWaterStore } from '../../store/waterStore';
 import { logWorkout } from '../../services/api/workouts';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ type ExerciseLog = {
 
 export default function LogWorkoutModal() {
     const router = useRouter();
-    const { user } = useUserStore();
+    const { user } = useCurrentUser();
     const calculateDynamicTarget = useWaterStore((state) => state.calculateDynamicTarget);
     const [workoutName, setWorkoutName] = useState('Evening Workout');
     const [exercises, setExercises] = useState<ExerciseLog[]>([]);

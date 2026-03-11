@@ -16,6 +16,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { queryClient } from '../query/queryClient';
 import { useUserStore } from '../store/userStore';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useAuthSessionStore } from '../store/authSessionStore';
 import {
     clearAuthData,
     dismissStorageDowngradeWarning,
@@ -39,6 +41,7 @@ import { useUIStore } from '../store/uiStore';
 import { PostHogProvider } from 'posthog-react-native';
 import { posthog } from '../config/posthog';
 import { supabase } from '../services/supabaseClient';
+import { config } from '../constants/config';
 
 // Keep the splash screen visible until we explicitly hide it after initialization
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -131,7 +134,11 @@ const resetWebApplicationData = async () => {
 };
 
 function RootNavigation() {
-    const { user, isLoading, loadUser, error } = useUserStore();
+    const { isLoading, loadUser, error } = useUserStore();
+    const { user, isLoading: isUserLoading } = useCurrentUser();
+    const sessionUserId = useAuthSessionStore((state) => state.userId);
+    const setSession = useAuthSessionStore((state) => state.setSession);
+    const clearSession = useAuthSessionStore((state) => state.clearSession);
     const segments = useSegments();
     const router = useRouter();
     const pathname = usePathname();
@@ -193,26 +200,37 @@ function RootNavigation() {
                     console.warn('[App] ⚠ i18n initialization fallback to English:', i18nError);
                 }
 
-                devLog('[App] Loading user data...');
+                devLog('[App] Loading auth session + user data...');
                 try {
-                    await loadUser();
-                    devLog('[App] ✓ User loaded');
+                    if (supabase) {
+                        const {
+                            data: { session },
+                        } = await supabase.auth.getSession();
+
+                        const currentSessionUserId = session?.user?.id ?? null;
+                        setSession(session ?? null);
+
+                        if (currentSessionUserId) {
+                            await setUserId(currentSessionUserId);
+                            await loadUser();
+                        }
+
+                        devLog('[App] Registering push notifications...');
+                        try {
+                            const permissionGranted = await registerForPushNotificationsAsync();
+                            if (permissionGranted) {
+                                await scheduleAdaptiveReminders(currentSessionUserId || undefined);
+                                devLog('[App] ✓ Adaptive reminders scheduled');
+                            } else {
+                                devLog('[App] Push permission not granted');
+                            }
+                        } catch (notificationError) {
+                            console.warn('[App] ⚠ Notification setup failed:', notificationError);
+                        }
+                    }
+                    devLog('[App] ✓ Session and user loaded');
                 } catch (userError) {
                     console.error('[App] User loading failed:', userError);
-                }
-
-                devLog('[App] Registering push notifications...');
-                try {
-                    const permissionGranted = await registerForPushNotificationsAsync();
-                    if (permissionGranted) {
-                        const currentUserId = useUserStore.getState().user?.id;
-                        await scheduleAdaptiveReminders(currentUserId);
-                        devLog('[App] ✓ Adaptive reminders scheduled');
-                    } else {
-                        devLog('[App] Push permission not granted');
-                    }
-                } catch (notificationError) {
-                    console.warn('[App] ⚠ Notification setup failed:', notificationError);
                 }
 
                 devLog('[App] Initializing sync service...');
@@ -222,7 +240,6 @@ function RootNavigation() {
                 } catch (syncInitError) {
                     console.warn('[App] ⚠ Sync service init failed:', syncInitError);
                 }
-
             } catch (err) {
                 const initError = err as Error;
                 console.error('[App] ✗ Critical Initialization error:', initError);
@@ -242,7 +259,7 @@ function RootNavigation() {
             }
         };
         init();
-    }, [loadUser]);
+    }, [loadUser, setSession]);
 
     useEffect(() => {
         if (!isInitialized || hasQueuedSeedsRef.current) {
@@ -292,8 +309,9 @@ function RootNavigation() {
                 isHandlingSignOutRef.current = true;
                 const syncSignedOutState = async () => {
                     try {
+                        clearSession();
                         await clearAuthData();
-                        useUserStore.setState({ user: null, error: null, isLoading: false });
+                        useUserStore.setState({ error: null, isLoading: false });
                     } finally {
                         isHandlingSignOutRef.current = false;
                     }
@@ -320,6 +338,7 @@ function RootNavigation() {
                 isSyncingAuthStateRef.current = true;
                 const syncSignedInState = async () => {
                     try {
+                        setSession(session);
                         await setUserId(session.user.id);
                         await loadUser();
                     } catch (authStateError) {
@@ -335,7 +354,7 @@ function RootNavigation() {
         return () => {
             subscription.unsubscribe();
         };
-    }, [loadUser]);
+    }, [clearSession, loadUser, setSession]);
 
     useEffect(() => {
         const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -355,7 +374,7 @@ function RootNavigation() {
     }, [router]);
 
     useEffect(() => {
-        if (!isInitialized || isLoading) return;
+        if (!isInitialized || isLoading || isUserLoading) return;
 
         const inAuthGroup = segments[0] === '(auth)';
         const inOnboarding = segments[0] === 'onboarding';
@@ -364,19 +383,19 @@ function RootNavigation() {
         const inWorkoutGroup = segments[0] === 'workout';
         const inProfileGroup = segments[0] === 'profile';
 
-        // No user - redirect to onboarding
-        if (!user && !inOnboarding) {
-            // Check if we are already in auth flow to avoid loops
+        // No authenticated Supabase session - redirect to onboarding
+        if (!sessionUserId && !inOnboarding) {
             if (!inAuthGroup) {
                 router.replace('/onboarding/welcome');
             }
         }
-        // User exists but onboarding not complete - stay on onboarding
-        else if (user && !user.onboardingCompleted && !inOnboarding) {
+        // Authenticated user but onboarding not complete - stay on onboarding
+        else if (sessionUserId && user && !user.onboardingCompleted && !inOnboarding) {
             router.replace('/onboarding/welcome');
         }
         // User complete - go to main app
         else if (
+            sessionUserId &&
             user &&
             user.onboardingCompleted &&
             !inTabsGroup &&
@@ -387,9 +406,9 @@ function RootNavigation() {
         ) {
             router.replace('/(tabs)');
         }
-    }, [user, segments, isInitialized, isLoading, router]);
+    }, [sessionUserId, user, segments, isInitialized, isLoading, isUserLoading, router]);
 
-    if (!isInitialized || isLoading) {
+    if (!isInitialized || isLoading || isUserLoading) {
         return (
             <View className="flex-1 bg-white pt-12">
                 <HomeSkeleton />
@@ -458,10 +477,12 @@ function RootNavigation() {
                 name="(modals)/barcode-scanner"
                 options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
             />
-            <Stack.Screen
-                name="(modals)/ai-food-detect"
-                options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
-            />
+            {config.features.enableAI ? (
+                <Stack.Screen
+                    name="(modals)/ai-food-detect"
+                    options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}
+                />
+            ) : null}
             <Stack.Screen
                 name="(modals)/recipe-import"
                 options={{ presentation: 'modal', animation: 'slide_from_bottom', headerShown: false }}

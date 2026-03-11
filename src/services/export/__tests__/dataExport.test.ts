@@ -123,6 +123,7 @@ const BACKUP_TABLES = [
     'training_programs',
     'template_exercises',
     'workout_schedules',
+    'workout_sessions',
     'recipes',
     'meal_plans',
     'habits',
@@ -132,6 +133,9 @@ const BACKUP_TABLES = [
     'user_diets',
     'meal_templates',
     'weekly_goal_plans',
+    'cookpad_recipe_cache',
+    'smart_cooker_suggestions',
+    'pantry_items',
 ] as const;
 
 const createValidBackupPayload = () => ({

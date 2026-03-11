@@ -1,16 +1,17 @@
-import React from 'react';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, ScrollView, TouchableOpacity, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { ScreenLayout } from '../layout/ScreenLayout';
 import { Button } from '../ui/Button';
 import { Body, Heading, Subheading } from '../ui/Typography';
-import { cn } from '../../utils/cn';
 import { triggerHaptic } from '../../utils/haptics';
+import { useOnboardingStore } from '../../store/onboardingStore';
+import { cn } from '../../utils/cn';
 
 interface OnboardingStepScreenProps {
-    stepLabel: string;
-    currentStep: number;
-    totalSteps: number;
+    stepLabel?: string;
+    currentStep?: number;
+    totalSteps?: number;
     title: string;
     description: string;
     actionLabel: string;
@@ -36,6 +37,22 @@ export function OnboardingStepScreen({
     children,
     contentClassName,
 }: OnboardingStepScreenProps) {
+    const storeCurrentStep = useOnboardingStore((state) => state.currentStep);
+    const storeTotalSteps = useOnboardingStore((state) => state.totalSteps);
+    const resolvedCurrentStep = currentStep ?? storeCurrentStep;
+    const resolvedTotalSteps = totalSteps ?? storeTotalSteps;
+    const progressPercent = Math.min(1, Math.max(0, resolvedCurrentStep / Math.max(1, resolvedTotalSteps)));
+    const animatedProgress = useRef(new Animated.Value(progressPercent)).current;
+
+    useEffect(() => {
+        Animated.timing(animatedProgress, {
+            toValue: progressPercent,
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [animatedProgress, progressPercent]);
+
     const handleActionPress = () => {
         triggerHaptic('light').catch(() => undefined);
         onActionPress();
@@ -60,20 +77,20 @@ export function OnboardingStepScreen({
                     )}
 
                     <View className="flex-1 px-4">
-                        <Subheading className="text-center text-base">{stepLabel}</Subheading>
-                        <View className="mt-2 flex-row gap-1">
-                            {Array.from({ length: totalSteps }).map((_, index) => {
-                                const isComplete = index < currentStep;
-                                return (
-                                    <View
-                                        key={`progress-${index}`}
-                                        className={cn(
-                                            'h-1 flex-1 rounded-full',
-                                            isComplete ? 'bg-primary' : 'bg-muted',
-                                        )}
-                                    />
-                                );
-                            })}
+                        <Subheading className="text-center text-base">
+                            {stepLabel || `Step ${resolvedCurrentStep} of ${resolvedTotalSteps}`}
+                        </Subheading>
+                        <View className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                            <Animated.View
+                                style={{
+                                    height: '100%',
+                                    width: animatedProgress.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: ['0%', '100%'],
+                                    }),
+                                }}
+                                className="rounded-full bg-primary"
+                            />
                         </View>
                     </View>
 

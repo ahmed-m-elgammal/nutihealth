@@ -63,44 +63,45 @@ describe('groq – chatWithCoach', () => {
         expect(sentMessages[0]).toEqual({ role: 'system', content: 'System instructions' });
     });
 
-    it('returns connectivity fallback for network errors', async () => {
+    it('classifies offline errors for network failures', async () => {
         mockApiPost.mockRejectedValueOnce(new Error('Network request failed'));
 
-        const result = await chatWithCoach(GOOD_MESSAGES);
-
-        expect(result).toContain('trouble connecting to the server');
+        await expect(chatWithCoach(GOOD_MESSAGES)).rejects.toMatchObject({
+            kind: 'offline',
+            message: "You're offline. AI chat requires an internet connection.",
+        });
     });
 
-    it('returns connectivity fallback when error looks like 500', async () => {
+    it('classifies server errors when backend returns 500', async () => {
         mockApiPost.mockRejectedValueOnce(new Error('API Error: 500'));
 
-        const result = await chatWithCoach(GOOD_MESSAGES);
-
-        expect(result).toContain('trouble connecting to the server');
+        await expect(chatWithCoach(GOOD_MESSAGES)).rejects.toMatchObject({
+            kind: 'server',
+        });
     });
 
-    it('returns fallback when the message list is empty after sanitisation', async () => {
-        const result = await chatWithCoach([{ role: 'user', content: '   ' }]);
-        expect(typeof result).toBe('string');
-        expect(result.length).toBeGreaterThan(0);
+    it('classifies unreachable errors when the message list is empty after sanitisation', async () => {
+        await expect(chatWithCoach([{ role: 'user', content: '   ' }])).rejects.toMatchObject({
+            kind: 'unreachable',
+        });
     });
 
-    it('returns fallback when AI response has no content', async () => {
+    it('classifies unreachable errors when AI response has no content', async () => {
         mockApiPost.mockResolvedValueOnce({
             choices: [{ message: { content: '' } }],
         });
 
-        const result = await chatWithCoach(GOOD_MESSAGES);
-
-        expect(typeof result).toBe('string');
+        await expect(chatWithCoach(GOOD_MESSAGES)).rejects.toMatchObject({
+            kind: 'unreachable',
+        });
     });
 
-    it('returns fallback when AI response shape is invalid', async () => {
+    it('classifies unreachable errors when AI response shape is invalid', async () => {
         mockApiPost.mockResolvedValueOnce({});
 
-        const result = await chatWithCoach(GOOD_MESSAGES);
-
-        expect(typeof result).toBe('string');
+        await expect(chatWithCoach(GOOD_MESSAGES)).rejects.toMatchObject({
+            kind: 'unreachable',
+        });
     });
 });
 

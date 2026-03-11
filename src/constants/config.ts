@@ -3,12 +3,15 @@ import {
     EXPO_PUBLIC_SUPABASE_KEY,
     EXPO_PUBLIC_SUPABASE_URL,
     NODE_ENV,
+    EXPO_PUBLIC_ENABLE_AI,
+    EXPO_PUBLIC_ENABLE_ANALYTICS,
+    EXPO_PUBLIC_ENABLE_BARCODE,
+    EXPO_PUBLIC_ENABLE_CAMERA,
+    EXPO_PUBLIC_ENABLE_NOTIFICATIONS,
 } from './env';
 
 // App configuration constants
-const isSupabaseConfigured = Boolean(
-    EXPO_PUBLIC_SUPABASE_URL && EXPO_PUBLIC_SUPABASE_KEY,
-);
+const isSupabaseConfigured = Boolean(EXPO_PUBLIC_SUPABASE_URL && EXPO_PUBLIC_SUPABASE_KEY);
 
 export const config = {
     // API Configuration
@@ -22,11 +25,11 @@ export const config = {
     // Feature Flags
     features: {
         enableSync: isSupabaseConfigured,
-        enableAI: false, // Enable when AI service is configured
-        enableBarcode: true,
-        enableCamera: true,
-        enableNotifications: true,
-        enableAnalytics: false,
+        enableAI: EXPO_PUBLIC_ENABLE_AI,
+        enableBarcode: EXPO_PUBLIC_ENABLE_BARCODE,
+        enableCamera: EXPO_PUBLIC_ENABLE_CAMERA,
+        enableNotifications: EXPO_PUBLIC_ENABLE_NOTIFICATIONS,
+        enableAnalytics: EXPO_PUBLIC_ENABLE_ANALYTICS,
     },
 
     // App Metadata
